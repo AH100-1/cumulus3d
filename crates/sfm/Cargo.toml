@@ -1,0 +1,20 @@
+[package]
+name = "skyrecon-sfm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Global and incremental structure-from-motion: rotation averaging, positioning, registration, triangulation"
+repository.workspace = true
+keywords = ["sfm","structure-from-motion","photogrammetry","computer-vision"]
+categories = ["computer-vision"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+skyrecon-ba.workspace = true
+skyrecon-matching.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true

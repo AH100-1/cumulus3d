@@ -1,0 +1,17 @@
+[package]
+name = "skyrecon-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core types for skyrecon: camera models, rigid/similarity transforms, reconstruction graph, feature store, RANSAC, PLY/GPS I/O"
+repository.workspace = true
+keywords = ["computer-vision","sfm","photogrammetry","3d","ransac"]
+categories = ["computer-vision","science::geo"]
+readme = "README.md"
+
+[dependencies]
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true

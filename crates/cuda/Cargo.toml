@@ -1,0 +1,20 @@
+[package]
+name = "skyrecon-cuda"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CUDA backends (multi-view stereo, descriptor matching, SIFT scale space) for skyrecon via NVRTC"
+repository.workspace = true
+keywords = ["cuda","gpu","mvs","sift","computer-vision"]
+categories = ["computer-vision","hardware-support"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+skyrecon-dense.workspace = true
+skyrecon-features.workspace = true
+skyrecon-matching.workspace = true
+cudarc.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true
+rayon.workspace = true

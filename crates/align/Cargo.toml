@@ -1,0 +1,20 @@
+[package]
+name = "skyrecon-align"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GPS/ENU geodesy, robust similarity alignment and point-cloud re-anchoring for skyrecon"
+repository.workspace = true
+keywords = ["gps","enu","alignment","point-cloud","umeyama"]
+categories = ["computer-vision","science::geo"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+rand_pcg.workspace = true

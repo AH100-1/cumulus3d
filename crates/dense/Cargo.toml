@@ -1,0 +1,17 @@
+[package]
+name = "skyrecon-dense"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Undistortion and PatchMatch-style multi-view stereo (depth maps, filtering, fusion) for skyrecon"
+repository.workspace = true
+keywords = ["mvs","stereo","depth-map","point-cloud","photogrammetry"]
+categories = ["computer-vision"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+image.workspace = true

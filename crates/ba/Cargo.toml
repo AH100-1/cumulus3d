@@ -1,0 +1,21 @@
+[package]
+name = "skyrecon-ba"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bundle adjustment (trust-region Levenberg-Marquardt with Schur complement) for skyrecon"
+repository.workspace = true
+keywords = ["bundle-adjustment","sfm","optimization","computer-vision"]
+categories = ["computer-vision","mathematics"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+faer.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+rand_pcg.workspace = true

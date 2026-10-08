@@ -1,0 +1,18 @@
+[package]
+name = "skyrecon-matching"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Descriptor matching and two-view geometry (essential, fundamental, homography) for skyrecon"
+repository.workspace = true
+keywords = ["computer-vision","matching","epipolar","ransac"]
+categories = ["computer-vision"]
+readme = "README.md"
+
+[dependencies]
+skyrecon-core.workspace = true
+nalgebra.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true

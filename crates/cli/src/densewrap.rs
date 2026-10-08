@@ -3,7 +3,7 @@
 
 use skyrecon_core::{ImageId, Reconstruction};
 use skyrecon_dense::{
-    densify, undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions, UndistortCache,
+    undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions, UndistortCache,
     UndistortOptions,
 };
 use std::collections::BTreeMap;
@@ -54,6 +54,8 @@ pub struct DenseConfig {
     pub undistort: UndistortOptions,
     pub scene: SceneOptions,
     pub densify: DensifyOptions,
+    /// 점수 융합 설정(있으면 `densify.fusion.mode` 대신 점수 융합).
+    pub score: Option<skyrecon_dense::fusion_score::ScoreFusionOptions>,
     /// 백엔드(만들지 못했으면 그 오류; 조밀화 단계에서 보고).
     pub backend: Result<Arc<dyn PatchMatchBackend>, String>,
     /// `--serialize-dense`: 백엔드 호출을 한 번에 하나로.
@@ -69,6 +71,7 @@ impl DenseConfig {
             undistort: UndistortOptions::pipeline(),
             scene: SceneOptions::default(),
             densify: DensifyOptions::with_profile(profile),
+            score: None,
             backend,
             lock: None,
             depth_cache: None,
@@ -112,7 +115,7 @@ pub fn dense_model(model: &Reconstruction, keep: impl Fn(&str) -> bool, image_ro
     let guard = cfg.lock.as_ref().map(|l| l.lock().unwrap_or_else(|p| p.into_inner()));
     let lock_wait = tw.elapsed();
     let t1 = Instant::now();
-    let output = densify(&scene, &cfg.densify, backend.as_ref(), cfg.depth_cache.as_deref()).map_err(|e| format!("조밀화 실패: {e}"));
+    let output = skyrecon_dense::densify::densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), cfg.depth_cache.as_deref()).map_err(|e| format!("조밀화 실패: {e}"));
     drop(guard);
     let output = output?;
     Ok(DenseRun { frames, scene, output, undistort_time, densify_time: t1.elapsed(), lock_wait })

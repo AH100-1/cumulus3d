@@ -2,6 +2,7 @@
 
 pub mod interop;
 pub mod densewrap;
+pub mod fusion_variants;
 pub mod post;
 pub mod stream;
 pub mod util;

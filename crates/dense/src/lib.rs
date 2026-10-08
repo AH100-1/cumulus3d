@@ -12,6 +12,7 @@
 pub mod cache;
 pub mod densify;
 pub mod fusion;
+pub mod fusion_score;
 pub mod image;
 pub mod kernel;
 pub mod math;
@@ -29,7 +30,7 @@ pub use densify::{compute_depth_maps, densify, fuse_depth_maps, pair_geometry, D
 pub use fusion::{fuse, FusionInput, FusionOutput};
 pub use image::{GrayImage, ImageBuffer};
 pub use kernel::{DepthSnapshot, KernelInput, KernelView, LevelImage, PairGeometry, PatchMatchBackend, PatchMatchSession, RunParams, ViewState};
-pub use params::{DensifyOptions, FilterParams, FusionMode, FusionParams, LevelSchedule, MvsProfile, NeighborParams, PmParams};
+pub use params::{DensifyOptions, FilterParams, FusionMode, FusionParams, FusionResidual, ResidualParams, LevelSchedule, MvsProfile, NeighborParams, PmParams};
 pub use postproc::PostParams;
 pub use stats::{cloud_stats, CloudStats};
 pub use scene::{DenseScene, DenseView, ScenePoint, SceneOptions};

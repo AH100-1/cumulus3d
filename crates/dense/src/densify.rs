@@ -2,6 +2,7 @@
 
 use crate::cache::{CachedDepth, DepthMapCache};
 use crate::fusion::{fuse, FusionInput, FusionOutput};
+use crate::fusion_score::{fuse_scored, ScoreFusionOptions};
 use crate::kernel::{DepthSnapshot, KernelInput, KernelView, PairGeometry, PatchMatchBackend, RunParams, ViewState};
 use crate::neighbors::{depth_ranges, PairStats};
 use crate::params::DensifyOptions;
@@ -29,6 +30,9 @@ pub struct DenseTimings {
     pub filter: Duration,
     /// 융합.
     pub fusion: Duration,
+    /// 그중 일치 융합 1차·2차 시간(2차 융합을 했을 때만 2차가 0 이 아니다).
+    pub fusion_pass1: Duration,
+    pub fusion_pass2: Duration,
 }
 
 impl DenseTimings {
@@ -82,6 +86,8 @@ pub struct DenseOutput {
     pub depth_views: usize,
     /// 깊이맵(통계·진단용).
     pub depth_maps: DepthMapSet,
+    /// 점마다 2차 융합 점 여부(2차 융합을 하지 않았으면 비어 있다).
+    pub residual: Vec<bool>,
 }
 
 impl DenseOutput {
@@ -94,6 +100,30 @@ impl DenseOutput {
             }
         }
         write_ply(path, &self.cloud, PlyLayout::XyzNormalRgb)
+    }
+
+    /// 2차 융합 점 수.
+    pub fn num_residual(&self) -> usize {
+        self.residual.iter().filter(|&&r| r).count()
+    }
+
+    /// 2차 융합 점만 PLY 로 쓴다(없으면 쓰지 않고 거짓).
+    pub fn write_residual_ply(&self, path: impl AsRef<Path>) -> Result<bool> {
+        if self.num_residual() == 0 {
+            return Ok(false);
+        }
+        let mut pc = PointCloud::default();
+        for (i, _) in self.residual.iter().enumerate().filter(|(_, &r)| r) {
+            pc.positions.push(self.cloud.positions[i]);
+            if let Some(n) = self.cloud.normals.get(i) {
+                pc.normals.push(*n);
+            }
+            if let Some(c) = self.cloud.colors.get(i) {
+                pc.colors.push(*c);
+            }
+        }
+        write_ply(path.as_ref(), &pc, PlyLayout::XyzNormalRgb)?;
+        Ok(true)
     }
 }
 
@@ -347,23 +377,45 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
 
 /// 깊이맵 융합(겹침 목록은 공유 점 수 순 최대 `check_num_images`).
 pub fn fuse_depth_maps(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOptions, threads: usize) -> FusionOutput {
+    fuse_depth_maps_with(scene, maps, opts, None, threads)
+}
+
+/// 깊이맵 융합. `score` 가 있으면 점수 융합(겹침 목록 길이 = `score.num_neighbors`), 없으면 `opts.fusion.mode`.
+pub fn fuse_depth_maps_with(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOptions, score: Option<&ScoreFusionOptions>, threads: usize) -> FusionOutput {
     let stats = PairStats::new(scene);
-    let lim = match opts.fusion.mode {
-        crate::params::FusionMode::Traversal => opts.fusion.check_num_images,
-        crate::params::FusionMode::Consistency => opts.fusion.consistency_num_images,
+    let lim = match (score, opts.fusion.mode) {
+        (Some(s), _) => s.num_neighbors,
+        (None, crate::params::FusionMode::Traversal) => opts.fusion.check_num_images,
+        (None, crate::params::FusionMode::Consistency) => opts.fusion.consistency_num_images,
     };
     let overlap: Vec<Vec<usize>> = (0..scene.views.len()).map(|v| stats.select(v, lim, 0.0)).collect();
     let inputs: Vec<Option<FusionInput>> = maps.maps.iter().enumerate().map(|(v, m)| m.as_ref().map(|m| FusionInput { depth: &m.depth, normal: &m.normal, cost: Some(&m.cost), baseline: maps.baselines.get(v).copied().unwrap_or(0.0) })).collect();
-    fuse(scene, &inputs, &overlap, &opts.fusion, threads)
+    match score {
+        Some(s) => fuse_scored(scene, &inputs, &overlap, s, threads),
+        None => fuse(scene, &inputs, &overlap, &opts.fusion, threads),
+    }
+}
+
+/// 보관한 깊이맵으로 융합만 다시 실행한다(깊이 추정·필터는 하지 않는다). `opts` 에서는 융합 설정만 쓰고,
+/// `score` 가 있으면 점수 융합을 쓴다. 결과의 `timings` 는 깊이맵 쪽 시간에 이번 융합 시간을 넣은 것이다.
+pub fn fuse_output(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOptions, score: Option<&ScoreFusionOptions>) -> DenseOutput {
+    let tf = Instant::now();
+    let f = fuse_depth_maps_with(scene, maps, opts, score, 0);
+    let mut timings = maps.timings.clone();
+    timings.fusion = tf.elapsed();
+    timings.fusion_pass1 = f.pass1_time;
+    timings.fusion_pass2 = f.pass2_time;
+    let depth_views = maps.maps.iter().filter(|m| m.is_some()).count();
+    DenseOutput { cloud: f.cloud, visibility: f.visibility, timings, cache_hits: maps.cache_hits, depth_views, depth_maps: maps.clone(), residual: f.residual }
 }
 
 /// 조밀화 전체: 깊이맵 → 필터 → 융합.
 pub fn densify(scene: &DenseScene, opts: &DensifyOptions, backend: &dyn PatchMatchBackend, cache: Option<&DepthMapCache>) -> Result<DenseOutput> {
+    densify_with(scene, opts, None, backend, cache)
+}
+
+/// [`densify`] 와 같되 `score` 가 있으면 점수 융합.
+pub fn densify_with(scene: &DenseScene, opts: &DensifyOptions, score: Option<&ScoreFusionOptions>, backend: &dyn PatchMatchBackend, cache: Option<&DepthMapCache>) -> Result<DenseOutput> {
     let maps = compute_depth_maps(scene, opts, backend, cache)?;
-    let tf = Instant::now();
-    let f = fuse_depth_maps(scene, &maps, opts, 0);
-    let mut timings = maps.timings.clone();
-    timings.fusion = tf.elapsed();
-    let depth_views = maps.maps.iter().filter(|m| m.is_some()).count();
-    Ok(DenseOutput { cloud: f.cloud, visibility: f.visibility, timings, cache_hits: maps.cache_hits, depth_views, depth_maps: maps })
+    Ok(fuse_output(scene, &maps, opts, score))
 }

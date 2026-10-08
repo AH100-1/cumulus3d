@@ -11,7 +11,9 @@ use skyrecon_core::interop::{read_model, write_model_binary, write_model_text, I
 use skyrecon_core::io::{read_gps_file, write_ply, PointCloud, PlyLayout};
 use skyrecon_core::reconstruction::bilinear_rgb;
 use skyrecon_core::{CameraModelKind, MatchGraph, MatchGraphOptions, FeatureStore, ImageId, Reconstruction};
-use skyrecon_dense::{densify, write_undistorted_workspace, DenseScene, UndistortCache, UndistortOptions};
+use skyrecon_dense::densify::densify_with;
+use skyrecon_dense::fusion_score::ScoreFusionOptions;
+use skyrecon_dense::{write_undistorted_workspace, DenseScene, UndistortCache, UndistortOptions};
 use skyrecon_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageStatus};
 use skyrecon_matching::{match_pair_list_file, CpuMatcher, PairMatchingOptions};
 use skyrecon_sfm::{global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions};
@@ -260,7 +262,7 @@ pub struct DensifyArgs {
     /// 등록 순서로 앞 N 장만(`--image_path` 사용 시).
     #[arg(long = "max-images")]
     pub max_images: Option<usize>,
-    /// 융합 방식(consistency|traversal).
+    /// 융합 방식(consistency|traversal|score).
     #[arg(long = "fusion-mode")]
     pub fusion_mode: Option<String>,
     /// 일치 융합: 기준 외 일치 뷰 최소 수.
@@ -275,6 +277,21 @@ pub struct DensifyArgs {
     /// 융합 재투영 허용치(픽셀).
     #[arg(long = "fusion-reproj-error")]
     pub fusion_reproj_error: Option<f64>,
+    /// 일치 융합 남은 픽셀 처리(none|release|second-pass).
+    #[arg(long = "fusion-residual")]
+    pub fusion_residual: Option<String>,
+    /// 2차 융합: 기준 외 일치 뷰 최소 수(기본 2).
+    #[arg(long = "residual-min-views")]
+    pub residual_min_views: Option<usize>,
+    /// 2차 융합: 상대 깊이 허용치(기본 1차의 0.5배).
+    #[arg(long = "residual-depth-error")]
+    pub residual_depth_error: Option<f64>,
+    /// 2차 융합: 법선 허용 각(도, 기본 1차의 0.67배).
+    #[arg(long = "residual-normal-error")]
+    pub residual_normal_error: Option<f64>,
+    /// 2차 융합: 1차 점과 이 거리(GSD 배수, 기본 0.5) 이내인 2차 점은 버림.
+    #[arg(long = "residual-min-dist")]
+    pub residual_min_dist: Option<f64>,
     /// 일치 융합: 쓰인 픽셀 표시(1|0).
     #[arg(long = "fusion-mark-used", value_parser = parse_flag)]
     pub fusion_mark_used: Option<bool>,
@@ -320,10 +337,28 @@ pub struct DensifyArgs {
     /// 결과 점군 통계(간격·이상점·중복) 출력.
     #[arg(long = "stats")]
     pub stats: bool,
+    /// 점수 융합: 채택 문턱 τ(기본 2.0).
+    #[arg(long = "score-tau")]
+    pub score_tau: Option<f64>,
+    /// 점수 융합: 재투영 오차 가중 σ_e(픽셀, 기본 1.0).
+    #[arg(long = "score-sigma-e")]
+    pub score_sigma_e: Option<f64>,
+    /// 점수 융합: 시선 사잇각 가중 σ_θ(도, 기본 2.0).
+    #[arg(long = "score-sigma-theta")]
+    pub score_sigma_theta: Option<f64>,
+    /// 점수 융합: 자유공간 위반 벌점 계수 λ(기본 1.0).
+    #[arg(long = "score-lambda")]
+    pub score_lambda: Option<f64>,
+    /// 2차 융합 점만 따로 쓸 PLY(`--fusion-residual second-pass` 일 때).
+    #[arg(long = "residual-out")]
+    pub residual_out: Option<PathBuf>,
+    /// 융합 변형 파일(줄마다 `이름|융합 플래그들`). 깊이맵은 한 번만 만들고 변형마다 `<output_path 폴더>/<이름>.ply` 를 쓴다.
+    #[arg(long = "fusion-variants")]
+    pub fusion_variants: Option<PathBuf>,
 }
 
 /// 조밀화 하위 명령 옵션을 설정에 반영.
-fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -> R {
+pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -> R {
     if let Some(r) = a.window_radius {
         o.pm.window_radius = r;
     }
@@ -333,7 +368,7 @@ fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -
     if let Some(l) = a.max_levels {
         o.max_levels = l;
     }
-    if let Some(m) = &a.fusion_mode {
+    if let Some(m) = a.fusion_mode.as_deref().filter(|m| !is_score_mode(m)) {
         o.fusion.mode = skyrecon_dense::FusionMode::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-mode {m}"))?;
     }
     let f = &mut o.fusion;
@@ -348,6 +383,21 @@ fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -
     }
     if let Some(v) = a.fusion_reproj_error {
         f.max_reproj_error = v;
+    }
+    if let Some(m) = &a.fusion_residual {
+        f.residual = skyrecon_dense::FusionResidual::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-residual {m}"))?;
+    }
+    if let Some(v) = a.residual_min_views {
+        f.residual_params.min_views = v;
+    }
+    if let Some(v) = a.residual_depth_error {
+        f.residual_params.depth_error = Some(v);
+    }
+    if let Some(v) = a.residual_normal_error {
+        f.residual_params.normal_error_deg = Some(v);
+    }
+    if let Some(v) = a.residual_min_dist {
+        f.residual_params.min_dist_gsd = v;
     }
     if let Some(v) = a.fusion_mark_used {
         f.mark_used = v;
@@ -392,6 +442,47 @@ fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -
         o.filter.median_filter = v;
     }
     Ok(())
+}
+
+fn is_score_mode(m: &str) -> bool {
+    m.eq_ignore_ascii_case("score")
+}
+
+fn apply_score_args(a: &DensifyArgs, s: &mut ScoreFusionOptions) {
+    if let Some(v) = a.score_tau {
+        s.tau = v;
+    }
+    if let Some(v) = a.score_sigma_e {
+        s.sigma_e_px = v;
+    }
+    if let Some(v) = a.score_sigma_theta {
+        s.sigma_theta_deg = v;
+    }
+    if let Some(v) = a.score_lambda {
+        s.lambda = v;
+    }
+}
+
+fn has_score_args(a: &DensifyArgs) -> bool {
+    a.score_tau.is_some() || a.score_sigma_e.is_some() || a.score_sigma_theta.is_some() || a.score_lambda.is_some()
+}
+
+/// 점수 융합 설정. `--fusion-mode score` 면 `o.fusion`(다른 융합 플래그 반영 후)의 허용치를 이어받고 `--score-*` 를 덮어쓴다.
+/// `base` 는 융합 변형에서 densify 명령 자체의 인자: 변형 줄에 `--fusion-mode` 가 없으면 그 방식을 따르고, 그 `--score-*` 를 먼저 반영한다.
+pub(crate) fn score_options(a: &DensifyArgs, o: &skyrecon_dense::DensifyOptions, base: Option<&DensifyArgs>) -> Result<Option<ScoreFusionOptions>, String> {
+    let mode = a.fusion_mode.as_deref().or_else(|| base.and_then(|b| b.fusion_mode.as_deref()));
+    if !mode.is_some_and(is_score_mode) {
+        if has_score_args(a) || base.is_some_and(|b| a.fusion_mode.is_none() && has_score_args(b)) {
+            return Err("--score-* 는 --fusion-mode score 와 함께".into());
+        }
+        return Ok(None);
+    }
+    let mut s = ScoreFusionOptions::from_fusion(&o.fusion);
+    if let Some(b) = base {
+        apply_score_args(b, &mut s);
+    }
+    apply_score_args(a, &mut s);
+    Ok(Some(s))
 }
 
 fn load_store(p: &Path) -> Result<FeatureStore, String> {
@@ -638,6 +729,9 @@ pub fn run(cmd: InteropCmd) -> R {
             cfg.undistort.max_image_size = a.max_image_size;
             cfg.densify.neighbors.num_views = a.number_views;
             apply_densify_args(&a, &mut cfg.densify)?;
+            cfg.score = score_options(&a, &cfg.densify, None)?;
+            // 변형 파일은 깊이 추정 전에 검사한다.
+            let variants = a.fusion_variants.as_deref().map(|vp| crate::fusion_variants::read_variants(vp, &a, &cfg.densify)).transpose()?;
             let backend = cfg.backend.clone()?;
             let tl = Instant::now();
             let (out, frames, scene) = match &a.image_path {
@@ -657,7 +751,7 @@ pub fn run(cmd: InteropCmd) -> R {
                     let scene = DenseScene::from_workspace_dir(&a.input_path, &cfg.scene).map_err(e)?;
                     eprintln!("[time] 장면 읽기 {:.2}s", tl.elapsed().as_secs_f64());
                     let n = scene.views.len();
-                    (densify(&scene, &cfg.densify, backend.as_ref(), None).map_err(e)?, n, scene)
+                    (densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), None).map_err(e)?, n, scene)
                 }
             };
             let tm = &out.timings;
@@ -676,8 +770,13 @@ pub fn run(cmd: InteropCmd) -> R {
             );
             let tw = Instant::now();
             out.write_ply(&a.output_path).map_err(e)?;
+            if let Some(rp) = &a.residual_out {
+                if !out.write_residual_ply(rp).map_err(e)? {
+                    eprintln!("경고: 2차 융합 점 없음 → {} 쓰지 않음", rp.display());
+                }
+            }
             eprintln!("[time] PLY 쓰기 {:.2}s", tw.elapsed().as_secs_f64());
-            println!("점 {}", out.cloud.len());
+            println!("점 {} (2차 {}) 융합 {:.2}s (1차 {:.2}s 2차 {:.2}s)", out.cloud.len(), out.num_residual(), tm.fusion.as_secs_f64(), tm.fusion_pass1.as_secs_f64(), tm.fusion_pass2.as_secs_f64());
             if a.stats {
                 let ts = Instant::now();
                 let st = skyrecon_dense::cloud_stats(&scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
@@ -693,6 +792,10 @@ pub fn run(cmd: InteropCmd) -> R {
                     100.0 * st.duplicate_ratio,
                     ts.elapsed().as_secs_f64()
                 );
+            }
+            if let Some(variants) = &variants {
+                let dir = a.output_path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+                crate::fusion_variants::run_variants(&scene, &out.depth_maps, variants, dir, a.stats)?;
             }
         }
     }

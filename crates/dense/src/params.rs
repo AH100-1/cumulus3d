@@ -178,10 +178,62 @@ impl FusionMode {
     }
 }
 
+/// 일치 융합에서 기준 미달 픽셀(남은 픽셀) 처리.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum FusionResidual {
+    /// 처리 없음(기본).
+    #[default]
+    None,
+    /// 버려진 후보가 일시 점유했던 픽셀(기준·이웃)을 되돌려 뒤 기준 영상이 다시 쓸 수 있게 한다.
+    Release,
+    /// 1차 융합 뒤, 점이 되지 못한 유효 깊이 픽셀만으로 더 엄격한 허용치의 2차 융합.
+    SecondPass,
+}
+
+impl FusionResidual {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().replace('_', "-").as_str() {
+            "none" => Some(Self::None),
+            "release" => Some(Self::Release),
+            "second-pass" | "secondpass" => Some(Self::SecondPass),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Release => "release",
+            Self::SecondPass => "second-pass",
+        }
+    }
+}
+
+/// 2차 융합 허용치.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResidualParams {
+    /// 기준 외 일치 뷰 최소 수.
+    pub min_views: usize,
+    /// 상대 깊이 허용치(None = 1차의 0.5배).
+    pub depth_error: Option<f64>,
+    /// 법선 허용 각(도, None = 1차의 0.67배).
+    pub normal_error_deg: Option<f64>,
+    /// 1차 점과 이 거리(GSD 배수) 이내인 2차 점은 버린다.
+    pub min_dist_gsd: f64,
+}
+
+impl Default for ResidualParams {
+    fn default() -> Self {
+        Self { min_views: 2, depth_error: None, normal_error_deg: None, min_dist_gsd: 0.5 }
+    }
+}
+
 /// 융합 허용치.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FusionParams {
     pub mode: FusionMode,
+    /// 일치 융합: 남은 픽셀 처리.
+    pub residual: FusionResidual,
+    pub residual_params: ResidualParams,
     /// 일치 융합: 기준 외 일치 뷰 최소 수.
     pub min_consistent_views: usize,
     /// 일치 융합: 이미 다른 기준 픽셀의 점에 쓰인 픽셀은 기준으로 다시 쓰지 않음.
@@ -206,7 +258,7 @@ pub struct FusionParams {
 
 impl Default for FusionParams {
     fn default() -> Self {
-        Self { mode: FusionMode::Consistency, min_consistent_views: 5, mark_used: true, mark_radius: 0, inverse_variance: true, sigma_px0: 0.25, sigma_px_slope: 1.0, consistency_num_images: 12, min_num_pixels: 5, max_num_pixels: 10000, max_traversal_depth: 100, max_reproj_error: 2.0, max_depth_error: 0.01, max_normal_error_deg: 10.0, check_num_images: 50 }
+        Self { mode: FusionMode::Consistency, residual: FusionResidual::None, residual_params: ResidualParams::default(), min_consistent_views: 5, mark_used: true, mark_radius: 0, inverse_variance: true, sigma_px0: 0.25, sigma_px_slope: 1.0, consistency_num_images: 12, min_num_pixels: 5, max_num_pixels: 10000, max_traversal_depth: 100, max_reproj_error: 2.0, max_depth_error: 0.01, max_normal_error_deg: 10.0, check_num_images: 50 }
     }
 }
 

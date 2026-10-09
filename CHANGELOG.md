@@ -7,6 +7,33 @@ Developed under the name skyrecon up to and including 0.3.0.
 This project follows [Semantic Versioning](https://semver.org/). During 0.x, minor versions (0.1 → 0.2) may contain breaking changes.
 The date of each version is the actual work/commit date.
 
+## [0.4.0] — planned (in progress)
+### Added
+- Declarative builder layer `declare` in front of the event-driven pipeline. Builder methods only record a plan; nothing runs until
+  `.build()` (checks) and `.run()` (position loop, background refinement wait and finish in one call).
+  - `Recon::declare() -> ReconBuilder`: `.input`, `.images`, `.cameras`, `.preset("aerial-formation")`, `.stride`, `.positions`,
+    `.pairing`, `.zones(span, overlap)`, `.gps`, `.no_gps`, `.align`, `.fixed_enu_origin`, `.features`, `.match_backend`, `.gpu`,
+    `.incremental_triangulation`, `.dense(Dense::profile("fast").fusion_min_views(3)…)`, `.no_dense`, `.sinks(Sinks::default_files(out))`,
+    `.seed`, `.threads`, hooks `.on(EventKind, closure)`, `.on_any`, `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
+    `.on_position_done`, `.on_message`, `.policy` (hooks are kept in the builder, not in the plan).
+  - `ReconBuilder::build() -> Result<Recon, PlanError>`: checks input and camera folders, selected position count, GPS file when ENU
+    alignment is requested, backend names and CUDA device availability (including densification), output folder writability, and option
+    ranges. All problems are collected and reported at once.
+  - `Recon::run() -> Result<Summary, String>`, `Recon::plan()`.
+  - Plan value `Plan` (Clone/PartialEq/Debug, serde): input (image folder, camera folders, stride, position count), pairing strategy
+    (`formation`), zones, GPS file, alignment (ENU), densification (backend, profile, fusion and filter overrides), output sinks, seed, threads.
+    `Plan::to_toml`/`from_toml`/`load`/`from_stream`.
+- Commands `cumulus3d run <plan.toml> [--check]`, `cumulus3d plan --print-default`, `cumulus3d plan --check <plan.toml>`.
+  Example plan `examples/plans/aerial-formation.toml`.
+- `sinks::SinkSet` and `DefaultSinks::with_set` (choose which default hooks to enable), `stream::Layout::discover_in`,
+  `Layout::truncate`, `stream::frame_set_of` (any image folder and camera list).
+- Dependencies `serde` and `toml` (both MIT OR Apache-2.0).
+- Tests `tests/declare_synthetic.rs` (no side effects before run, same plan gives the same result, `run` matches `stream`).
+### Changed
+- `cumulus3d stream` (`stream::run_stream`) now runs through the declarative layer (`Plan::from_stream` → `Recon`). Outputs are unchanged.
+  Plan problems are now reported before anything runs; in particular, densification without a CUDA device fails at the start with a
+  clear message instead of at the first zone.
+
 ## [0.3.1] — 2026-10-09
 ### Changed
 - Renamed the project to cumulus3d. Crates `cumulus3d-core`/`-features`/`-matching`/`-ba`/`-sfm`/`-align`/`-dense`/`-cuda`/`-cli`,

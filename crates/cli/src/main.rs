@@ -1,6 +1,7 @@
 //! `cumulus3d` 실행 파일.
 
 use clap::{Args, Parser, Subcommand};
+use cumulus3d_cli::declare::{Plan, Recon};
 use cumulus3d_cli::interop::{self, InteropCmd};
 use cumulus3d_cli::stream::{run_stream, StreamConfig};
 use std::path::PathBuf;
@@ -16,6 +17,10 @@ struct Cli {
 enum Cmd {
     /// incremental_stream.sh 를 한 프로세스로: 위치 도착 루프 + 구역별 초벌/정밀 조밀화 + 후처리.
     Stream(StreamArgs),
+    /// 계획 TOML 파일로 실행: 계획 검사(문제를 모두 보고) → 위치 반복·배경 작업 대기·후처리까지 한 번에.
+    Run(RunArgs),
+    /// 계획 도구: 기본 계획 출력, 계획 검사.
+    Plan(PlanArgs),
     #[command(flatten)]
     Interop(InteropCmd),
 }
@@ -94,6 +99,29 @@ struct StreamArgs {
     seed: Option<u64>,
 }
 
+#[derive(Args, Debug)]
+struct RunArgs {
+    /// 계획 파일(TOML). 상대 경로는 실행 위치 기준.
+    plan: PathBuf,
+    /// 검사만 하고 실행하지 않음.
+    #[arg(long)]
+    check: bool,
+}
+
+#[derive(Args, Debug)]
+struct PlanArgs {
+    /// 기본 계획(aerial-formation 프리셋)을 TOML 로 표준 출력에.
+    #[arg(long)]
+    print_default: bool,
+    /// 계획 파일을 검사(실행하지 않음).
+    #[arg(long)]
+    check: Option<PathBuf>,
+}
+
+fn check_plan(path: &PathBuf) -> Result<Recon, String> {
+    Recon::from_plan(Plan::load(path)?).build().map_err(|e| e.to_string())
+}
+
 fn main() {
     let cli = Cli::parse();
     let r = match cli.cmd {
@@ -126,6 +154,17 @@ fn main() {
             c.no_dense = a.no_dense;
             c.seed = a.seed;
             run_stream(c)
+        }
+        Cmd::Run(a) => check_plan(&a.plan).and_then(|r| if a.check { Ok(()) } else { r.run().map(|_| ()) }),
+        Cmd::Plan(a) => {
+            if a.print_default {
+                print!("{}", Plan::default().to_toml());
+                Ok(())
+            } else if let Some(p) = a.check {
+                check_plan(&p).map(|r| println!("계획 검사 통과: 위치 {}", r.positions()))
+            } else {
+                Err("--print-default 또는 --check <plan.toml> 중 하나가 필요함".into())
+            }
         }
         Cmd::Interop(c) => interop::run(c),
     };

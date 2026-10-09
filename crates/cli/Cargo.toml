@@ -26,6 +26,8 @@ clap.workspace = true
 rayon.workspace = true
 nalgebra.workspace = true
 image.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [lib]
 name = "cumulus3d_cli"

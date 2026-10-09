@@ -7,6 +7,31 @@
 이 프로젝트는 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다. 0.x 동안에는 부 버전(0.1 → 0.2)에서 호환이 깨질 수 있다.
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
+## [0.4.0] — 계획(작업 중)
+### 추가
+- 이벤트 기반 파이프라인 앞의 선언형 빌더 층 `declare`. 빌더 메서드는 계획만 기록하고, `.build()`(검사)와
+  `.run()`(위치 반복·배경 정밀 작업 대기·종료를 한 번에) 전에는 아무것도 실행하지 않는다.
+  - `Recon::declare() -> ReconBuilder`: `.input`, `.images`, `.cameras`, `.preset("aerial-formation")`, `.stride`, `.positions`,
+    `.pairing`, `.zones(span, overlap)`, `.gps`, `.no_gps`, `.align`, `.fixed_enu_origin`, `.features`, `.match_backend`, `.gpu`,
+    `.incremental_triangulation`, `.dense(Dense::profile("fast").fusion_min_views(3)…)`, `.no_dense`, `.sinks(Sinks::default_files(out))`,
+    `.seed`, `.threads`, 훅 `.on(EventKind, 클로저)`, `.on_any`, `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
+    `.on_position_done`, `.on_message`, `.policy`(훅은 계획이 아니라 빌더에 보관).
+  - `ReconBuilder::build() -> Result<Recon, PlanError>`: 입력·카메라 폴더, 선택된 위치 수, ENU 정렬 시 GPS 파일,
+    백엔드 이름과 CUDA 장치(조밀화 포함), 출력 폴더 쓰기 가능, 옵션 값 범위를 검사. 문제를 모두 모아 한 번에 보고.
+  - `Recon::run() -> Result<Summary, String>`, `Recon::plan()`.
+  - 계획 값 `Plan`(Clone/PartialEq/Debug, serde): 입력(영상 폴더, 카메라 폴더, stride, 위치 수), 짝 전략(`formation`),
+    구역, GPS 파일, 정렬(ENU), 조밀화(백엔드, 프로파일, 융합·필터 덮어쓰기), 출력 훅, 시드, 스레드.
+    `Plan::to_toml`/`from_toml`/`load`/`from_stream`.
+- 명령 `cumulus3d run <plan.toml> [--check]`, `cumulus3d plan --print-default`, `cumulus3d plan --check <plan.toml>`.
+  예제 계획 `examples/plans/aerial-formation.toml`.
+- `sinks::SinkSet`·`DefaultSinks::with_set`(켤 기본 훅 선택), `stream::Layout::discover_in`, `Layout::truncate`,
+  `stream::frame_set_of`(임의 영상 폴더·카메라 목록).
+- 의존성 `serde`, `toml`(모두 MIT OR Apache-2.0).
+- 시험 `tests/declare_synthetic.rs`(실행 전 부수효과 없음, 같은 계획 = 같은 결과, `run` 과 `stream` 출력 동일).
+### 변경
+- `cumulus3d stream`(`stream::run_stream`)이 선언형 층(`Plan::from_stream` → `Recon`)으로 실행된다. 출력은 같다.
+  계획 문제는 실행 전에 보고된다. 특히 CUDA 장치 없이 조밀화를 켜면 첫 구역이 아니라 시작 때 분명한 메시지로 실패한다.
+
 ## [0.3.1] — 2026-10-09
 ### 변경
 - 프로젝트 이름을 cumulus3d 로 변경. 크레이트 `cumulus3d-core`/`-features`/`-matching`/`-ba`/`-sfm`/`-align`/`-dense`/`-cuda`/`-cli`,

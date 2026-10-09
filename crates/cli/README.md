@@ -54,6 +54,19 @@ cumulus3d stream --src <input-dir> --out <output-dir> --stride 1
 cumulus3d stream --src <input-dir> --out <output-dir-quick> --stride 1 --max-positions 15 --dense-max-image-size 320
 ```
 
+### `cumulus3d run` / `cumulus3d plan` (declarative plan)
+
+```text
+cumulus3d run <plan.toml> [--check]        # check the plan (every problem at once), then run
+cumulus3d plan --print-default             # default plan (aerial-formation preset) as TOML
+cumulus3d plan --check <plan.toml>         # check only
+```
+
+A plan file holds the same settings as the `stream` options (`[input]`, `[zones]`, `[align]`, `[features]`, `[matching]`,
+`[sparse]`, `[dense]` with `[dense.fusion]`/`[dense.filter]`, `[sinks]`, and top-level `seed`, `threads`, `gps`, `pairing`).
+Missing keys take their defaults; unknown keys are errors. Example: `examples/plans/aerial-formation.toml` at the repository root.
+With the same settings, `run` produces the same outputs as `stream`.
+
 ### Stage subcommands
 
 `feature_extractor`, `matches_importer`, `global_mapper`, `image_registrator`, `point_triangulator`, `bundle_adjuster`,
@@ -92,7 +105,9 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `Pipeline::subscribe` | Channel receiving every event | → `Receiver<Event>` |
 | `events::Event` | Per-stage results (`ZonePreview`, `ZoneRefined`, `FrameRegistered` …) | — |
 | `sinks::attach` | Attaches the file-output hooks that produce the same files as `cumulus3d stream` | `(Pipeline, output folder, &SinkOptions)` → `Pipeline` |
-| `stream::run_stream` | Full `cumulus3d stream` run | `StreamConfig` → `Result<(), String>` |
+| `declare::Recon::declare` → `.build()` → `.run()` | Declarative builder: record the plan, check it, run it in one call | builder methods → `Recon` → `Summary` |
+| `declare::Plan::from_toml` / `to_toml` | Plan ↔ TOML (`cumulus3d run plan.toml`) | `&str` ↔ `Plan` |
+| `stream::run_stream` | Full `cumulus3d stream` run (through `declare`) | `StreamConfig` → `Result<(), String>` |
 | `stream::Layout::discover` / `stream::frame_set` | Input folder → per-position frame sets | `(folder, stride)` → `Layout`; `(&Layout, position)` → `FrameSet` |
 | `densewrap::dense_model` | Densifies one model (exclude images → undistort → densify) | `(&Reconstruction, keep, image folder, &DenseConfig)` → `DenseRun` |
 | `interop::run` | Runs a stage subcommand | `InteropCmd` → `Result<(), String>` |
@@ -159,7 +174,8 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `ModelSink` | struct | Writes per-zone sparse models to `work/models/` |
 | `SnapshotSink` | struct | `aligned/`, `snapshots/`, `final_frame/`, run.log summary (`finish`) |
 | `SinkOptions` | struct | Default hook settings (`echo`, `save_models`) |
-| `DefaultSinks` | struct | Bundle of the hooks above (`new`, `run_log`, `into_hook`) |
+| `DefaultSinks` | struct | Bundle of the hooks above (`new`, `with_set`, `run_log`, `into_hook`) |
+| `SinkSet` | struct | Which default hooks to enable (`all()`) |
 | `default_sinks` | fn | Default hooks as a per-kind list |
 | `attach` | fn | Attaches the default hooks to a pipeline as a single `on_any` hook |
 
@@ -174,7 +190,21 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `pairs_for_position` | fn | Matching pairs of position p (as name pairs) |
 | `regions` | fn | Zone list `(k, lo, hi)` |
 | `session_config` | fn | `StreamConfig` → `SessionConfig` |
-| `run_stream` | fn | Runs the stream (session + pipeline + default hooks) |
+| `Layout::discover_in` / `frame_set_of` | fn | Same as `discover` / `frame_set` for any image folder and camera list |
+| `run_stream` | fn | Runs the stream (`Plan::from_stream` → `Recon`) |
+
+### `declare` — declarative builder (plan → build → run)
+
+| Item | Kind | Role |
+|---|---|---|
+| `Recon` | struct | Checked, runnable reconstruction: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |
+| `ReconBuilder` | struct | Records the plan only. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; hooks `on`, `on_any`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
+| `Plan` | struct | Plan value (Clone/PartialEq/Debug, serde): `seed`, `threads`, `gps`, `pairing`, `input`, `zones`, `align`, `features`, `matching`, `sparse`, `dense`, `sinks`; `to_toml`, `from_toml`, `load`, `from_stream` |
+| `Source`, `Zones`, `Align`/`AlignFrame`, `Features`, `Matching`, `Sparse`, `Pairing` | struct/enum | Plan sections |
+| `Dense`, `Fusion`, `Filter` | struct | Densification plan; `Dense::profile("fast").fusion_min_views(3)…`, `Dense::off()`, `apply`, `config` |
+| `Sinks` | struct | Output hooks: `default_files(out)`, `none()`, `timeline`, `run_log`, `zone_ply`, `snapshots`, `models`, `echo`, `clean` |
+| `PlanError`, `Problem` | struct | All check problems (`field`, `message`); `has(field)` |
+| `DEFAULT_PRESET`, `PRESETS` | const | `"aerial-formation"` |
 
 ### `densewrap` — shared densification path
 

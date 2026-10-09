@@ -43,6 +43,8 @@ Pipeline order: images → **features** (SIFT) → **matching** (descriptor matc
 | To do this | Use this function / type | Crate |
 |---|---|---|
 | **Progressive reconstruction from an image folder (library)** | `Pipeline::new(Session::new(SessionConfig::new(images)))` → per position `.push(Input::Frames(stream::frame_set(&layout, p)))` → `.finish()` (`Layout::discover(src, stride)`) | cli |
+| **Declarative reconstruction: record a plan, check it, run it** | `cumulus3d_cli::declare::Recon::declare().input(src).preset("aerial-formation").zones(12, 2).dense(Dense::profile("fast")).sinks(Sinks::default_files(out)).build()?.run()` | cli |
+| Plan as a value / TOML file (`cumulus3d run plan.toml`) | `cumulus3d_cli::declare::Plan` (`to_toml`, `from_toml`, `load`, `from_stream`), `Recon::from_plan` | cli |
 | Full run equivalent to the command-line `cumulus3d stream` | `cumulus3d_cli::stream::run_stream(StreamConfig::new(src, out))` | cli |
 | State transitions as values, without hooks | `cumulus3d_cli::session::{step, poll, command, finish}` | cli |
 | Attach the standard output files (timeline, PLY, snapshots) | `cumulus3d_cli::sinks::attach(pipeline, out, &SinkOptions)` | cli |

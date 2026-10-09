@@ -6,6 +6,8 @@
 //! - [`events`]: 단계별 결과 [`events::Event`] 와 명령 [`events::Command`].
 //! - [`sinks`]: `cumulus3d stream` 의 파일 출력(timeline.txt, run.log, PLY, 스냅샷)을 만드는 기본 훅.
 //! - [`stream`]: 입력 폴더 → 세션 → 파이프라인 조립([`stream::run_stream`]).
+//! - [`declare`]: 선언형 빌더 층. 계획([`declare::Plan`])을 기록만 하고, `build` 에서 검사, `run` 에서 한 번에 실행
+//!   ([`declare::Recon`]). 계획은 TOML 로 저장·읽기(`cumulus3d run plan.toml`).
 //!
 //! # 사용 예
 //!
@@ -43,6 +45,24 @@
 //! }
 //! ```
 //!
+//! 선언형(계획 기록 → 검사 → 실행):
+//!
+//! ```no_run
+//! use cumulus3d_cli::declare::{Dense, Recon, Sinks};
+//!
+//! let recon = Recon::declare()
+//!     .input("data")
+//!     .preset("aerial-formation")
+//!     .zones(12, 2)
+//!     .dense(Dense::profile("fast").fusion_min_views(3))
+//!     .sinks(Sinks::default_files("out"))
+//!     .seed(7)
+//!     .build()
+//!     .unwrap_or_else(|e| panic!("{e}"));
+//! let summary = recon.run().unwrap();
+//! println!("이벤트 {} 개", summary.events);
+//! ```
+//!
 //! 훅 없이 상태 값만 주고받는 함수형 사용:
 //!
 //! ```no_run
@@ -61,6 +81,7 @@
 
 #![warn(missing_docs)]
 
+pub mod declare;
 pub mod interop;
 pub mod densewrap;
 pub mod events;

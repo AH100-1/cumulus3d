@@ -52,6 +52,19 @@ cumulus3d stream --src <input-dir> --out <output-dir> --stride 1
 cumulus3d stream --src <input-dir> --out <output-dir-quick> --stride 1 --max-positions 15 --dense-max-image-size 320
 ```
 
+### `cumulus3d run` / `cumulus3d plan` (선언형 계획)
+
+```text
+cumulus3d run <plan.toml> [--check]        # 계획 검사(문제를 모두 한 번에) 후 실행
+cumulus3d plan --print-default             # 기본 계획(aerial-formation 프리셋) TOML
+cumulus3d plan --check <plan.toml>         # 검사만
+```
+
+계획 파일은 `stream` 옵션과 같은 설정을 담는다(`[input]`, `[zones]`, `[align]`, `[features]`, `[matching]`, `[sparse]`,
+`[dense]` 와 `[dense.fusion]`/`[dense.filter]`, `[sinks]`, 최상위 `seed`, `threads`, `gps`, `pairing`).
+빠진 항목은 기본값, 모르는 항목은 오류. 예: 저장소 루트의 `examples/plans/aerial-formation.toml`.
+같은 설정이면 `run` 은 `stream` 과 같은 출력을 만든다.
+
 ### 단계별 하위 명령
 
 `feature_extractor`, `matches_importer`, `global_mapper`, `image_registrator`, `point_triangulator`, `bundle_adjuster`,
@@ -90,7 +103,9 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `Pipeline::subscribe` | 모든 이벤트를 받는 채널 | → `Receiver<Event>` |
 | `events::Event` | 단계별 결과(`ZonePreview`, `ZoneRefined`, `FrameRegistered` …) | — |
 | `sinks::attach` | `cumulus3d stream` 과 같은 파일 출력 훅을 붙임 | `(Pipeline, 출력 폴더, &SinkOptions)` → `Pipeline` |
-| `stream::run_stream` | `cumulus3d stream` 전체 실행 | `StreamConfig` → `Result<(), String>` |
+| `declare::Recon::declare` → `.build()` → `.run()` | 선언형 빌더: 계획 기록 → 검사 → 한 번에 실행 | 빌더 메서드 → `Recon` → `Summary` |
+| `declare::Plan::from_toml` / `to_toml` | 계획 ↔ TOML(`cumulus3d run plan.toml`) | `&str` ↔ `Plan` |
+| `stream::run_stream` | `cumulus3d stream` 전체 실행(`declare` 경유) | `StreamConfig` → `Result<(), String>` |
 | `stream::Layout::discover` / `stream::frame_set` | 입력 폴더 → 위치별 프레임 묶음 | `(폴더, stride)` → `Layout`; `(&Layout, 위치)` → `FrameSet` |
 | `densewrap::dense_model` | 모델 하나를 조밀화(영상 제외 → 왜곡 보정 → densify) | `(&Reconstruction, keep, 영상 폴더, &DenseConfig)` → `DenseRun` |
 | `interop::run` | 단계별 하위 명령 실행 | `InteropCmd` → `Result<(), String>` |
@@ -157,7 +172,8 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `ModelSink` | struct | `work/models/` 구역별 희소 모델 출력 |
 | `SnapshotSink` | struct | `aligned/`, `snapshots/`, `final_frame/`, run.log 요약(`finish`) |
 | `SinkOptions` | struct | 기본 훅 설정(`echo`, `save_models`) |
-| `DefaultSinks` | struct | 위 훅 묶음(`new`, `run_log`, `into_hook`) |
+| `DefaultSinks` | struct | 위 훅 묶음(`new`, `with_set`, `run_log`, `into_hook`) |
+| `SinkSet` | struct | 켤 기본 훅(`all()`) |
 | `default_sinks` | fn | 기본 훅을 종류별 목록으로 |
 | `attach` | fn | 파이프라인에 기본 훅을 `on_any` 하나로 붙임 |
 
@@ -172,7 +188,21 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `pairs_for_position` | fn | 위치 p 의 매칭 짝(이름 짝) |
 | `regions` | fn | 구역 목록 `(k, lo, hi)` |
 | `session_config` | fn | `StreamConfig` → `SessionConfig` |
-| `run_stream` | fn | 스트림 실행(세션 + 파이프라인 + 기본 훅) |
+| `Layout::discover_in` / `frame_set_of` | fn | 임의 영상 폴더·카메라 목록용 `discover` / `frame_set` |
+| `run_stream` | fn | 스트림 실행(`Plan::from_stream` → `Recon`) |
+
+### `declare` — 선언형 빌더(계획 → 검사 → 실행)
+
+| 항목 | 종류 | 역할 |
+|---|---|---|
+| `Recon` | struct | 검사를 마친 실행 가능한 재구성: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |
+| `ReconBuilder` | struct | 계획만 기록. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; 훅 `on`, `on_any`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
+| `Plan` | struct | 계획 값(Clone/PartialEq/Debug, serde): `seed`, `threads`, `gps`, `pairing`, `input`, `zones`, `align`, `features`, `matching`, `sparse`, `dense`, `sinks`; `to_toml`, `from_toml`, `load`, `from_stream` |
+| `Source`, `Zones`, `Align`/`AlignFrame`, `Features`, `Matching`, `Sparse`, `Pairing` | struct/enum | 계획 항목 |
+| `Dense`, `Fusion`, `Filter` | struct | 조밀화 계획; `Dense::profile("fast").fusion_min_views(3)…`, `Dense::off()`, `apply`, `config` |
+| `Sinks` | struct | 출력 훅: `default_files(out)`, `none()`, `timeline`, `run_log`, `zone_ply`, `snapshots`, `models`, `echo`, `clean` |
+| `PlanError`, `Problem` | struct | 검사 문제 전부(`field`, `message`); `has(field)` |
+| `DEFAULT_PRESET`, `PRESETS` | const | `"aerial-formation"` |
 
 ### `densewrap` — 조밀화 공용 경로
 

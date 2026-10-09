@@ -1,16 +1,15 @@
-//! `cumulus3d stream`: 입력 폴더의 위치를 하나씩 [`Session`] 리듀서에 넣고([`Pipeline`]),
+//! `cumulus3d stream`: 입력 폴더의 위치를 하나씩 [`Session`](crate::session::Session) 리듀서에 넣고([`Pipeline`](crate::pipeline::Pipeline)),
 //! 기본 출력 훅([`crate::sinks`])이 timeline.txt·run.log·점군·스냅샷 파일을 만든다.
 //! 계산(특징 → 짝 매칭 → 첫 모델/이어 등록 → 구역별 초벌·정밀)은 [`crate::session`] 에 있다.
+//! [`run_stream`] 은 설정을 계획([`crate::declare::Plan`])으로 바꿔 선언형 층([`crate::declare`])으로 실행한다.
 
-use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, parse_profile, DenseConfig};
-use crate::pipeline::Pipeline;
-use crate::session::{pairs_for, zones_upto, FrameImage, FrameSet, Input, Session, SessionConfig};
-use crate::sinks::{DefaultSinks, SinkOptions};
-use cumulus3d_core::io::{read_gps_file, GpsRecord};
-use cumulus3d_dense::DepthMapCache;
-use std::collections::{BTreeMap, HashMap};
+use crate::declare::{Plan, Recon};
+use crate::densewrap::{make_match_backend, make_sift_backend, DenseConfig};
+use crate::session::{pairs_for, zones_upto, FrameImage, FrameSet, SessionConfig};
+use cumulus3d_core::io::GpsRecord;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// 카메라 폴더(스크립트 순서).
 pub const CAMS: [&str; 3] = ["camF", "camR", "camL"];
@@ -109,12 +108,19 @@ pub struct Layout {
 impl Layout {
     /// `images/camF/camF_NNNN.jpg` 중 번호 % stride == 0 인 것(번호 오름차순).
     pub fn discover(src: &Path, stride: usize) -> Result<Self, String> {
-        let dir = src.join("images").join(CAMS[0]);
+        Self::discover_in(&src.join("images"), &CAMS, stride)
+    }
+
+    /// 영상 폴더 `images` 의 첫 카메라 폴더(`<cams[0]>/<cams[0]>_NNNN.jpg`) 중 번호 % stride == 0 인 것(번호 오름차순).
+    /// 이름 → 위치 표는 모든 카메라에 대해 만든다.
+    pub fn discover_in<S: AsRef<str>>(images: &Path, cams: &[S], stride: usize) -> Result<Self, String> {
+        let first = cams.first().ok_or("카메라 폴더 목록이 비어 있음")?.as_ref();
+        let dir = images.join(first);
         let rd = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut frames = Vec::new();
         for e in rd.flatten() {
             let n = e.file_name().to_string_lossy().to_string();
-            let Some(stem) = n.strip_prefix(&format!("{}_", CAMS[0])).and_then(|s| s.strip_suffix(".jpg")) else { continue };
+            let Some(stem) = n.strip_prefix(&format!("{first}_")).and_then(|s| s.strip_suffix(".jpg")) else { continue };
             if let Ok(i) = stem.parse::<u32>() {
                 if (i as usize).is_multiple_of(stride.max(1)) {
                     frames.push(i);
@@ -125,12 +131,19 @@ impl Layout {
         frames.dedup();
         let mut l = Self { frames, pos_of: HashMap::new() };
         for p in 0..l.frames.len() {
-            for c in CAMS {
-                let n = l.name(c, p);
+            for c in cams {
+                let n = l.name(c.as_ref(), p);
                 l.pos_of.insert(n, p);
             }
         }
         Ok(l)
+    }
+
+    /// 앞 `n` 위치만 남긴다.
+    pub fn truncate(&mut self, n: usize) {
+        self.frames.truncate(n);
+        let frames = self.frames.len();
+        self.pos_of.retain(|_, p| *p < frames);
     }
 
     /// 카메라·위치의 영상 이름(`cam/cam_NNNN.jpg`).
@@ -146,7 +159,12 @@ impl Layout {
 
 /// 위치 p 의 프레임 묶음(카메라 순서 camF, camR, camL).
 pub fn frame_set(layout: &Layout, p: usize) -> FrameSet {
-    FrameSet::new(CAMS.iter().map(|c| (c.to_string(), layout.name(c, p))))
+    frame_set_of(layout, &CAMS, p)
+}
+
+/// 위치 p 의 프레임 묶음(카메라 순서 = `cams`).
+pub fn frame_set_of<S: AsRef<str>>(layout: &Layout, cams: &[S], p: usize) -> FrameSet {
+    FrameSet::new(cams.iter().map(|c| (c.as_ref().to_string(), layout.name(c.as_ref(), p))))
 }
 
 /// 스크립트와 같은 짝 규칙: 같은 카메라 간격 1..5, 8, 16 / 다른 카메라 위치 차 0..4. 정렬된 이름 짝.
@@ -180,88 +198,11 @@ pub fn session_config(cfg: &StreamConfig, npos: usize, gps: Vec<GpsRecord>, dens
     Ok(s)
 }
 
-/// 스트림 실행: 세션 리듀서 + 파이프라인 + 기본 출력 훅. 출력 폴더를 새로 만든다.
+/// 스트림 실행: 설정을 계획([`Plan::from_stream`])으로 바꿔 선언형 층([`Recon`])으로 검사·실행한다.
+/// 출력 폴더를 새로 만든다. 출력은 세션 리듀서 + 파이프라인 + 기본 출력 훅을 직접 조립했을 때와 같다.
 pub fn run_stream(cfg: StreamConfig) -> Result<(), String> {
-    if cfg.threads > 0 {
-        // 이미 만들어졌으면(테스트 등) 무시.
-        let _ = rayon::ThreadPoolBuilder::new().num_threads(cfg.threads).build_global();
-    }
-    // 백엔드가 없으면 조밀화 단계에서 오류로 기록한다.
-    let backend = make_pm_backend(&cfg.pm_backend);
-    let profile = parse_profile(&cfg.mvs_profile)?;
-    let out = cfg.out.clone();
-    if out.exists() {
-        std::fs::remove_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
-    }
-    let sinks = DefaultSinks::new(&out, &SinkOptions { echo: cfg.echo, save_models: cfg.save_models }).map_err(|e| e.to_string())?;
-
-    let mut layout = Layout::discover(&cfg.src, cfg.stride)?;
-    if let Some(m) = cfg.max_positions {
-        layout.frames.truncate(m);
-        let frames = layout.frames.len();
-        layout.pos_of.retain(|_, p| *p < frames);
-    }
-    let npos = layout.frames.len();
-    let gps_path = cfg.src.join("gps_ref.txt");
-    let gps_all: Vec<GpsRecord> = read_gps_file(&gps_path)
-        .map_err(|e| format!("{}: {e}", gps_path.display()))?
-        .into_iter()
-        .filter(|g| layout.pos_of.contains_key(&g.name))
-        .collect();
-
-    let dense = (!cfg.no_dense).then(|| {
-        let mut dense = DenseConfig::new(backend, profile);
-        dense.undistort.max_image_size = cfg.dense_max_image_size;
-        dense.densify.neighbors.num_views = cfg.number_views;
-        if cfg.serialize_dense {
-            dense.lock = Some(Arc::new(Mutex::new(())));
-        }
-        if cfg.depth_cache {
-            dense.depth_cache = Some(Arc::new(DepthMapCache::new()));
-        }
-        dense
-    });
-    let session = Session::new(session_config(&cfg, npos, gps_all, dense)?);
-    // 출력 훅은 하나(on_any)라 비동기여도 이벤트 순서대로 처리된다.
-    let mut pl = Pipeline::new(session).on_any(sinks.into_hook());
-
-    let (span, ovl) = (cfg.span, cfg.overlap);
-    let mut reg_end: BTreeMap<usize, Vec<(usize, usize, usize)>> = BTreeMap::new();
-    for (k, lo, hi) in regions(npos, span, ovl) {
-        reg_end.entry(hi - 1).or_default().push((k, lo, hi));
-    }
-    pl.push(Input::Log(format!(
-        "regions: {}",
-        reg_end
-            .iter()
-            .map(|(e, v)| format!("{e} ->{}", v.iter().map(|(k, lo, hi)| format!(" {k}:{lo}:{hi}")).collect::<String>()))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )));
-    pl.push(Input::Log(format!(
-        "설정: span {span} overlap {ovl} stride {} 증분삼각측량 {} 깊이캐시 {} 고정원점 {} pm {}({})/sift {}/match {} 직렬조밀화 {} 왜곡보정최대 {} 뷰 {} 스레드 {}",
-        cfg.stride,
-        cfg.incremental_triangulation,
-        cfg.depth_cache,
-        cfg.fixed_enu_origin,
-        cfg.pm_backend,
-        cfg.mvs_profile,
-        cfg.sift_backend,
-        cfg.match_backend,
-        cfg.serialize_dense,
-        cfg.dense_max_image_size,
-        cfg.number_views,
-        rayon::current_num_threads()
-    )));
-    for p in 0..npos {
-        pl.push(frame_set(&layout, p).into());
-        if let Some(e) = pl.reducer().failed() {
-            // 치명 오류: 후처리 없이 멈춘다(훅 큐는 파이프라인을 버릴 때 비워진다).
-            return Err(e.to_string());
-        }
-    }
-    let _ = pl.finish();
-    Ok(())
+    let recon = Recon::from_plan(Plan::from_stream(&cfg)).build().map_err(|e| e.to_string())?;
+    recon.run().map(|_| ())
 }
 
 #[cfg(test)]

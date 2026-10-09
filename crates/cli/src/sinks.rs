@@ -507,6 +507,28 @@ pub struct SinkOptions {
     pub save_models: bool,
 }
 
+/// 기본 훅 중 켤 것([`DefaultSinks::with_set`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SinkSet {
+    /// `timeline.txt`([`TimelineSink`]).
+    pub timeline: bool,
+    /// `run.log`·`DONE`([`RunLogSink`]).
+    pub run_log: bool,
+    /// 구역 PLY `full/{preview,refined}/`([`ZonePlySink`]).
+    pub zone_ply: bool,
+    /// 구역별 희소 모델 `work/models/`([`ModelSink`]).
+    pub models: bool,
+    /// 정렬·스냅샷·manifest·final_frame([`SnapshotSink`]).
+    pub snapshots: bool,
+}
+
+impl SinkSet {
+    /// 모두 켬.
+    pub fn all() -> Self {
+        Self { timeline: true, run_log: true, zone_ply: true, models: true, snapshots: true }
+    }
+}
+
 /// 출력 폴더 하나의 기본 훅 묶음(timeline → run.log → full PLY → 모델 → 스냅샷 순서로 처리).
 pub struct DefaultSinks {
     sinks: Vec<Box<dyn Sink>>,
@@ -517,19 +539,32 @@ impl DefaultSinks {
     /// `out` 아래 `full/preview`, `full/refined`, `work` 를 만들고 `timeline.txt`, `run.log` 를 새로 연다.
     /// 폴더를 지우지는 않는다.
     pub fn new(out: &Path, opts: &SinkOptions) -> std::io::Result<Self> {
-        for d in ["full/preview", "full/refined", "work"] {
+        Self::with_set(out, opts.echo, SinkSet { models: opts.save_models, ..SinkSet::all() })
+    }
+
+    /// 고른 훅만 켠다. `work` 는 늘 만들고, `full/preview`·`full/refined` 는 구역 PLY 를 켤 때만 만든다.
+    /// run.log 를 끄면 기록은 `echo` 일 때 표준 출력에만 가고 `DONE` 도 만들지 않는다. 폴더를 지우지는 않는다.
+    pub fn with_set(out: &Path, echo: bool, set: SinkSet) -> std::io::Result<Self> {
+        let dirs: &[&str] = if set.zone_ply { &["full/preview", "full/refined", "work"] } else { &["work"] };
+        for d in dirs {
             std::fs::create_dir_all(out.join(d))?;
         }
-        let log = RunLog::open(Some(&out.join("run.log")), opts.echo)?;
-        let mut sinks: Vec<Box<dyn Sink>> = vec![
-            Box::new(TimelineSink::create(&out.join("timeline.txt"))?),
-            Box::new(RunLogSink::new(log.clone(), Some(out.join("DONE")))),
-            Box::new(ZonePlySink::new(out.join("full"), Some(log.clone()))),
-        ];
-        if opts.save_models {
+        let run_log = out.join("run.log");
+        let log = RunLog::open(set.run_log.then_some(run_log.as_path()), echo)?;
+        let mut sinks: Vec<Box<dyn Sink>> = Vec::new();
+        if set.timeline {
+            sinks.push(Box::new(TimelineSink::create(&out.join("timeline.txt"))?));
+        }
+        sinks.push(Box::new(RunLogSink::new(log.clone(), set.run_log.then(|| out.join("DONE")))));
+        if set.zone_ply {
+            sinks.push(Box::new(ZonePlySink::new(out.join("full"), Some(log.clone()))));
+        }
+        if set.models {
             sinks.push(Box::new(ModelSink::new(out.join("work").join("models"), Some(log.clone()))));
         }
-        sinks.push(Box::new(SnapshotSink::new(out.to_path_buf(), log.clone())));
+        if set.snapshots {
+            sinks.push(Box::new(SnapshotSink::new(out.to_path_buf(), log.clone())));
+        }
         Ok(Self { sinks, log })
     }
 

@@ -43,11 +43,51 @@ cargo clippy --workspace --all-targets
 target/release/cumulus3d stream --src <입력 폴더> --out <출력 폴더>
 # GPU 백엔드 사용(CUDA 12.x)
 target/release/cumulus3d stream --src <입력> --out <출력> --gpu
+# 같은 실행을 선언형 계획 파일로(아래 참고)
+target/release/cumulus3d run examples/plans/aerial-formation.toml
 # 단계별 하위 명령(기존 스크립트용): feature_extractor, matches_importer, global_mapper, image_registrator,
 # point_triangulator, bundle_adjuster, model_aligner, model_analyzer, model_converter, image_deleter,
 # image_undistorter, densify
 target/release/cumulus3d model_analyzer --path <모델 폴더>
 ```
+
+## 선언형 사용(계획 → 검사 → 실행)
+
+이벤트 기반 파이프라인 앞에 선언형 빌더 층이 있다. 빌더 메서드는 **계획만 기록**하고 아무것도 실행하지 않는다
+(파일·폴더를 만들지 않고 장치를 열지 않는다). `.build()` 가 계획을 검사해 실행 가능한 재구성으로 만들고,
+`.run()` 이 위치 반복·배경 정밀 작업 대기·종료까지 한 번에 실행한다(지연 실행).
+
+```rust
+use cumulus3d_cli::declare::{Dense, Recon, Sinks};
+use cumulus3d_cli::events::{Event, EventKind};
+
+let recon = Recon::declare()
+    .input("data")                       // data/images/<카메라>/, data/gps_ref.txt
+    .preset("aerial-formation")          // camF/camR/camL, 편대 짝 규칙, stride 3
+    .zones(12, 2)
+    .dense(Dense::profile("fast").fusion_min_views(3))
+    .sinks(Sinks::default_files("out"))
+    .seed(7)
+    .on(EventKind::PositionDone, |e: &Event| println!("{}", e.timeline_text().unwrap()))
+    .on_zone_preview(|zone, cloud| println!("초벌 {}: 점 {}", zone.zone, cloud.len()))
+    .build()?;                           // 검사만; 문제는 모두 모아 한 번에 보고(PlanError)
+println!("{}", recon.plan().to_toml());  // 계획은 값: 비교·복제·TOML 저장
+let summary = recon.run()?;              // 여기서 실행
+```
+
+`build()` 검사: 입력·카메라 폴더 존재, 선택된 위치가 하나 이상, ENU 정렬을 요구하면 GPS 파일 존재,
+백엔드 이름과 CUDA 백엔드(조밀화 포함)를 요구할 때 장치 존재, 출력 폴더 쓰기 가능(지울 출력 폴더 안에 입력이 없는지), 옵션 값 범위.
+
+계획은 TOML 로 저장해 명령줄에서 실행할 수 있다. `cumulus3d stream` 도 이 층으로 실행된다.
+
+```bash
+target/release/cumulus3d plan --print-default > plan.toml   # 기본 계획(aerial-formation 프리셋)
+target/release/cumulus3d plan --check plan.toml             # 검사만
+target/release/cumulus3d run plan.toml                      # 검사 후 실행
+```
+
+주석이 달린 예는 [`examples/plans/aerial-formation.toml`](examples/plans/aerial-formation.toml). 계획 파일의 상대 경로는
+실행 위치(현재 폴더) 기준이다.
 
 ## 이벤트 기반 구조
 

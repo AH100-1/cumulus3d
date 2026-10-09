@@ -45,11 +45,52 @@ cargo clippy --workspace --all-targets
 target/release/cumulus3d stream --src <input folder> --out <output folder>
 # Use the GPU backend (CUDA 12.x)
 target/release/cumulus3d stream --src <input> --out <output> --gpu
+# Same run from a declarative plan file (see below)
+target/release/cumulus3d run examples/plans/aerial-formation.toml
 # Per-stage subcommands (for existing scripts): feature_extractor, matches_importer, global_mapper, image_registrator,
 # point_triangulator, bundle_adjuster, model_aligner, model_analyzer, model_converter, image_deleter,
 # image_undistorter, densify
 target/release/cumulus3d model_analyzer --path <model folder>
 ```
+
+## Declarative usage (plan → build → run)
+
+A declarative builder sits on top of the event-driven pipeline. Each builder method only **records the plan** and executes nothing
+(no files or folders are created, no device is opened). `.build()` checks the plan and turns it into a runnable reconstruction,
+and `.run()` performs the position loop, waits for background refinement and finishes, all in one call (lazy execution).
+
+```rust
+use cumulus3d_cli::declare::{Dense, Recon, Sinks};
+use cumulus3d_cli::events::{Event, EventKind};
+
+let recon = Recon::declare()
+    .input("data")                       // data/images/<camera>/, data/gps_ref.txt
+    .preset("aerial-formation")          // camF/camR/camL, formation pairing, stride 3
+    .zones(12, 2)
+    .dense(Dense::profile("fast").fusion_min_views(3))
+    .sinks(Sinks::default_files("out"))
+    .seed(7)
+    .on(EventKind::PositionDone, |e: &Event| println!("{}", e.timeline_text().unwrap()))
+    .on_zone_preview(|zone, cloud| println!("preview {}: {} points", zone.zone, cloud.len()))
+    .build()?;                           // checks only; every problem is reported at once (PlanError)
+println!("{}", recon.plan().to_toml());  // the plan is a value: compare, clone, save as TOML
+let summary = recon.run()?;              // executes here
+```
+
+`build()` checks: input and camera folders exist, at least one position is selected, a GPS file exists when ENU alignment is
+requested, backend names are known and a CUDA device is present when a CUDA backend (including densification) is requested,
+the output folder is writable (and does not contain the input when it is cleaned), and option values are in range.
+
+The plan can be stored as TOML and run from the command line. `cumulus3d stream` itself runs through this layer.
+
+```bash
+target/release/cumulus3d plan --print-default > plan.toml   # default plan (aerial-formation preset)
+target/release/cumulus3d plan --check plan.toml             # check only
+target/release/cumulus3d run plan.toml                      # check, then run
+```
+
+An annotated example is in [`examples/plans/aerial-formation.toml`](examples/plans/aerial-formation.toml). Relative paths in a plan
+file are resolved against the current working directory.
 
 ## Event-driven architecture
 

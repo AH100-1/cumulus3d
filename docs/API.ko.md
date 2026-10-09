@@ -41,6 +41,8 @@
 | 하려면 | 이 함수 / 타입 | 크레이트 |
 |---|---|---|
 | **영상 폴더로 점진 재구성(라이브러리)** | `Pipeline::new(Session::new(SessionConfig::new(images)))` → 위치마다 `.push(Input::Frames(stream::frame_set(&layout, p)))` → `.finish()` (`Layout::discover(src, stride)`) | cli |
+| **선언형 재구성: 계획 기록 → 검사 → 실행** | `cumulus3d_cli::declare::Recon::declare().input(src).preset("aerial-formation").zones(12, 2).dense(Dense::profile("fast")).sinks(Sinks::default_files(out)).build()?.run()` | cli |
+| 계획 값 / TOML 파일(`cumulus3d run plan.toml`) | `cumulus3d_cli::declare::Plan`(`to_toml`, `from_toml`, `load`, `from_stream`), `Recon::from_plan` | cli |
 | 명령줄 `cumulus3d stream` 과 같은 전체 실행 | `cumulus3d_cli::stream::run_stream(StreamConfig::new(src, out))` | cli |
 | 훅 없이 값으로 상태 전이 | `cumulus3d_cli::session::{step, poll, command, finish}` | cli |
 | 표준 출력 파일(timeline, PLY, 스냅샷) 붙이기 | `cumulus3d_cli::sinks::attach(pipeline, out, &SinkOptions)` | cli |

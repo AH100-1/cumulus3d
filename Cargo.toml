@@ -38,6 +38,8 @@ thiserror = "2"
 faer = "0.24"
 rand = "0.10"
 rand_pcg = "0.10"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
 
 [profile.release]
 opt-level = 3

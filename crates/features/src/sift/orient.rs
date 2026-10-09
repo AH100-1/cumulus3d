@@ -65,7 +65,7 @@ fn grad_at(g: &[f32], w: usize, x: usize, y: usize) -> (f32, f32) {
 pub struct OrientParams {
     /// 키포인트당 최대 방향 수.
     pub max_num_orientations: usize,
-    /// CPU 경로식 인접 빈 선형 보간(개선 옵션).
+    /// 인접 빈 선형 보간(개선 옵션).
     pub bin_interpolation: bool,
 }
 

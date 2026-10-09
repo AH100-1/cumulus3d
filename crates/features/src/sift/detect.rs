@@ -22,9 +22,9 @@ pub struct DetectParams {
     pub peak_threshold: f32,
     /// 엣지 억제 임계값.
     pub edge_threshold: f32,
-    /// 1 = GPU(1회, 이동 없음). >1 이면 |δ|>0.6 일 때 화소 이동하며 재보정.
+    /// 1 = 1회(이동 없음). >1 이면 |δ|>0.6 일 때 화소 이동하며 재보정.
     pub refinement_iterations: usize,
-    /// 특이 헤시안일 때 통과(GPU) 대신 버림.
+    /// 특이 헤시안일 때 δ=0 통과 대신 버림.
     pub reject_singular: bool,
     /// 기준 σ₀.
     pub sigma0: f32,

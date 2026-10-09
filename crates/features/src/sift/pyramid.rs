@@ -188,7 +188,7 @@ impl ScaleSpace {
     }
 }
 
-/// 옥타브 수 자동 결정(GPU): max(1, floor(log2(min(W₀,H₀))) − 3).
+/// 옥타브 수 자동 결정: max(1, floor(log2(min(W₀,H₀))) − 3).
 pub fn auto_num_octaves(w0: usize, h0: usize) -> usize {
     let m = w0.min(h0).max(1);
     let l = (usize::BITS - 1 - m.leading_zeros()) as i64;

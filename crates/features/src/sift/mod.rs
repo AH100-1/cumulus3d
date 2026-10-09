@@ -34,7 +34,7 @@ pub struct SiftOptions {
     pub max_num_features: usize,
     /// −1(2배 업샘플) 또는 0.
     pub first_octave: i32,
-    /// None = GPU 자동(floor(log2 min) − 3). Some(n) = CPU 경로식 고정.
+    /// None = 영상 크기로 자동(floor(log2 min) − 3). Some(n) = 고정.
     pub num_octaves: Option<usize>,
     /// 옥타브당 검출 레벨 수 S.
     pub octave_resolution: usize,
@@ -50,11 +50,11 @@ pub struct SiftOptions {
     pub normalization: DescriptorNormalization,
     /// 입력 너비를 4의 배수로 내림(기본 동작). 끄면 오른쪽 열을 버리지 않음(개선).
     pub truncate_width_to_4: bool,
-    /// 부분화소 보정 반복 수. 1 = GPU(이동 없음). 5 = CPU 경로식(개선).
+    /// 부분화소 보정 반복 수. 1 = 1회(이동 없음, 기본). 5 = 화소 이동하며 반복(개선).
     pub refinement_iterations: usize,
-    /// 특이 헤시안이면 버림(개선). 기본 false = GPU 처럼 δ=0 통과.
+    /// 특이 헤시안이면 버림(개선). 기본 false = δ=0 으로 통과.
     pub reject_singular_refinement: bool,
-    /// 방향 히스토그램 인접 빈 선형 보간(개선, CPU 경로식).
+    /// 방향 히스토그램 인접 빈 선형 보간(개선).
     pub orientation_bin_interpolation: bool,
     /// 최대 특징 수 제한 방식.
     pub selection: FeatureSelection,
@@ -67,7 +67,6 @@ impl Default for SiftOptions {
             first_octave: -1,
             num_octaves: None,
             octave_resolution: 3,
-            // GPU 에는 문자열 "0.006667" 로 전달된다.
             peak_threshold: 0.006667,
             edge_threshold: 10.0,
             max_num_orientations: 2,

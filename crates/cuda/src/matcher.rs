@@ -36,7 +36,7 @@ use cudarc::driver::{CudaFunction, LaunchConfig, PushKernelArg};
 use cumulus3d_matching::{CpuMatcher, MatcherBackend, Top2};
 use std::sync::{Arc, Mutex};
 
-const SRC: &str = include_str!("kernels/matcher.cu");
+pub(crate) const SRC: &str = include_str!("kernels/matcher.cu");
 const D: usize = 128;
 
 /// CUDA 기술자 매칭 백엔드.

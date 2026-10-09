@@ -71,3 +71,30 @@ pub use device::{is_available, CudaDevice, GpuError};
 pub use matcher::CudaMatcher;
 pub use patchmatch::{CudaPatchMatch, CudaPatchMatchOptions};
 pub use sift::CudaSift;
+
+/// 모든 커널을 장치 없이 NVRTC 로 컴파일해 본다(CI 검사용). `arch` 예: `"compute_70"`.
+/// 실제 실행 때와 같은 옵션·정의 조합(patchmatch: 창 간격 1·2, 하드웨어 보간 켬·끔, 빠른 수학 켬·끔)을 쓴다.
+/// 성공하면 (커널 이름, PTX 바이트 수) 목록, 실패하면 첫 오류. NVRTC 라이브러리는 있어야 한다.
+pub fn check_kernels(arch: &'static str) -> Result<Vec<(String, usize)>, String> {
+    use cudarc::nvrtc::compile_ptx_with_opts;
+    let compile = |name: String, src: &str, fmad: bool, fast: bool, defs: &[String]| {
+        let opts = device::compile_options(Some(arch), fmad, fast, defs);
+        compile_ptx_with_opts(src, opts).map(|ptx| (name.clone(), ptx.to_src().len())).map_err(|e| format!("{name}: {e:?}"))
+    };
+    let mut out = vec![compile("sift".into(), sift::SRC, false, false, &[])?, compile("matcher".into(), matcher::SRC, true, false, &[])?];
+    for step in [1, 2] {
+        for hw in [false, true] {
+            for fast in [false, true] {
+                let defs = patchmatch::defines(5, step, hw, 2);
+                out.push(compile(
+                    format!("patchmatch(step={step}, hw_interp={hw}, fast_math={fast})"),
+                    patchmatch::SRC,
+                    true,
+                    fast,
+                    &defs,
+                )?);
+            }
+        }
+    }
+    Ok(out)
+}

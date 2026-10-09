@@ -9,6 +9,11 @@ The date of each version is the actual work/commit date.
 
 ## [0.4.0] — planned (in progress)
 ### Changed
+- CI: CUDA kernels compiled with NVRTC in a CUDA container on every push (no GPU needed; `cumulus3d_cuda::check_kernels`,
+  example `check_kernels`), required `rustfmt` check (`rustfmt.toml`: width 140), content-policy scan, runners pinned
+  (`ubuntu-24.04`, `macos-15`), `actions/checkout@v5`, faster test builds. Release workflow on `v*` tags: all checks, tag/version
+  match, `cumulus3d` binaries (Linux x86_64, macOS arm64) on a GitHub Release, semver check and `cargo publish --workspace`
+  (only when `CARGO_REGISTRY_TOKEN` is set). Dependabot for Cargo and GitHub Actions.
 - License: Apache-2.0 only (was MIT OR Apache-2.0). Copyright holder ParkSangWoo; `LICENSE`, `NOTICE` (root and every crate),
   `authors` in Cargo metadata, and a license header in every source file (`SPDX-License-Identifier: Apache-2.0`; files whose algorithms
   follow other projects point to `THIRD_PARTY_NOTICES.md`). CI checks that every source file carries the header.

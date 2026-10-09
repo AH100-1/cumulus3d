@@ -44,7 +44,7 @@ use cumulus3d_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftF
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
-const SRC: &str = include_str!("kernels/sift.cu");
+pub(crate) const SRC: &str = include_str!("kernels/sift.cu");
 const TILE_W: u32 = 128;
 
 /// CUDA SIFT 백엔드.

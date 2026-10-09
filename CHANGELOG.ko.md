@@ -9,6 +9,10 @@
 
 ## [0.4.0] — 계획(작업 중)
 ### 변경
+- CI: 매 push 마다 CUDA 컨테이너에서 NVRTC 로 커널 컴파일 검사(GPU 불필요, `cumulus3d_cuda::check_kernels`, 예제 `check_kernels`),
+  `rustfmt` 검사 필수화(`rustfmt.toml`: 폭 140), 내용 정책 검사, 러너 고정(`ubuntu-24.04`, `macos-15`), `actions/checkout@v5`,
+  시험 빌드 단축. `v*` 태그 릴리스 워크플로: 전체 검사, 태그·버전 일치, `cumulus3d` 실행 파일(Linux x86_64, macOS arm64)을
+  GitHub Release 에 첨부, semver 검사와 `cargo publish --workspace`(`CARGO_REGISTRY_TOKEN` 이 있을 때만). Cargo·Actions 용 Dependabot.
 - 라이선스: Apache-2.0 단독(이전 MIT OR Apache-2.0). 저작권자 ParkSangWoo. `LICENSE`, `NOTICE`(루트와 모든 크레이트),
   Cargo `authors`, 모든 소스 파일 머리 주석(`SPDX-License-Identifier: Apache-2.0`, 다른 프로젝트를 따른 파일은 `THIRD_PARTY_NOTICES.md` 안내).
   CI 가 모든 소스 파일의 머리 주석을 검사.

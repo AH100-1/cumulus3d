@@ -107,18 +107,15 @@ impl CudaDevice {
 
     /// `fast = true` 면 근사 나눗셈·제곱근과 비정규수 0 처리(속도 우선 커널용).
     pub(crate) fn compile_with(&self, src: &str, fmad: bool, fast: bool, defines: &[String]) -> Result<Arc<CudaModule>, GpuError> {
-        let mut options = vec!["--std=c++14".to_string()];
-        options.extend(defines.iter().map(|d| format!("-D{d}")));
-        let opts = CompileOptions {
-            arch: self.arch,
-            fmad: Some(fmad),
-            ftz: Some(fast),
-            prec_div: Some(!fast),
-            prec_sqrt: Some(!fast),
-            options,
-            ..Default::default()
-        };
+        let opts = compile_options(self.arch, fmad, fast, defines);
         let ptx = compile_ptx_with_opts(src, opts).map_err(|e| GpuError::Compile(format!("{e:?}")))?;
         Ok(self.ctx.load_module(ptx)?)
     }
+}
+
+/// NVRTC 옵션(장치 컴파일과 [`crate::check_kernels`] 가 같은 값을 쓴다).
+pub(crate) fn compile_options(arch: Option<&'static str>, fmad: bool, fast: bool, defines: &[String]) -> CompileOptions {
+    let mut options = vec!["--std=c++14".to_string()];
+    options.extend(defines.iter().map(|d| format!("-D{d}")));
+    CompileOptions { arch, fmad: Some(fmad), ftz: Some(fast), prec_div: Some(!fast), prec_sqrt: Some(!fast), options, ..Default::default() }
 }

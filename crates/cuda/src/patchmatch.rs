@@ -46,7 +46,7 @@ use cumulus3d_dense::math::emission;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-const SRC: &str = include_str!("kernels/patchmatch.cu");
+pub(crate) const SRC: &str = include_str!("kernels/patchmatch.cu");
 const MAXSRC: usize = 32;
 const BX: u32 = 32;
 const BY: u32 = 8;
@@ -257,12 +257,7 @@ impl CudaPatchMatch {
         if let Some(f) = g.get(&key) {
             return Ok(f.clone());
         }
-        let defs = vec![
-            format!("WR={wr}"),
-            format!("WSTEP={step}"),
-            format!("HW_INTERP={}", self.opts.hw_interp as i32),
-            format!("MIN_BLOCKS={}", self.opts.min_blocks.max(1)),
-        ];
+        let defs = defines(wr, step, self.opts.hw_interp, self.opts.min_blocks);
         let m = self.dev.compile_with(SRC, true, self.opts.fast_math, &defs)?;
         let f = Arc::new(Funcs {
             half: m.load_function("pm_half")?,
@@ -1009,4 +1004,14 @@ impl Drop for Session<'_> {
             }
         }
     }
+}
+
+/// 커널 컴파일 정의(창 반경·간격·하드웨어 보간·블록 수).
+pub(crate) fn defines(wr: i32, step: i32, hw_interp: bool, min_blocks: u32) -> Vec<String> {
+    vec![
+        format!("WR={wr}"),
+        format!("WSTEP={step}"),
+        format!("HW_INTERP={}", hw_interp as i32),
+        format!("MIN_BLOCKS={}", min_blocks.max(1)),
+    ]
 }

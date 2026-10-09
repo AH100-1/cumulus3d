@@ -98,12 +98,17 @@ pub use cache::{CachedDepth, DepthMapCache};
 pub use densify::{compute_depth_maps, densify, fuse_depth_maps, pair_geometry, DenseOutput, DenseTimings, DepthMapResult, DepthMapSet};
 pub use fusion::{fuse, FusionInput, FusionOutput};
 pub use image::{GrayImage, ImageBuffer};
-pub use kernel::{DepthSnapshot, KernelInput, KernelView, LevelImage, PairGeometry, PatchMatchBackend, PatchMatchSession, RunParams, ViewState};
-pub use params::{DensifyOptions, FilterParams, FusionMode, FusionParams, FusionResidual, ResidualParams, LevelSchedule, MvsProfile, NeighborParams, PmParams};
+pub use kernel::{
+    DepthSnapshot, KernelInput, KernelView, LevelImage, PairGeometry, PatchMatchBackend, PatchMatchSession, RunParams, ViewState,
+};
+pub use params::{
+    DensifyOptions, FilterParams, FusionMode, FusionParams, FusionResidual, LevelSchedule, MvsProfile, NeighborParams, PmParams,
+    ResidualParams,
+};
 pub use postproc::PostParams;
+pub use scene::{DenseScene, DenseView, SceneOptions, ScenePoint};
 pub use stats::{cloud_stats, CloudStats};
-pub use scene::{DenseScene, DenseView, ScenePoint, SceneOptions};
 pub use undistort::{
-    undistort, undistort_from_dir, undistort_reconstruction, undistorted_camera, write_undistorted_workspace, CameraUndistortion, UndistortCache,
-    UndistortOptions, UndistortResult,
+    undistort, undistort_from_dir, undistort_reconstruction, undistorted_camera, write_undistorted_workspace, CameraUndistortion,
+    UndistortCache, UndistortOptions, UndistortResult,
 };

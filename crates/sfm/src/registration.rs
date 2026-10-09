@@ -32,12 +32,11 @@
 //! 기존 모델에 새 영상 등록(image_registrator).
 
 use crate::absolute_pose::{solve_abs_pose, AbsolutePoseOptions};
-use rayon::prelude::*;
 use cumulus3d_ba::Loss;
 use cumulus3d_core::{
-    Camera, MatchGraph, FeatureStore, Image, ImageId, Point2DIdx, Point3DId, Reconstruction, Result, TrackEntry,
-    Vec2, Vec3,
+    Camera, FeatureStore, Image, ImageId, MatchGraph, Point2DIdx, Point3DId, Reconstruction, Result, TrackEntry, Vec2, Vec3,
 };
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 
 /// 등록 순서.
@@ -155,9 +154,7 @@ pub fn add_missing_images(rec: &mut Reconstruction, store: &FeatureStore, graph:
         }
         let Some(si) = store.image(id) else { continue };
         if rec.camera(si.camera_id).is_none() {
-            let cam = store
-                .camera(si.camera_id)
-                .ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
+            let cam = store.camera(si.camera_id).ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
             rec.add_camera_own_rig(cam)?;
         }
         let kps = store.keypoints(id).map(|k| k.iter().map(|p| Vec2::new(p.x as f64, p.y as f64)).collect::<Vec<_>>());
@@ -176,9 +173,10 @@ pub fn num_visible_points3d(rec: &Reconstruction, graph: &MatchGraph, image_id: 
     let Some(im) = rec.image(image_id) else { return 0 };
     (0..im.num_points2d() as Point2DIdx)
         .filter(|&i| {
-            graph.find_correspondences(image_id, i).iter().any(|c| {
-                rec.image(c.image_id).and_then(|o| o.points2d().get(c.point2d_idx as usize)).is_some_and(|p| p.has_point3d())
-            })
+            graph
+                .find_correspondences(image_id, i)
+                .iter()
+                .any(|c| rec.image(c.image_id).and_then(|o| o.points2d().get(c.point2d_idx as usize)).is_some_and(|p| p.has_point3d()))
         })
         .count()
 }
@@ -190,9 +188,10 @@ pub fn visibility_score(rec: &Reconstruction, graph: &MatchGraph, image_id: Imag
     let (w, h) = (cam.width.max(1) as f64, cam.height.max(1) as f64);
     let mut cells: Vec<std::collections::HashSet<(usize, usize)>> = vec![Default::default(); 6];
     for (i, p) in im.points2d().iter().enumerate() {
-        let visible = graph.find_correspondences(image_id, i as Point2DIdx).iter().any(|c| {
-            rec.image(c.image_id).and_then(|o| o.points2d().get(c.point2d_idx as usize)).is_some_and(|q| q.has_point3d())
-        });
+        let visible = graph
+            .find_correspondences(image_id, i as Point2DIdx)
+            .iter()
+            .any(|c| rec.image(c.image_id).and_then(|o| o.points2d().get(c.point2d_idx as usize)).is_some_and(|q| q.has_point3d()));
         if !visible {
             continue;
         }
@@ -276,15 +275,8 @@ pub fn register_image(
     }
     let mut pose = res.world_to_cam;
     if opts.refine_pose {
-        let s = cumulus3d_ba::refine_abs_pose(
-            &camera,
-            &p2,
-            &p3,
-            &res.inlier_mask,
-            &mut pose,
-            opts.refine_loss,
-            opts.refine_max_num_iterations,
-        );
+        let s =
+            cumulus3d_ba::refine_abs_pose(&camera, &p2, &p3, &res.inlier_mask, &mut pose, opts.refine_loss, opts.refine_max_num_iterations);
         match s {
             Ok(sum) if sum.is_usable() => {}
             _ => return Ok(RegisterOutcome::RefinementFailed),
@@ -348,8 +340,8 @@ pub fn register_images(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{RngExt, SeedableRng};
     use cumulus3d_core::{FeatureMatch, Rigid3, TwoViewGeometry, TwoViewGeometryConfig};
+    use rand::{RngExt, SeedableRng};
 
     /// 등록 영상 1, 2 와 3D 점 n 개, 새 영상 3 이 그 점들을 무잡음으로 본다.
     fn setup(n: usize) -> (Reconstruction, MatchGraph, Rigid3) {

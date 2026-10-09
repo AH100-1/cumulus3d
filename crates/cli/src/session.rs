@@ -53,7 +53,6 @@
 
 use crate::densewrap::{dense_model, DenseConfig};
 use crate::events::{Command, Event, Frame, Meta, ZoneRange};
-use rayon::prelude::*;
 use crate::util::StageTimes;
 use cumulus3d_align::{align_to_gps, EnuOrigin, ModelAlignerOptions};
 use cumulus3d_ba::{bundle_adjust, BaConfig};
@@ -64,9 +63,9 @@ use cumulus3d_core::{CameraId, FeatureStore, ImageId, MatchGraph, MatchGraphOpti
 use cumulus3d_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
 use cumulus3d_matching::{match_pairs, MatcherBackend, PairMatchingOptions};
 use cumulus3d_sfm::{
-    global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions,
-    TriangulationScope,
+    global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions, TriangulationScope,
 };
+use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -386,7 +385,14 @@ impl Shared {
     }
 
     /// 배경 정밀 작업: 사본 → BA → ENU 정렬 → (채택 가능) → 조밀화.
-    fn refine_job(self: Arc<Self>, range: ZoneRange, mut rec: Reconstruction, generation: u64, gps: Arc<Vec<GpsRecord>>, keep: Arc<HashSet<String>>) {
+    fn refine_job(
+        self: Arc<Self>,
+        range: ZoneRange,
+        mut rec: Reconstruction,
+        generation: u64,
+        gps: Arc<Vec<GpsRecord>>,
+        keep: Arc<HashSet<String>>,
+    ) {
         let k = range.zone;
         let sh = &*self;
         let mut out = Out { sh, fg: None, guard: Some((k, generation)) };
@@ -429,13 +435,7 @@ impl Shared {
             z.cloud = cloud.clone();
             z.done = true;
         }
-        out.emit(|meta| Event::ZoneRefined {
-            meta,
-            range,
-            dense: cloud.is_some(),
-            cloud: cloud.unwrap_or_default(),
-            model,
-        });
+        out.emit(|meta| Event::ZoneRefined { meta, range, dense: cloud.is_some(), cloud: cloud.unwrap_or_default(), model });
     }
 }
 
@@ -909,7 +909,10 @@ impl Session {
                 let mut o = cfg.extraction.clone();
                 let known = self.cam_ids.get(&im.camera).copied();
                 o.reader.camera_mode = known.map_or(CameraMode::PerFolder, CameraMode::Existing);
-                let rep = sh.extractor.extract_files(&self.store, &cfg.image_root, std::slice::from_ref(&im.name), &o).map_err(|e| e.to_string())?;
+                let rep = sh
+                    .extractor
+                    .extract_files(&self.store, &cfg.image_root, std::slice::from_ref(&im.name), &o)
+                    .map_err(|e| e.to_string())?;
                 report_extraction(&rep, p, out);
                 if known.is_none() {
                     if let Some(s) = self.store.image_by_name(&im.name) {
@@ -956,7 +959,8 @@ impl Session {
         let cloud = sh.dense_region("preview", k, &preview, &keep, out);
         let model = Arc::new(preview);
         self.arrived.insert(k, range);
-        Arc::make_mut(&mut self.previews).insert(k, PreviewZone { range, model: model.clone(), cloud: cloud.clone(), frame: frame.clone() });
+        Arc::make_mut(&mut self.previews)
+            .insert(k, PreviewZone { range, model: model.clone(), cloud: cloud.clone(), frame: frame.clone() });
         out.emit(|meta| Event::ZonePreview { meta, range, dense: cloud.is_some(), cloud: cloud.unwrap_or_default(), model, frame });
     }
 
@@ -990,7 +994,9 @@ impl Session {
             Command::ResetFrom(p) => self.reset_from(p, out),
             Command::InvalidateZone(k) => {
                 let Some(range) = self.arrived.get(&k).copied() else {
-                    out.emit(|meta| Event::Warning { meta, message: format!("구역 {k} 은 아직 도착하지 않음 — 무효화할 것 없음") });
+                    out.emit(|meta| Event::Warning {
+                        meta, message: format!("구역 {k} 은 아직 도착하지 않음 — 무효화할 것 없음")
+                    });
                     return;
                 };
                 self.drop_zone(k, out);
@@ -1013,7 +1019,9 @@ impl Session {
             match self.checkpoints.iter().find(|c| c.position + 1 == p) {
                 Some(c) => Some(c.clone()),
                 None => {
-                    out.emit(|meta| Event::Warning { meta, message: format!("ResetFrom({p}): 되감기 지점 없음(history 부족) — 무시") });
+                    out.emit(|meta| Event::Warning {
+                        meta, message: format!("ResetFrom({p}): 되감기 지점 없음(history 부족) — 무시")
+                    });
                     return;
                 }
             }

@@ -50,8 +50,7 @@ impl ImageBuffer {
     }
     /// 파일에서 읽기(회색이면 1채널, 그 밖은 RGB 3채널).
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        let img = image::open(path.as_ref())
-            .map_err(|e| Error::Format(format!("{}: {e}", path.as_ref().display())))?;
+        let img = image::open(path.as_ref()).map_err(|e| Error::Format(format!("{}: {e}", path.as_ref().display())))?;
         Ok(match img {
             image::DynamicImage::ImageLuma8(g) => {
                 let (w, h) = g.dimensions();

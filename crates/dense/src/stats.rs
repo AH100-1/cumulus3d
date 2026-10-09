@@ -30,8 +30,8 @@
 use crate::densify::DepthMapSet;
 use crate::neighbors::PairStats;
 use crate::scene::DenseScene;
-use rayon::prelude::*;
 use cumulus3d_core::io::PointCloud;
+use rayon::prelude::*;
 use std::collections::HashMap;
 
 /// 점군 통계.
@@ -56,7 +56,14 @@ pub struct CloudStats {
 }
 
 /// 통계 계산. `vis` 는 점마다 기여 뷰(첫 뷰를 기준 뷰로 쓴다), `max_samples` 개를 고르게 뽑는다.
-pub fn cloud_stats(scene: &DenseScene, maps: &DepthMapSet, cloud: &PointCloud, vis: &[Vec<u32>], max_samples: usize, reproj_px: f64) -> CloudStats {
+pub fn cloud_stats(
+    scene: &DenseScene,
+    maps: &DepthMapSet,
+    cloud: &PointCloud,
+    vis: &[Vec<u32>],
+    max_samples: usize,
+    reproj_px: f64,
+) -> CloudStats {
     let n = cloud.len();
     let mut st = CloudStats { points: n, ..Default::default() };
     if n == 0 {
@@ -81,7 +88,8 @@ pub fn cloud_stats(scene: &DenseScene, maps: &DepthMapSet, cloud: &PointCloud, v
     st.sampled = idx.len();
     // 최근접 간격(격자 해시, 칸 = 2·GSD).
     let cell = (2.0 * st.gsd).max(1e-9);
-    let key = |p: &[f32; 3]| ((p[0] as f64 / cell).floor() as i64, (p[1] as f64 / cell).floor() as i64, (p[2] as f64 / cell).floor() as i64);
+    let key =
+        |p: &[f32; 3]| ((p[0] as f64 / cell).floor() as i64, (p[1] as f64 / cell).floor() as i64, (p[2] as f64 / cell).floor() as i64);
     let mut grid: HashMap<(i64, i64, i64), Vec<u32>> = HashMap::new();
     for (i, p) in cloud.positions.iter().enumerate() {
         grid.entry(key(p)).or_default().push(i as u32);
@@ -118,7 +126,8 @@ pub fn cloud_stats(scene: &DenseScene, maps: &DepthMapSet, cloud: &PointCloud, v
     }
     // 국소 평면 이탈(점군만 쓰는 독립 지표).
     let cell4 = (4.0 * st.gsd).max(1e-9);
-    let key4 = |p: &[f32; 3]| ((p[0] as f64 / cell4).floor() as i64, (p[1] as f64 / cell4).floor() as i64, (p[2] as f64 / cell4).floor() as i64);
+    let key4 =
+        |p: &[f32; 3]| ((p[0] as f64 / cell4).floor() as i64, (p[1] as f64 / cell4).floor() as i64, (p[2] as f64 / cell4).floor() as i64);
     let mut grid4: HashMap<(i64, i64, i64), Vec<u32>> = HashMap::new();
     for (i, p) in cloud.positions.iter().enumerate() {
         grid4.entry(key4(p)).or_default().push(i as u32);

@@ -78,10 +78,9 @@ impl ExifInfo {
     fn from_exif(ex: &exif::Exif) -> Self {
         let field = |t: Tag| ex.get_field(t, In::PRIMARY).map(|f| &f.value);
         let ascii = |t: Tag| match field(t) {
-            Some(Value::Ascii(v)) => v
-                .first()
-                .map(|s| String::from_utf8_lossy(s).trim().trim_end_matches('\0').to_string())
-                .filter(|s| !s.is_empty()),
+            Some(Value::Ascii(v)) => {
+                v.first().map(|s| String::from_utf8_lossy(s).trim().trim_end_matches('\0').to_string()).filter(|s| !s.is_empty())
+            }
             _ => None,
         };
         let real = |t: Tag| field(t).and_then(|v| value_f64(v, 0));

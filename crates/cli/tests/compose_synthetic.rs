@@ -32,8 +32,8 @@
 mod common;
 use common::{make_dataset, NPOS};
 use cumulus3d_cli::compose::{
-    reconstruct, Backpressure, ComposeError, CompositionHost, EncodedFormat, FrameKey, FrameState, IgnoreReason, LiveFrameSet,
-    Outcome, ReconNode, ReconcilePolicy,
+    reconstruct, Backpressure, ComposeError, CompositionHost, EncodedFormat, FrameKey, FrameState, IgnoreReason, LiveFrameSet, Outcome,
+    ReconNode, ReconcilePolicy,
 };
 use cumulus3d_cli::events::{Event, EventKind};
 use cumulus3d_core::io::{read_gps_file, GpsRecord};
@@ -258,13 +258,19 @@ fn in_memory_payloads_are_spooled() {
         assert!(matches!(n.compose(FrameState::ready(fs)).unwrap(), Outcome::Appended { .. }));
     }
     let names: Vec<String> = n.with_session(|s| s.frames()[0].iter().map(|f| f.name.clone()).collect()).unwrap();
-    assert_eq!(names, vec![".live/camF/cam_rig_1_0000000000.png", ".live/camR/cam_rig_1_0000000000.jpg", ".live/camL/cam_rig_1_0000000000.jpg"]);
+    assert_eq!(
+        names,
+        vec![".live/camF/cam_rig_1_0000000000.png", ".live/camR/cam_rig_1_0000000000.jpg", ".live/camL/cam_rig_1_0000000000.jpg"]
+    );
     let dir = images_dir(&n);
     for nm in &names {
         assert!(dir.join(nm).is_file(), "{nm}");
     }
     // No partial files left behind.
-    let partial = std::fs::read_dir(dir.join(".live/camF")).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".partial.")).count();
+    let partial = std::fs::read_dir(dir.join(".live/camF"))
+        .unwrap()
+        .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".partial."))
+        .count();
     assert_eq!(partial, 0);
     let closed = n.close().unwrap();
     assert!(closed.session.model().is_some_and(|m| m.registered_image_count() >= 12));

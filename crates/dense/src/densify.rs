@@ -39,9 +39,9 @@ use crate::neighbors::{depth_ranges, PairStats};
 use crate::params::DensifyOptions;
 use crate::scene::DenseScene;
 use crate::upsample::{build_pyramid, downsample_depth, num_levels};
-use rayon::prelude::*;
 use cumulus3d_core::io::{write_ply, PlyLayout, PointCloud};
 use cumulus3d_core::{Error, Result};
+use rayon::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -199,7 +199,12 @@ fn cache_key(scene: &DenseScene, v: usize, fp: u64) -> (u64, u64) {
 }
 
 /// 모든 뷰의 최종 깊이맵을 계산한다.
-pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &dyn PatchMatchBackend, cache: Option<&DepthMapCache>) -> Result<DepthMapSet> {
+pub fn compute_depth_maps(
+    scene: &DenseScene,
+    opts: &DensifyOptions,
+    backend: &dyn PatchMatchBackend,
+    cache: Option<&DepthMapCache>,
+) -> Result<DepthMapSet> {
     let n = scene.views.len();
     let mut tm = DenseTimings::default();
     let t0 = Instant::now();
@@ -208,7 +213,18 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
     }
     let stats = PairStats::new(scene);
     let sources: Vec<Vec<usize>> = if opts.neighbors.diversity_decay < 1.0 {
-        (0..n).map(|v| stats.select_diverse(scene, v, opts.neighbors.num_views, opts.neighbors.min_triangulation_angle_deg.to_radians(), opts.neighbors.direction_bins, opts.neighbors.diversity_decay)).collect()
+        (0..n)
+            .map(|v| {
+                stats.select_diverse(
+                    scene,
+                    v,
+                    opts.neighbors.num_views,
+                    opts.neighbors.min_triangulation_angle_deg.to_radians(),
+                    opts.neighbors.direction_bins,
+                    opts.neighbors.diversity_decay,
+                )
+            })
+            .collect()
     } else {
         stats.select_all(opts.neighbors.num_views, opts.neighbors.min_triangulation_angle_deg)
     };
@@ -219,18 +235,43 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
     let t1 = Instant::now();
     let fp = opts.fingerprint();
     let cached: Vec<Option<Arc<CachedDepth>>> = (0..n)
-        .map(|v| if valid[v] { cache.and_then(|c| c.get(cache_key(scene, v, fp))).filter(|c| c.width == scene.views[v].width && c.height == scene.views[v].height) } else { None })
+        .map(|v| {
+            if valid[v] {
+                cache
+                    .and_then(|c| c.get(cache_key(scene, v, fp)))
+                    .filter(|c| c.width == scene.views[v].width && c.height == scene.views[v].height)
+            } else {
+                None
+            }
+        })
         .collect();
     let cache_hits = cached.iter().filter(|c| c.is_some()).count();
     let active: Vec<usize> = (0..n).filter(|&v| valid[v] && cached[v].is_none()).collect();
     let baselines: Vec<f64> = (0..n)
         .map(|v| {
             let c = scene.views[v].center();
-            let mut b: Vec<f64> = sources[v].iter().map(|&s| { let o = scene.views[s].center(); ((c[0]-o[0]).powi(2)+(c[1]-o[1]).powi(2)+(c[2]-o[2]).powi(2)).sqrt() }).collect();
-            if b.is_empty() { 0.0 } else { crate::math::median_in_place(&mut b) }
+            let mut b: Vec<f64> = sources[v]
+                .iter()
+                .map(|&s| {
+                    let o = scene.views[s].center();
+                    ((c[0] - o[0]).powi(2) + (c[1] - o[1]).powi(2) + (c[2] - o[2]).powi(2)).sqrt()
+                })
+                .collect();
+            if b.is_empty() {
+                0.0
+            } else {
+                crate::math::median_in_place(&mut b)
+            }
         })
         .collect();
-    let mut set = DepthMapSet { maps: vec![None; n], sources: sources.clone(), baselines, cache_hits, num_levels: 0, timings: DenseTimings::default() };
+    let mut set = DepthMapSet {
+        maps: vec![None; n],
+        sources: sources.clone(),
+        baselines,
+        cache_hits,
+        num_levels: 0,
+        timings: DenseTimings::default(),
+    };
     if active.is_empty() && cache_hits == 0 {
         tm.prepare = t1.elapsed();
         set.timings = tm;
@@ -305,7 +346,14 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
             let li = |v: usize| &input.views[v].levels[level];
             if level == 0 {
                 states = active.iter().map(|&v| ViewState::new(li(v).width, li(v).height)).collect();
-                let p = RunParams { level, geometric: false, random_init: true, iterations: sch.photometric_iters, run_id: next_run(), use_prior: false };
+                let p = RunParams {
+                    level,
+                    geometric: false,
+                    random_init: true,
+                    iterations: sch.photometric_iters,
+                    run_id: next_run(),
+                    use_prior: false,
+                };
                 session.run(&active, &mut states, &p, None)?;
             } else {
                 let tu = Instant::now();
@@ -322,7 +370,14 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
                 } else {
                     up.clone()
                 };
-                let p = RunParams { level, geometric: false, random_init: sch.restorer_random_init, iterations: sch.photometric_iters, run_id: next_run(), use_prior };
+                let p = RunParams {
+                    level,
+                    geometric: false,
+                    random_init: sch.restorer_random_init,
+                    iterations: sch.photometric_iters,
+                    run_id: next_run(),
+                    use_prior,
+                };
                 session.run(&active, &mut photo, &p, None)?;
                 let c_photo = session.evaluate(level, &active, &photo, false, None)?;
                 let tu = Instant::now();
@@ -345,7 +400,14 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
             }
             for _ in 0..sch.geometric_rounds {
                 let snap = snapshot(level, &states);
-                let p = RunParams { level, geometric: true, random_init: false, iterations: sch.geometric_iters, run_id: next_run(), use_prior };
+                let p = RunParams {
+                    level,
+                    geometric: true,
+                    random_init: false,
+                    iterations: sch.geometric_iters,
+                    run_id: next_run(),
+                    use_prior,
+                };
                 session.run(&active, &mut states, &p, Some(&snap))?;
             }
             tm.levels.push(tl.elapsed());
@@ -395,7 +457,14 @@ pub fn compute_depth_maps(scene: &DenseScene, opts: &DensifyOptions, backend: &d
         if let Some(c) = cache {
             c.insert(
                 cache_key(scene, v, fp),
-                Arc::new(CachedDepth { width: r.width, height: r.height, raw_depth: r.raw_depth.clone(), depth: r.depth.clone(), normal: r.normal.clone(), cost: r.cost.clone() }),
+                Arc::new(CachedDepth {
+                    width: r.width,
+                    height: r.height,
+                    raw_depth: r.raw_depth.clone(),
+                    depth: r.depth.clone(),
+                    normal: r.normal.clone(),
+                    cost: r.cost.clone(),
+                }),
             );
         }
         set.maps[v] = Some(Arc::new(r));
@@ -424,7 +493,13 @@ pub fn fuse_depth_maps(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOpt
 }
 
 /// 깊이맵 융합. `score` 가 있으면 점수 융합(겹침 목록 길이 = `score.num_neighbors`), 없으면 `opts.fusion.mode`.
-pub fn fuse_depth_maps_with(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOptions, score: Option<&ScoreFusionOptions>, threads: usize) -> FusionOutput {
+pub fn fuse_depth_maps_with(
+    scene: &DenseScene,
+    maps: &DepthMapSet,
+    opts: &DensifyOptions,
+    score: Option<&ScoreFusionOptions>,
+    threads: usize,
+) -> FusionOutput {
     let stats = PairStats::new(scene);
     let lim = match (score, opts.fusion.mode) {
         (Some(s), _) => s.num_neighbors,
@@ -432,7 +507,19 @@ pub fn fuse_depth_maps_with(scene: &DenseScene, maps: &DepthMapSet, opts: &Densi
         (None, crate::params::FusionMode::Consistency) => opts.fusion.consistency_num_images,
     };
     let overlap: Vec<Vec<usize>> = (0..scene.views.len()).map(|v| stats.select(v, lim, 0.0)).collect();
-    let inputs: Vec<Option<FusionInput>> = maps.maps.iter().enumerate().map(|(v, m)| m.as_ref().map(|m| FusionInput { depth: &m.depth, normal: &m.normal, cost: Some(&m.cost), baseline: maps.baselines.get(v).copied().unwrap_or(0.0) })).collect();
+    let inputs: Vec<Option<FusionInput>> = maps
+        .maps
+        .iter()
+        .enumerate()
+        .map(|(v, m)| {
+            m.as_ref().map(|m| FusionInput {
+                depth: &m.depth,
+                normal: &m.normal,
+                cost: Some(&m.cost),
+                baseline: maps.baselines.get(v).copied().unwrap_or(0.0),
+            })
+        })
+        .collect();
     match score {
         Some(s) => fuse_scored(scene, &inputs, &overlap, s, threads),
         None => fuse(scene, &inputs, &overlap, &opts.fusion, threads),
@@ -449,16 +536,35 @@ pub fn fuse_output(scene: &DenseScene, maps: &DepthMapSet, opts: &DensifyOptions
     timings.fusion_pass1 = f.pass1_time;
     timings.fusion_pass2 = f.pass2_time;
     let depth_views = maps.maps.iter().filter(|m| m.is_some()).count();
-    DenseOutput { cloud: f.cloud, visibility: f.visibility, timings, cache_hits: maps.cache_hits, depth_views, depth_maps: maps.clone(), residual: f.residual }
+    DenseOutput {
+        cloud: f.cloud,
+        visibility: f.visibility,
+        timings,
+        cache_hits: maps.cache_hits,
+        depth_views,
+        depth_maps: maps.clone(),
+        residual: f.residual,
+    }
 }
 
 /// 조밀화 전체: 깊이맵 → 필터 → 융합.
-pub fn densify(scene: &DenseScene, opts: &DensifyOptions, backend: &dyn PatchMatchBackend, cache: Option<&DepthMapCache>) -> Result<DenseOutput> {
+pub fn densify(
+    scene: &DenseScene,
+    opts: &DensifyOptions,
+    backend: &dyn PatchMatchBackend,
+    cache: Option<&DepthMapCache>,
+) -> Result<DenseOutput> {
     densify_with(scene, opts, None, backend, cache)
 }
 
 /// [`densify`] 와 같되 `score` 가 있으면 점수 융합.
-pub fn densify_with(scene: &DenseScene, opts: &DensifyOptions, score: Option<&ScoreFusionOptions>, backend: &dyn PatchMatchBackend, cache: Option<&DepthMapCache>) -> Result<DenseOutput> {
+pub fn densify_with(
+    scene: &DenseScene,
+    opts: &DensifyOptions,
+    score: Option<&ScoreFusionOptions>,
+    backend: &dyn PatchMatchBackend,
+    cache: Option<&DepthMapCache>,
+) -> Result<DenseOutput> {
     let maps = compute_depth_maps(scene, opts, backend, cache)?;
     Ok(fuse_output(scene, &maps, opts, score))
 }

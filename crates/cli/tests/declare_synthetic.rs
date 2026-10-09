@@ -173,7 +173,14 @@ fn cli_run_matches_stream() {
     assert!(st.success());
     assert_same_outputs(&s_out, &r_out);
     // run.log 의 설정 줄도 같다.
-    let conf = |d: &Path| std::fs::read_to_string(d.join("run.log")).unwrap().lines().filter(|l| l.starts_with("설정:") || l.starts_with("regions:")).map(String::from).collect::<Vec<_>>();
+    let conf = |d: &Path| {
+        std::fs::read_to_string(d.join("run.log"))
+            .unwrap()
+            .lines()
+            .filter(|l| l.starts_with("설정:") || l.starts_with("regions:"))
+            .map(String::from)
+            .collect::<Vec<_>>()
+    };
     assert_eq!(conf(&s_out), conf(&r_out));
 
     // 기본 계획 출력은 TOML 로 읽힌다.

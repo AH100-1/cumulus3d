@@ -38,10 +38,10 @@
 use crate::linsolve::{BlockSym, SchurSolver};
 use crate::tr::{StepInfo, TrProblem};
 use crate::{LinearSolverType, Loss};
-use nalgebra::{Matrix2x3, Matrix3};
-use rayon::prelude::*;
 use cumulus3d_core::geometry::skew;
 use cumulus3d_core::{Camera, Mat3, Quat, Rigid3, Vec2, Vec3};
+use nalgebra::{Matrix2x3, Matrix3};
+use rayon::prelude::*;
 
 pub(crate) const NONE: u32 = u32::MAX;
 /// 관측 결과를 결정적으로 합칠 때의 조각 크기.
@@ -251,8 +251,7 @@ impl BaProblem {
         let row_points: Vec<Vec<u32>> = e_obs
             .par_iter()
             .map(|ks| {
-                let mut v: Vec<u32> =
-                    ks.iter().map(|&k| inp.obs_pt[k as usize]).filter(|&j| pt_v[j as usize] != NONE).collect();
+                let mut v: Vec<u32> = ks.iter().map(|&k| inp.obs_pt[k as usize]).filter(|&j| pt_v[j as usize] != NONE).collect();
                 v.dedup();
                 v
             })
@@ -417,12 +416,7 @@ impl BaProblem {
 
     /// 관측 k 의 (보정) 잔차와 ρ. `jac` 가 있으면 보정·배율 적용 야코비안을 채운다.
     #[inline]
-    pub(crate) fn eval_obs(
-        &self,
-        st: &State,
-        k: usize,
-        jac: Option<(&mut [f64; 12], &mut [f64; 6], &mut [f64])>,
-    ) -> ([f64; 2], f64) {
+    pub(crate) fn eval_obs(&self, st: &State, k: usize, jac: Option<(&mut [f64; 12], &mut [f64; 6], &mut [f64])>) -> ([f64; 2], f64) {
         let i = self.obs_img[k] as usize;
         let p = self.img_pose[i] as usize;
         let c = self.img_cam[i] as usize;
@@ -508,11 +502,7 @@ impl BaProblem {
 
     /// 상태 st 에서의 비용(½Σρ).
     pub(crate) fn cost_at(&self, st: &State) -> f64 {
-        let costs: Vec<f64> = (0..self.num_obs())
-            .into_par_iter()
-            .with_min_len(1024)
-            .map(|k| self.eval_obs(st, k, None).1)
-            .collect();
+        let costs: Vec<f64> = (0..self.num_obs()).into_par_iter().with_min_len(1024).map(|k| self.eval_obs(st, k, None).1).collect();
         0.5 * det_sum(&costs)
     }
 
@@ -738,8 +728,7 @@ impl BaProblem {
                     let mut u = [0.0; 12];
                     for r in 0..6 {
                         for row in 0..2 {
-                            u[r * 2 + row] =
-                                t[r * 3] * jx[row * 3] + t[r * 3 + 1] * jx[row * 3 + 1] + t[r * 3 + 2] * jx[row * 3 + 2];
+                            u[r * 2 + row] = t[r * 3] * jx[row * 3] + t[r * 3 + 1] * jx[row * 3 + 1] + t[r * 3 + 2] * jx[row * 3 + 2];
                         }
                     }
                     let jp = &self.jp[k];
@@ -825,8 +814,7 @@ impl BaProblem {
         for c in &self.cur.cams {
             s += c.params.iter().map(|x| x * x).sum::<f64>();
         }
-        let parts: Vec<f64> =
-            self.cur.pts.par_chunks(CHUNK).map(|ch| ch.iter().map(|x| x.norm_squared()).sum::<f64>()).collect();
+        let parts: Vec<f64> = self.cur.pts.par_chunks(CHUNK).map(|ch| ch.iter().map(|x| x.norm_squared()).sum::<f64>()).collect();
         s += parts.iter().sum::<f64>();
         s.sqrt()
     }
@@ -1003,10 +991,11 @@ impl BaProblem {
             let vrows = split_lens(&mut vals, row_lens);
             let rrows = split_lens(&mut rhs, self.e_dim.iter().copied());
             let this = &*self;
-            vrows.into_par_iter().zip(rrows.into_par_iter()).enumerate().for_each_init(
-                || vec![0usize; nrow],
-                |slot, (a, (v, r))| this.assemble_row(a, v, r, damp_e, slot),
-            );
+            vrows
+                .into_par_iter()
+                .zip(rrows.into_par_iter())
+                .enumerate()
+                .for_each_init(|| vec![0usize; nrow], |slot, (a, (v, r))| this.assemble_row(a, v, r, damp_e, slot));
         }
         self.s.vals = vals;
         self.rhs = rhs;
@@ -1016,20 +1005,18 @@ impl BaProblem {
     fn assemble_point_major(&mut self, damp_e: &[f64]) {
         let mut s_acc = std::mem::take(&mut self.s_acc);
         let mut r_acc = std::mem::take(&mut self.r_acc);
-        s_acc.par_iter_mut().zip(r_acc.par_iter_mut()).zip(self.s_chunks.par_iter()).for_each(
-            |((acc, racc), &(v0, v1))| {
-                acc.iter_mut().for_each(|x| *x = 0.0);
-                racc.iter_mut().for_each(|x| *x = 0.0);
-                self.schur_points(v0, v1, acc, racc);
-            },
-        );
+        s_acc.par_iter_mut().zip(r_acc.par_iter_mut()).zip(self.s_chunks.par_iter()).for_each(|((acc, racc), &(v0, v1))| {
+            acc.iter_mut().for_each(|x| *x = 0.0);
+            racc.iter_mut().for_each(|x| *x = 0.0);
+            self.schur_points(v0, v1, acc, racc);
+        });
         let mut vals = std::mem::take(&mut self.s.vals);
         vals.par_chunks_mut(4096).enumerate().for_each(|(ci, o)| {
             let base = ci * 4096;
             o.iter_mut().for_each(|x| *x = 0.0);
             for acc in &s_acc {
                 let n = o.len();
-                    for (x, y) in o.iter_mut().zip(&acc[base..base + n]) {
+                for (x, y) in o.iter_mut().zip(&acc[base..base + n]) {
                     *x += y;
                 }
             }
@@ -1122,8 +1109,7 @@ impl BaProblem {
                     let mut u = [0.0; 12];
                     for r in 0..6 {
                         for row in 0..2 {
-                            u[r * 2 + row] =
-                                t[r * 3] * jx[row * 3] + t[r * 3 + 1] * jx[row * 3 + 1] + t[r * 3 + 2] * jx[row * 3 + 2];
+                            u[r * 2 + row] = t[r * 3] * jx[row * 3] + t[r * 3 + 1] * jx[row * 3 + 1] + t[r * 3 + 2] * jx[row * 3 + 2];
                         }
                     }
                     let jp = &self.jp[*kb];
@@ -1227,7 +1213,6 @@ impl BaProblem {
         let step_norm = self.make_candidate().sqrt();
         Some(StepInfo { model_cost_change, step_norm, x_norm })
     }
-
 }
 
 impl BaProblem {
@@ -1265,14 +1250,7 @@ mod tests {
     use cumulus3d_core::CameraModelKind;
 
     fn one_obs_problem(pose: Rigid3, sensor: Option<Rigid3>, x: Vec3, xy: Vec2) -> BaProblem {
-        let cam = Camera::new(
-            1,
-            CameraModelKind::OpenCv,
-            1000,
-            800,
-            vec![900.0, 880.0, 510.0, 395.0, 0.15, -0.12, 0.008, -0.006],
-        )
-        .unwrap();
+        let cam = Camera::new(1, CameraModelKind::OpenCv, 1000, 800, vec![900.0, 880.0, 510.0, 395.0, 0.15, -0.12, 0.008, -0.006]).unwrap();
         BaProblem::new(ProblemInput {
             poses: vec![pose],
             pose_const: vec![false],
@@ -1381,13 +1359,17 @@ mod tests {
         };
         let cams: Vec<Camera> = (0..2)
             .map(|i| {
-                Camera::new(i + 1, CameraModelKind::OpenCv, 1000, 800, vec![900.0, 880.0, 500.0, 400.0, 0.1, -0.05, 0.001, 0.002])
-                    .unwrap()
+                Camera::new(i + 1, CameraModelKind::OpenCv, 1000, 800, vec![900.0, 880.0, 500.0, 400.0, 0.1, -0.05, 0.001, 0.002]).unwrap()
             })
             .collect();
         let np = 6;
         let poses: Vec<Rigid3> = (0..np)
-            .map(|i| Rigid3::new(Quat::from_rotation_vector(&Vec3::new(0.05 * rnd(), 0.05 * rnd(), 0.05 * rnd())), Vec3::new(i as f64 * 0.5, 0.0, 0.0)))
+            .map(|i| {
+                Rigid3::new(
+                    Quat::from_rotation_vector(&Vec3::new(0.05 * rnd(), 0.05 * rnd(), 0.05 * rnd())),
+                    Vec3::new(i as f64 * 0.5, 0.0, 0.0),
+                )
+            })
             .collect();
         let npt = 60;
         let points: Vec<Vec3> = (0..npt).map(|_| Vec3::new(4.0 * rnd() + 1.5, 3.0 * rnd(), 8.0 + rnd())).collect();

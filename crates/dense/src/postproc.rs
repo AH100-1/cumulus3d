@@ -134,7 +134,17 @@ pub fn remove_speckles(depth: &mut [f32], normal: &mut [[f32; 3]], cost: &[f32],
 
 /// 경계 인식 틈 메우기. 채운 픽셀 수를 돌려준다.
 #[allow(clippy::too_many_arguments)]
-pub fn fill_holes(depth: &mut [f32], normal: &mut [[f32; 3]], cost: &mut [f32], raw_cost: &[f32], gray: &[u8], k: [f64; 4], w: usize, h: usize, p: &PostParams) -> usize {
+pub fn fill_holes(
+    depth: &mut [f32],
+    normal: &mut [[f32; 3]],
+    cost: &mut [f32],
+    raw_cost: &[f32],
+    gray: &[u8],
+    k: [f64; 4],
+    w: usize,
+    h: usize,
+    p: &PostParams,
+) -> usize {
     let maxd = ((((w * w + h * h) as f64).sqrt() * p.fill_max_frac).round() as i64).max(1);
     let valid: Vec<bool> = depth.iter().map(|&d| d > 0.0).collect();
     let ray = |x: f64, y: f64| [(x - k[2]) / k[0], (y - k[3]) / k[1], 1.0];

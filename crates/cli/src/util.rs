@@ -173,7 +173,13 @@ pub fn py_float(x: f64, digits: i32) -> String {
     let r = (x * p).round() / p;
     let r = if r == 0.0 { 0.0 } else { r };
     if !r.is_finite() {
-        return if r.is_nan() { "NaN".into() } else if r > 0.0 { "Infinity".into() } else { "-Infinity".into() };
+        return if r.is_nan() {
+            "NaN".into()
+        } else if r > 0.0 {
+            "Infinity".into()
+        } else {
+            "-Infinity".into()
+        };
     }
     let s = format!("{r}");
     if s.contains('.') || s.contains('e') {

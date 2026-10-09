@@ -87,6 +87,4 @@ pub use model_aligner::{
 };
 pub use reanchor::AnchorChain;
 pub use shared::{align_reconstructions, position_index_from_name, shared_point_correspondences, SharedPointOptions};
-pub use umeyama::{
-    estimate_sim3_ransac, robust_umeyama, umeyama, RankCheck, RobustUmeyamaOptions, RobustUmeyamaResult, Sim3Estimator,
-};
+pub use umeyama::{estimate_sim3_ransac, robust_umeyama, umeyama, RankCheck, RobustUmeyamaOptions, RobustUmeyamaResult, Sim3Estimator};

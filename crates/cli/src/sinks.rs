@@ -81,7 +81,10 @@ pub const TIMELINE_TABLE: [(EventKind, &str); 11] = [
     (EventKind::ZoneArrived, "region {zone} arrived pos[{lo},{hi})"),
     (EventKind::ZonePreview, "preview {zone} ready"),
     (EventKind::RefineStarted, "refined {zone} ba_start"),
-    (EventKind::ZoneRefinedPose, "refined {zone} pose_ready Registered images: {registered} Mean reprojection error: {mean_reproj_px:.6}px "),
+    (
+        EventKind::ZoneRefinedPose,
+        "refined {zone} pose_ready Registered images: {registered} Mean reprojection error: {mean_reproj_px:.6}px ",
+    ),
     (EventKind::ZoneRefined, "refined {zone} ready"),
     (EventKind::AllPositionsDone, "all positions done"),
     (EventKind::AllRefinedDone, "all refined done"),
@@ -417,7 +420,15 @@ impl SnapshotSink {
             .times
             .iter()
             .map(|(k, s)| {
-                (*k, ZoneTimes { arrived: rel(s.arrived), preview_ready: rel(s.preview), refined_pose: rel(s.pose), refined_ready: rel(s.refined) })
+                (
+                    *k,
+                    ZoneTimes {
+                        arrived: rel(s.arrived),
+                        preview_ready: rel(s.preview),
+                        refined_pose: rel(s.pose),
+                        refined_ready: rel(s.refined),
+                    },
+                )
             })
             .collect();
         let windows = self
@@ -429,9 +440,7 @@ impl SnapshotSink {
             })
             .collect();
         let zc = |kind: &str, m: &BTreeMap<usize, Arc<PointCloud>>| -> BTreeMap<usize, (String, Arc<PointCloud>)> {
-            m.iter()
-                .filter_map(|(k, c)| self.ranges.get(k).map(|r| (*k, (zone_file(kind, r), Arc::clone(c)))))
-                .collect()
+            m.iter().filter_map(|(k, c)| self.ranges.get(k).map(|r| (*k, (zone_file(kind, r), Arc::clone(c))))).collect()
         };
         let (pv, rf) = (zc("preview", &self.preview), zc("refined", &self.refined));
         let positions = &self.positions;
@@ -662,7 +671,14 @@ mod tests {
             (Event::PositionDone { meta: m(), position: 14, registered: 44, expected: 45 }, "pos 14 registered 44/45"),
             (Event::ZoneArrived { meta: m(), range: r(1, 10, 26), model: model.clone() }, "region 1 arrived pos[10,26)"),
             (
-                Event::ZonePreview { meta: m(), range: r(1, 10, 26), cloud: cloud.clone(), model: model.clone(), dense: true, frame: "gps".into() },
+                Event::ZonePreview {
+                    meta: m(),
+                    range: r(1, 10, 26),
+                    cloud: cloud.clone(),
+                    model: model.clone(),
+                    dense: true,
+                    frame: "gps".into(),
+                },
                 "preview 1 ready",
             ),
             (Event::RefineStarted { meta: m(), zone: 1 }, "refined 1 ba_start"),

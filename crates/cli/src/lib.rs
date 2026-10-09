@@ -111,10 +111,10 @@
 
 pub mod compose;
 pub mod declare;
-pub mod interop;
 pub mod densewrap;
 pub mod events;
 pub mod fusion_variants;
+pub mod interop;
 pub mod pipeline;
 pub mod post;
 pub mod session;

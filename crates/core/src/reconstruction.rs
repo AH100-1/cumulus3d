@@ -534,9 +534,8 @@ impl Reconstruction {
         let world_to_rig = if rig.is_reference_sensor(s) {
             world_to_cam
         } else {
-            let rig_to_cam = rig
-                .rig_to_sensor(s)
-                .ok_or_else(|| Error::InvalidArgument(format!("영상 {image_id} 센서가 rig 에서 미보정")))?;
+            let rig_to_cam =
+                rig.rig_to_sensor(s).ok_or_else(|| Error::InvalidArgument(format!("영상 {image_id} 센서가 rig 에서 미보정")))?;
             rig_to_cam.inverse().compose(&world_to_cam)
         };
         self.frames.get_mut(&fid).expect("checked").world_to_rig = Some(world_to_rig);
@@ -615,10 +614,7 @@ impl Reconstruction {
             .get(e.point2d_idx as usize)
             .ok_or_else(|| Error::InvalidArgument(format!("영상 {} 의 2D 점 {} 범위 밖", e.image_id, e.point2d_idx)))?;
         if p.has_point3d() && p.point3d_id != pid {
-            return Err(Error::Invariant(format!(
-                "영상 {} 2D 점 {} 은 이미 3D 점 {} 에 연결됨",
-                e.image_id, e.point2d_idx, p.point3d_id
-            )));
+            return Err(Error::Invariant(format!("영상 {} 2D 점 {} 은 이미 3D 점 {} 에 연결됨", e.image_id, e.point2d_idx, p.point3d_id)));
         }
         Ok(())
     }
@@ -665,11 +661,8 @@ impl Reconstruction {
     /// 반환: 점 전체가 삭제됐으면 true.
     pub fn delete_observation(&mut self, image_id: ImageId, point2d_idx: Point2DIdx) -> Result<bool> {
         let im = self.image(image_id).ok_or_else(|| Error::NotFound(format!("영상 {image_id}")))?;
-        let pid = im
-            .points2d
-            .get(point2d_idx as usize)
-            .ok_or_else(|| Error::InvalidArgument(format!("2D 점 {point2d_idx} 범위 밖")))?
-            .point3d_id;
+        let pid =
+            im.points2d.get(point2d_idx as usize).ok_or_else(|| Error::InvalidArgument(format!("2D 점 {point2d_idx} 범위 밖")))?.point3d_id;
         if pid == INVALID_POINT3D_ID {
             return Err(Error::InvalidArgument(format!("영상 {image_id} 2D 점 {point2d_idx} 에 3D 점 없음")));
         }
@@ -826,8 +819,7 @@ impl Reconstruction {
     /// 모든 3D 점의 error 를 픽셀 평균 재투영 오차로 재계산.
     pub fn update_point3d_errors(&mut self) {
         let cache = self.pose_cache();
-        let errs: Vec<(Point3DId, f64)> =
-            self.points3d.par_iter().map(|(id, p)| (*id, self.compute_point_error(&cache, p))).collect();
+        let errs: Vec<(Point3DId, f64)> = self.points3d.par_iter().map(|(id, p)| (*id, self.compute_point_error(&cache, p))).collect();
         drop(cache);
         for (id, e) in errs {
             let p = self.points3d.get_mut(&id).expect("존재");
@@ -944,11 +936,7 @@ impl Reconstruction {
 
     /// 삼각측량 각 필터: 트랙 영상 쌍 중 하나라도 각 ≥ min_tri_angle_deg 이면 유지, 아니면 점 삭제.
     /// 반환: 삭제된 관측 수.
-    pub fn filter_points3d_with_small_triangulation_angle(
-        &mut self,
-        min_tri_angle_deg: f64,
-        point_ids: Option<&[Point3DId]>,
-    ) -> usize {
+    pub fn filter_points3d_with_small_triangulation_angle(&mut self, min_tri_angle_deg: f64, point_ids: Option<&[Point3DId]>) -> usize {
         let min_rad = min_tri_angle_deg.to_radians();
         let ids: Vec<Point3DId> = match point_ids {
             Some(v) => v.iter().copied().filter(|i| self.points3d.contains_key(i)).collect(),
@@ -1103,9 +1091,7 @@ impl Reconstruction {
         }
         for (id, p) in self.points3d.iter_mut() {
             let color = match acc.get(id) {
-                Some((s, n)) => {
-                    s.map(|v| (v / *n as f64).round().clamp(0.0, 255.0) as u8)
-                }
+                Some((s, n)) => s.map(|v| (v / *n as f64).round().clamp(0.0, 255.0) as u8),
                 None => [0, 0, 0],
             };
             if p.color != color {

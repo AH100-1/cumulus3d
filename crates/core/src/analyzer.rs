@@ -135,12 +135,7 @@ mod tests {
             r.register_image(i).unwrap();
         }
         let t = |i, k| TrackEntry::new(i, k);
-        let tracks = [
-            vec![t(1, 0), t(2, 0)],
-            vec![t(1, 1), t(2, 1), t(3, 1)],
-            vec![t(2, 2), t(3, 2)],
-            vec![t(1, 3), t(3, 3)],
-        ];
+        let tracks = [vec![t(1, 0), t(2, 0)], vec![t(1, 1), t(2, 1), t(3, 1)], vec![t(2, 2), t(3, 2)], vec![t(1, 3), t(3, 3)]];
         for (tr, e) in tracks.into_iter().zip([1.0, 2.0, -1.0, 3.0]) {
             let id = r.add_point3d(Vec3::new(0.0, 0.0, 1.0), tr, [0; 3]).unwrap();
             r.set_point3d_error(id, e).unwrap();

@@ -75,10 +75,7 @@ pub fn lookup_sensor_width(make: &str, model: &str) -> Option<f64> {
     if md.starts_with(&mk) {
         md = md[mk.len()..].to_string();
     }
-    SENSOR_WIDTHS
-        .iter()
-        .find(|(m, n, _)| mk.starts_with(&norm(m)) && norm(n) == md)
-        .map(|&(_, _, w)| w)
+    SENSOR_WIDTHS.iter().find(|(m, n, _)| mk.starts_with(&norm(m)) && norm(n) == md).map(|&(_, _, w)| w)
 }
 
 /// 초점거리 규칙. (W, H) 는 입력 영상 크기.

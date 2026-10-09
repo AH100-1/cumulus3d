@@ -36,12 +36,12 @@
 
 use crate::device::{CudaDevice, GpuError};
 use cudarc::driver::{CudaFunction, CudaSlice, CudaStream, LaunchConfig, PinnedHostSlice, PushKernelArg};
-use rayon::prelude::*;
 use cumulus3d_core::{Descriptors, Error, Result};
 use cumulus3d_features::sift::detect::{self, Candidate, DetectParams};
 use cumulus3d_features::sift::orient::{self, Gradient, OrientParams};
 use cumulus3d_features::sift::pyramid::{self, ScaleSpace};
 use cumulus3d_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftFeature, SiftOptions, SiftOutput};
+use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
 const SRC: &str = include_str!("kernels/sift.cu");
@@ -133,7 +133,15 @@ impl CudaSift {
         Self::new(CudaDevice::new(0)?)
     }
 
-    fn blur(&self, src: &CudaSlice<f32>, dst: &mut CudaSlice<f32>, tmp: &mut CudaSlice<f32>, w: usize, h: usize, sigma: f32) -> std::result::Result<(), GpuError> {
+    fn blur(
+        &self,
+        src: &CudaSlice<f32>,
+        dst: &mut CudaSlice<f32>,
+        tmp: &mut CudaSlice<f32>,
+        w: usize,
+        h: usize,
+        sigma: f32,
+    ) -> std::result::Result<(), GpuError> {
         let s = &self.dev.stream;
         let k = pyramid::gaussian_kernel(sigma);
         let r = (k.len() / 2) as i32;
@@ -154,7 +162,15 @@ impl CudaSift {
     }
 
     /// GPU 피라미드(CPU `pyramid::build_pyramid` 와 같은 규칙).
-    fn build(&self, s: &Arc<CudaStream>, image: &GrayImage, w: usize, h: usize, opts: &SiftOptions, ss: ScaleSpace) -> std::result::Result<Vec<DevOctave>, GpuError> {
+    fn build(
+        &self,
+        s: &Arc<CudaStream>,
+        image: &GrayImage,
+        w: usize,
+        h: usize,
+        opts: &SiftOptions,
+        ss: ScaleSpace,
+    ) -> std::result::Result<Vec<DevOctave>, GpuError> {
         let src = s.clone_htod(&image.data)?;
         let mut base = s.alloc_zeros::<f32>(w * h)?;
         {
@@ -325,7 +341,10 @@ impl CudaSift {
                 } else {
                     let hb = hbuf.as_slice().map_err(GpuError::from)?;
                     let grad = Gradient::lazy(pyr[oi].level(hb, j as i32), ow, oh);
-                    cands.par_iter().flat_map_iter(|c| orient::orientations(&grad, c.x, c.y, c.sigma, &op).into_iter().map(move |q| (*c, q))).collect()
+                    cands
+                        .par_iter()
+                        .flat_map_iter(|c| orient::orientations(&grad, c.x, c.y, c.sigma, &op).into_iter().map(move |q| (*c, q)))
+                        .collect()
                 };
                 cum_or += items.len();
                 levels.push(LevelFeats { oi, j, items });

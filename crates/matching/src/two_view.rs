@@ -32,8 +32,7 @@
 //! 두 뷰 기하 검증.
 
 use crate::estimators::{
-    EssentialFivePointEstimator, FundamentalEightPointEstimator, Fundamental7PtEstimator, HomographyEstimator,
-    TranslationEstimator,
+    EssentialFivePointEstimator, Fundamental7PtEstimator, FundamentalEightPointEstimator, HomographyEstimator, TranslationEstimator,
 };
 use crate::pose::recover_two_view_pose;
 use cumulus3d_core::ransac::{lo_ransac, RansacParams, RansacReport};
@@ -236,13 +235,7 @@ fn run_h(opts: &TwoViewOptions, x1: &[Vec2], x2: &[Vec2]) -> RansacReport<Mat3> 
 }
 
 fn run_f(opts: &TwoViewOptions, x1: &[Vec2], x2: &[Vec2]) -> RansacReport<Mat3> {
-    lo_ransac(
-        &Fundamental7PtEstimator,
-        &FundamentalEightPointEstimator,
-        &ransac_opts(opts, opts.ransac.max_error, SALT_F),
-        x1,
-        x2,
-    )
+    lo_ransac(&Fundamental7PtEstimator, &FundamentalEightPointEstimator, &ransac_opts(opts, opts.ransac.max_error, SALT_F), x1, x2)
 }
 
 fn run_e(opts: &TwoViewOptions, max_error: f64, r1: &[Vec3], r2: &[Vec3]) -> RansacReport<Mat3> {

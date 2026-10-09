@@ -29,9 +29,11 @@
 //! align 크레이트로 수행한다. 모델은 메모리의 Reconstruction 을 그대로 쓴다.
 
 use crate::util::{py_float, Json, Logger};
-use cumulus3d_align::{compose_snapshot, robust_umeyama, shared_point_correspondences, transform_cloud, KdTree, SharedPointOptions, SnapshotOptions};
 use cumulus3d_align::shared::NameFilter;
 use cumulus3d_align::RobustUmeyamaOptions;
+use cumulus3d_align::{
+    compose_snapshot, robust_umeyama, shared_point_correspondences, transform_cloud, KdTree, SharedPointOptions, SnapshotOptions,
+};
 use cumulus3d_core::io::{read_ply, write_ply, PlyLayout, PointCloud};
 use cumulus3d_core::{Reconstruction, Sim3, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap};

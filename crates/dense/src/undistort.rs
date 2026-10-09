@@ -32,9 +32,9 @@
 //! 왜곡 보정: PINHOLE 카메라 계산, 카메라별 재표본 맵 캐시, 영상 재표본, 희소 모델 변환.
 
 use crate::image::{GrayImage, ImageBuffer, Integral};
-use rayon::prelude::*;
 use cumulus3d_core::interop;
 use cumulus3d_core::{Camera, CameraId, CameraModelKind, Error, Image, ImageId, Point3D, Reconstruction, Result, Vec2};
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -102,7 +102,11 @@ fn is_perspective(m: CameraModelKind) -> bool {
     // 이 크레이트가 아는 모델(0..4)은 모두 원근 모델이다.
     matches!(
         m,
-        CameraModelKind::SingleFocalPinhole | CameraModelKind::Pinhole | CameraModelKind::SingleFocalRadial | CameraModelKind::Radial | CameraModelKind::OpenCv
+        CameraModelKind::SingleFocalPinhole
+            | CameraModelKind::Pinhole
+            | CameraModelKind::SingleFocalRadial
+            | CameraModelKind::Radial
+            | CameraModelKind::OpenCv
     )
 }
 
@@ -243,10 +247,7 @@ impl CameraUndistortion {
     pub fn undistort_image(&self, img: &ImageBuffer) -> Result<ImageBuffer> {
         let (sw, sh) = (self.source.width as usize, self.source.height as usize);
         if img.width != sw || img.height != sh {
-            return Err(Error::InvalidArgument(format!(
-                "왜곡 보정: 영상 크기 {}x{} != 카메라 {}x{}",
-                img.width, img.height, sw, sh
-            )));
+            return Err(Error::InvalidArgument(format!("왜곡 보정: 영상 크기 {}x{} != 카메라 {}x{}", img.width, img.height, sw, sh)));
         }
         let ch = img.channels;
         let mut warped = ImageBuffer::new(sw, sh, ch);
@@ -442,7 +443,12 @@ where
 }
 
 /// 입력 영상 폴더에서 읽어 보정.
-pub fn undistort_from_dir(rec: &Reconstruction, image_dir: impl AsRef<Path>, opts: &UndistortOptions, cache: &UndistortCache) -> Result<UndistortResult> {
+pub fn undistort_from_dir(
+    rec: &Reconstruction,
+    image_dir: impl AsRef<Path>,
+    opts: &UndistortOptions,
+    cache: &UndistortCache,
+) -> Result<UndistortResult> {
     let dir = image_dir.as_ref().to_path_buf();
     undistort(rec, opts, cache, |im| ImageBuffer::load(dir.join(&im.name)).ok().map(Arc::new))
 }
@@ -457,20 +463,18 @@ pub fn write_undistorted_workspace(result: &UndistortResult, out_dir: impl AsRef
     std::fs::create_dir_all(out.join("sparse"))?;
     interop::create_stereo_dirs(out, Path::new(""))?;
     let q = if opts.jpeg_quality < 0 { 100 } else { opts.jpeg_quality.clamp(1, 100) as u8 };
-    let names: Vec<(ImageId, String)> = rec.registered_images().into_iter().filter_map(|i| rec.image(i).map(|im| (i, im.name.clone()))).collect();
-    names
-        .par_iter()
-        .filter_map(|(iid, name)| result.images.get(iid).map(|b| (name, b)))
-        .try_for_each(|(name, buf)| -> Result<()> {
-            let p = out.join("images").join(name);
-            if let Some(parent) = p.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            if let Some(parent) = Path::new(name).parent() {
-                interop::create_stereo_dirs(out, parent)?;
-            }
-            buf.save(p, q)
-        })?;
+    let names: Vec<(ImageId, String)> =
+        rec.registered_images().into_iter().filter_map(|i| rec.image(i).map(|im| (i, im.name.clone()))).collect();
+    names.par_iter().filter_map(|(iid, name)| result.images.get(iid).map(|b| (name, b))).try_for_each(|(name, buf)| -> Result<()> {
+        let p = out.join("images").join(name);
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = Path::new(name).parent() {
+            interop::create_stereo_dirs(out, parent)?;
+        }
+        buf.save(p, q)
+    })?;
     interop::write_model_binary(rec, out.join("sparse"), interop::ImageOrder::Registration)?;
     let written = names.iter().filter(|(iid, _)| result.images.contains_key(iid)).map(|(_, n)| n.as_str());
     interop::write_stereo_configs(out, written, opts.num_patch_match_src_images)?;

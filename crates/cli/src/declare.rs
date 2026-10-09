@@ -440,7 +440,8 @@ impl Dense {
             o.fusion.max_reproj_error = v;
         }
         if let Some(m) = &f.residual {
-            o.fusion.residual = FusionResidual::parse(m).ok_or_else(|| format!("알 수 없는 융합 남은 픽셀 처리 {m} (none|release|second-pass)"))?;
+            o.fusion.residual =
+                FusionResidual::parse(m).ok_or_else(|| format!("알 수 없는 융합 남은 픽셀 처리 {m} (none|release|second-pass)"))?;
         }
         let g = &self.filter;
         if let Some(v) = g.min_views {
@@ -511,7 +512,16 @@ impl Default for Sinks {
 impl Sinks {
     /// `cumulus3d stream` 과 같은 파일 출력(희소 모델 제외, 표준 출력에도 기록, 시작 때 폴더 새로 만듦).
     pub fn default_files(out: impl Into<PathBuf>) -> Self {
-        Self { out: Some(out.into()), clean: true, echo: true, timeline: true, run_log: true, zone_ply: true, snapshots: true, models: false }
+        Self {
+            out: Some(out.into()),
+            clean: true,
+            echo: true,
+            timeline: true,
+            run_log: true,
+            zone_ply: true,
+            snapshots: true,
+            models: false,
+        }
     }
     /// 파일 출력 없음(출력 폴더 없음, 표준 출력 기록 없음).
     pub fn none() -> Self {
@@ -582,10 +592,19 @@ impl Plan {
             threads: c.threads,
             gps: Some(c.src.join("gps_ref.txt")),
             pairing: Pairing::Formation,
-            input: Source { images: c.src.join("images"), cameras: CAMS.iter().map(|s| s.to_string()).collect(), stride: c.stride, positions: c.max_positions },
+            input: Source {
+                images: c.src.join("images"),
+                cameras: CAMS.iter().map(|s| s.to_string()).collect(),
+                stride: c.stride,
+                positions: c.max_positions,
+            },
             zones: Zones { span: c.span, overlap: c.overlap },
             align: Align { frame: AlignFrame::Enu, fixed_origin: c.fixed_enu_origin },
-            features: Features { backend: c.sift_backend.clone(), max_num_features: c.max_num_features, max_image_size: c.sift_max_image_size },
+            features: Features {
+                backend: c.sift_backend.clone(),
+                max_num_features: c.max_num_features,
+                max_image_size: c.sift_max_image_size,
+            },
             matching: Matching { backend: c.match_backend.clone() },
             sparse: Sparse { incremental_triangulation: c.incremental_triangulation },
             dense: Dense {
@@ -712,7 +731,9 @@ impl ReconBuilder {
                 self.plan.input.stride = 3;
                 self.plan.pairing = Pairing::Formation;
             }
-            other => self.pending.push(Problem { field: "preset".into(), message: format!("알 수 없는 프리셋 {other} ({})", PRESETS.join("|")) }),
+            other => self
+                .pending
+                .push(Problem { field: "preset".into(), message: format!("알 수 없는 프리셋 {other} ({})", PRESETS.join("|")) }),
         }
         self
     }
@@ -997,7 +1018,9 @@ fn check(plan: &Plan, pr: &mut Problems) -> (Option<Layout>, Option<Vec<GpsRecor
             }
         }
         if let Some(m) = &fu.residual {
-            pr.check(FusionResidual::parse(m).is_some(), "dense.fusion.residual", || format!("알 수 없는 처리 {m} (none|release|second-pass)"));
+            pr.check(FusionResidual::parse(m).is_some(), "dense.fusion.residual", || {
+                format!("알 수 없는 처리 {m} (none|release|second-pass)")
+            });
         }
         if let Some(v) = fu.min_views {
             pr.check(v >= 1, "dense.fusion.min_views", || "1 이상이어야 함".into());
@@ -1049,7 +1072,12 @@ fn check(plan: &Plan, pr: &mut Problems) -> (Option<Layout>, Option<Vec<GpsRecor
                     if l.frames.is_empty() {
                         pr.add(
                             "input",
-                            format!("선택된 영상 없음: {}/{c}/{c}_NNNN.jpg 중 번호 % {} == 0 인 파일", inp.images.display(), inp.stride, c = inp.cameras[0]),
+                            format!(
+                                "선택된 영상 없음: {}/{c}/{c}_NNNN.jpg 중 번호 % {} == 0 인 파일",
+                                inp.images.display(),
+                                inp.stride,
+                                c = inp.cameras[0]
+                            ),
                         );
                     } else {
                         layout = Some(l);
@@ -1099,7 +1127,11 @@ pub struct Recon {
 
 impl fmt::Debug for Recon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Recon").field("plan", &self.plan).field("hooks", &self.attach.len()).field("positions", &self.layout.frames.len()).finish()
+        f.debug_struct("Recon")
+            .field("plan", &self.plan)
+            .field("hooks", &self.attach.len())
+            .field("positions", &self.layout.frames.len())
+            .finish()
     }
 }
 

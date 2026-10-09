@@ -27,14 +27,14 @@
 
 //! 기술자 매칭·짝 목록·저장소 파이프라인 검증.
 
-use rand::{RngExt, SeedableRng};
-use rand_pcg::Pcg64;
 use cumulus3d_core::{
-    pair_id_of, images_of_pair, Camera, CameraModelKind, Descriptors, FeatureMatch, FeatureStore, Keypoint,
-    TwoViewGeometryConfig as C, Vec2, Vec3, DESCRIPTOR_DIM,
+    images_of_pair, pair_id_of, Camera, CameraModelKind, Descriptors, FeatureMatch, FeatureStore, Keypoint, TwoViewGeometryConfig as C,
+    Vec2, Vec3, DESCRIPTOR_DIM,
 };
 use cumulus3d_matching::descriptor::{apply_tests, dot_to_angle, top2_naive};
 use cumulus3d_matching::*;
+use rand::{RngExt, SeedableRng};
+use rand_pcg::Pcg64;
 
 fn quantize(v: &[f64]) -> [u8; 128] {
     let n = v.iter().map(|x| x * x).sum::<f64>().sqrt();

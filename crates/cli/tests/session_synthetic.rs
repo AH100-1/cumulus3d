@@ -107,7 +107,14 @@ fn events_order_and_counts() {
     assert_eq!(count(&evs, EventKind::ModelInitialized), 1);
     // span 4 + overlap 1: 첫 모델은 위치 4, 그 뒤 위치마다 PositionDone.
     assert_eq!(count(&evs, EventKind::PositionDone), NPOS - 4);
-    for k in [EventKind::ZoneArrived, EventKind::ZonePreview, EventKind::RefineStarted, EventKind::ZoneAdjusted, EventKind::ZoneRefinedPose, EventKind::ZoneRefined] {
+    for k in [
+        EventKind::ZoneArrived,
+        EventKind::ZonePreview,
+        EventKind::RefineStarted,
+        EventKind::ZoneAdjusted,
+        EventKind::ZoneRefinedPose,
+        EventKind::ZoneRefined,
+    ] {
         assert_eq!(count(&evs, k), 2, "{k:?}");
     }
     for k in [EventKind::AllPositionsDone, EventKind::AllRefinedDone, EventKind::Finished] {
@@ -132,7 +139,15 @@ fn events_order_and_counts() {
 
     // run.log 줄: 단계 시간·통계.
     let logs: Vec<&str> = evs.iter().filter_map(|e| if let Event::Log { line, .. } = e { Some(line.as_str()) } else { None }).collect();
-    for pre in ["[time] feature pos 0", "[match] pos 7", "[mapper] ", "[register] pos 5", "[triangulate] pos 7", "[ba] refined 1", "[align] refined 0"] {
+    for pre in [
+        "[time] feature pos 0",
+        "[match] pos 7",
+        "[mapper] ",
+        "[register] pos 5",
+        "[triangulate] pos 7",
+        "[ba] refined 1",
+        "[align] refined 0",
+    ] {
         assert!(logs.iter().any(|l| l.starts_with(pre)), "로그 없음 {pre}");
     }
     // 정밀 정렬은 GPS 오차가 작다.

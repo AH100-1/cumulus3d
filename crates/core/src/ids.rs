@@ -154,9 +154,7 @@ pub fn swap_image_pair(image_id1: ImageId, image_id2: ImageId) -> bool {
 /// 짝 id = M·min + max. 영상 id 가 M 이상이면 오류.
 pub fn pair_id_of(image_id1: ImageId, image_id2: ImageId) -> Result<PairId> {
     if image_id1 as u64 >= MAX_NUM_IMAGES || image_id2 as u64 >= MAX_NUM_IMAGES {
-        return Err(Error::InvalidArgument(format!(
-            "영상 id 는 {MAX_NUM_IMAGES} 미만이어야 함: ({image_id1}, {image_id2})"
-        )));
+        return Err(Error::InvalidArgument(format!("영상 id 는 {MAX_NUM_IMAGES} 미만이어야 함: ({image_id1}, {image_id2})")));
     }
     let (a, b) = if image_id1 <= image_id2 { (image_id1, image_id2) } else { (image_id2, image_id1) };
     Ok(MAX_NUM_IMAGES * a as u64 + b as u64)

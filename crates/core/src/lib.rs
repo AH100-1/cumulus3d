@@ -86,9 +86,7 @@ pub mod store;
 
 pub use camera::{Camera, CameraModelKind};
 pub use error::{Error, Result};
-pub use features::{
-    Descriptors, FeatureMatch, Keypoint, TwoViewGeometry, TwoViewGeometryConfig, DESCRIPTOR_DIM,
-};
+pub use features::{Descriptors, FeatureMatch, Keypoint, TwoViewGeometry, TwoViewGeometryConfig, DESCRIPTOR_DIM};
 pub use geometry::{Mat3, Mat3x4, Quat, Rigid3, Sim3, Vec2, Vec3};
 pub use graph::{MatchGraph, MatchGraphOptions};
 pub use ids::*;

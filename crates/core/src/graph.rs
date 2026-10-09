@@ -120,10 +120,7 @@ impl MatchGraph {
 
     /// 노드 추가(2D 점 수만큼 빈 대응 목록). 이미 있으면 무시.
     pub fn add_image(&mut self, image_id: ImageId, num_points2d: usize) {
-        self.images.entry(image_id).or_insert_with(|| GraphImage {
-            corrs: vec![Vec::new(); num_points2d],
-            ..Default::default()
-        });
+        self.images.entry(image_id).or_insert_with(|| GraphImage { corrs: vec![Vec::new(); num_points2d], ..Default::default() });
     }
     /// 영상 노드가 있는지.
     pub fn exists_image(&self, image_id: ImageId) -> bool {
@@ -225,8 +222,7 @@ impl MatchGraph {
     }
 
     fn usable(tvg: &TwoViewGeometry, opts: &MatchGraphOptions) -> bool {
-        tvg.inlier_matches.len() >= opts.min_num_matches
-            && !(opts.ignore_watermarks && tvg.config == TwoViewGeometryConfig::Watermark)
+        tvg.inlier_matches.len() >= opts.min_num_matches && !(opts.ignore_watermarks && tvg.config == TwoViewGeometryConfig::Watermark)
     }
 
     /// 저장소에서 구성.
@@ -241,9 +237,8 @@ impl MatchGraph {
     pub fn update_from_store(&mut self, store: &FeatureStore, opts: &MatchGraphOptions) -> usize {
         let (new_pairs, cursor) = store.two_view_geometries_since(self.store_cursor);
         self.store_cursor = cursor;
-        let name_ok = |id: ImageId| -> bool {
-            opts.image_names.is_empty() || store.image(id).is_some_and(|im| opts.image_names.contains(&im.name))
-        };
+        let name_ok =
+            |id: ImageId| -> bool { opts.image_names.is_empty() || store.image(id).is_some_and(|im| opts.image_names.contains(&im.name)) };
         if opts.keep_all_images {
             for im in store.images() {
                 if name_ok(im.image_id) {
@@ -278,10 +273,7 @@ impl MatchGraph {
 
     /// (영상, 2D 점)의 직접 대응.
     pub fn find_correspondences(&self, image_id: ImageId, point2d_idx: Point2DIdx) -> &[Correspondence] {
-        self.images
-            .get(&image_id)
-            .and_then(|i| i.corrs.get(point2d_idx as usize))
-            .map_or(&[], |v| v.as_slice())
+        self.images.get(&image_id).and_then(|i| i.corrs.get(point2d_idx as usize)).map_or(&[], |v| v.as_slice())
     }
     /// (영상, 2D 점)에 대응이 있는지.
     pub fn has_correspondences(&self, image_id: ImageId, point2d_idx: Point2DIdx) -> bool {
@@ -307,12 +299,7 @@ impl MatchGraph {
         out
     }
     /// 추이적 대응(너비 우선, 깊이 t). 시작 관측과 이미 본 관측 제외.
-    pub fn transitive_matches(
-        &self,
-        image_id: ImageId,
-        point2d_idx: Point2DIdx,
-        depth: usize,
-    ) -> Vec<Correspondence> {
+    pub fn transitive_matches(&self, image_id: ImageId, point2d_idx: Point2DIdx, depth: usize) -> Vec<Correspondence> {
         let start = Correspondence::new(image_id, point2d_idx);
         let mut seen: HashSet<Correspondence> = HashSet::from([start]);
         let mut out = Vec::new();

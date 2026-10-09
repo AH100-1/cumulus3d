@@ -380,13 +380,7 @@ where
                 }
                 best_support = cand.1;
                 best = Some(cand);
-                dyn_max = compute_num_trials(
-                    best_support.num_inliers,
-                    n,
-                    k,
-                    opts.confidence,
-                    opts.dyn_trials_factor,
-                );
+                dyn_max = compute_num_trials(best_support.num_inliers, n, k, opts.confidence, opts.dyn_trials_factor);
             }
             if t >= dyn_max && t >= opts.min_trials {
                 break 'outer;

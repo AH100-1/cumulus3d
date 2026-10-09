@@ -37,8 +37,8 @@
 
 use crate::params::{FusionMode, FusionParams, FusionResidual};
 use crate::scene::DenseScene;
-use rayon::prelude::*;
 use cumulus3d_core::io::PointCloud;
+use rayon::prelude::*;
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
@@ -136,13 +136,21 @@ impl Cam {
         let c = [(col - self.k[2]) / self.k[0] * d, (row - self.k[3]) / self.k[1] * d, d];
         let r = &self.r;
         let p = [c[0] - self.t[0], c[1] - self.t[1], c[2] - self.t[2]];
-        [r[0][0] * p[0] + r[1][0] * p[1] + r[2][0] * p[2], r[0][1] * p[0] + r[1][1] * p[1] + r[2][1] * p[2], r[0][2] * p[0] + r[1][2] * p[1] + r[2][2] * p[2]]
+        [
+            r[0][0] * p[0] + r[1][0] * p[1] + r[2][0] * p[2],
+            r[0][1] * p[0] + r[1][1] * p[1] + r[2][1] * p[2],
+            r[0][2] * p[0] + r[1][2] * p[1] + r[2][2] * p[2],
+        ]
     }
     #[inline]
     fn normal_world(&self, n: &[f32; 3]) -> [f64; 3] {
         let r = &self.r;
         let n = [n[0] as f64, n[1] as f64, n[2] as f64];
-        [r[0][0] * n[0] + r[1][0] * n[1] + r[2][0] * n[2], r[0][1] * n[0] + r[1][1] * n[1] + r[2][1] * n[2], r[0][2] * n[0] + r[1][2] * n[1] + r[2][2] * n[2]]
+        [
+            r[0][0] * n[0] + r[1][0] * n[1] + r[2][0] * n[2],
+            r[0][1] * n[0] + r[1][1] * n[1] + r[2][1] * n[2],
+            r[0][2] * n[0] + r[1][2] * n[1] + r[2][2] * n[2],
+        ]
     }
 }
 
@@ -156,7 +164,13 @@ struct Scratch {
 }
 
 /// 깊이맵 융합. `inputs[v]` 가 None 이면 뷰 v 는 쓰지 않는다. `overlap[v]` 는 확장 대상 뷰 순서.
-pub fn fuse(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overlap: &[Vec<usize>], p: &FusionParams, threads: usize) -> FusionOutput {
+pub fn fuse(
+    scene: &DenseScene,
+    inputs: &[Option<FusionInput<'_>>],
+    overlap: &[Vec<usize>],
+    p: &FusionParams,
+    threads: usize,
+) -> FusionOutput {
     match p.mode {
         FusionMode::Traversal => fuse_traversal(scene, inputs, overlap, p, threads),
         FusionMode::Consistency => fuse_consistency(scene, inputs, overlap, p, threads),
@@ -174,21 +188,31 @@ pub fn fuse(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overlap: &[V
 /// - `SecondPass`: 1차가 끝난 뒤, 1차 점의 기준·일치 픽셀이 아니었던 유효 깊이 픽셀만 기준으로 삼아 2차 허용치로 다시 검사한다.
 ///   영상 단위 병렬이며, 2차 후보는 자기 기준 픽셀과 일치 픽셀을 후보 번호의 최솟값으로 원자적 점유(`fetch_min`)하고
 ///   자기 기준 픽셀의 점유자가 자신인 후보만 남는다(실행 순서와 무관). 1차 점과 `min_dist_gsd`·GSD 이내인 후보는 버린다.
-pub fn fuse_consistency(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overlap: &[Vec<usize>], p: &FusionParams, threads: usize) -> FusionOutput {
+pub fn fuse_consistency(
+    scene: &DenseScene,
+    inputs: &[Option<FusionInput<'_>>],
+    overlap: &[Vec<usize>],
+    p: &FusionParams,
+    threads: usize,
+) -> FusionOutput {
     let t1 = Instant::now();
     let n = scene.views.len();
     let cams: Vec<Cam> = scene.views.iter().map(|v| Cam { k: v.k, r: v.r, t: v.t, w: v.width, h: v.height }).collect();
     let used: Vec<bool> = (0..n).map(|v| inputs.get(v).is_some_and(|i| i.is_some())).collect();
-    let alloc_u8 = |on: bool| -> Vec<Vec<AtomicU8>> { (0..n).map(|v| if on && used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU8::new(0)).collect() } else { Vec::new() }).collect() };
+    let alloc_u8 = |on: bool| -> Vec<Vec<AtomicU8>> {
+        (0..n).map(|v| if on && used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU8::new(0)).collect() } else { Vec::new() }).collect()
+    };
     let marks = alloc_u8(true);
     let second = p.residual == FusionResidual::SecondPass;
     let release = p.residual == FusionResidual::Release;
     // 1차 점의 기준·일치 픽셀(2차 대상 제외용).
     let consumed = alloc_u8(second);
-    let tol = Tol { depth: p.max_depth_error, cos_n: p.max_normal_error_deg.to_radians().cos(), r2: p.max_reproj_error * p.max_reproj_error };
+    let tol =
+        Tol { depth: p.max_depth_error, cos_n: p.max_normal_error_deg.to_radians().cos(), r2: p.max_reproj_error * p.max_reproj_error };
     let pool = if threads > 0 { rayon::ThreadPoolBuilder::new().num_threads(threads).build().ok() } else { None };
     let ctx = ConsCtx { scene, cams: &cams, inputs };
-    let ovs: Vec<Vec<usize>> = (0..n).map(|v| overlap[v].iter().copied().filter(|&o| used[o]).take(p.consistency_num_images).collect()).collect();
+    let ovs: Vec<Vec<usize>> =
+        (0..n).map(|v| overlap[v].iter().copied().filter(|&o| used[o]).take(p.consistency_num_images).collect()).collect();
     let mut out = FusionOutput::default();
     for v in 0..n {
         let Some(inp) = inputs[v] else { continue };
@@ -331,7 +355,17 @@ type Point = ([f32; 3], [f32; 3], [u8; 3]);
 impl ConsCtx<'_> {
     /// 기준 픽셀 하나의 일치 검사: 일치한 (뷰, 픽셀)을 `hits` 에 모으고 가중 평균 점을 낸다(법선 합이 0 이면 None).
     #[allow(clippy::too_many_arguments)]
-    fn evaluate(&self, p: &FusionParams, v: usize, inp: &FusionInput<'_>, row: usize, col: usize, ov: &[usize], tol: &Tol, hits: &mut Vec<(usize, usize)>) -> Option<Point> {
+    fn evaluate(
+        &self,
+        p: &FusionParams,
+        v: usize,
+        inp: &FusionInput<'_>,
+        row: usize,
+        col: usize,
+        ov: &[usize],
+        tol: &Tol,
+        hits: &mut Vec<(usize, usize)>,
+    ) -> Option<Point> {
         let cam = &self.cams[v];
         let pix = row * cam.w + col;
         let d = inp.depth[pix] as f64;
@@ -420,7 +454,9 @@ struct GridIndex {
 
 impl GridIndex {
     fn cell_key(c: [i64; 3]) -> u64 {
-        let h = (c[0] as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (c[1] as u64).wrapping_mul(0xc2b2_ae3d_27d4_eb4f) ^ (c[2] as u64).wrapping_mul(0x1656_67b1_9e37_79f9);
+        let h = (c[0] as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+            ^ (c[1] as u64).wrapping_mul(0xc2b2_ae3d_27d4_eb4f)
+            ^ (c[2] as u64).wrapping_mul(0x1656_67b1_9e37_79f9);
         crate::math::mix64(h)
     }
     fn cell_of(&self, x: &[f32; 3]) -> [i64; 3] {
@@ -460,7 +496,14 @@ impl GridIndex {
 }
 
 /// 2차 융합: 1차에서 쓰이지 않은 유효 깊이 픽셀만 기준으로, 2차 허용치로 검사. 뷰별 (점, 가시성) 을 뷰 순서로 돌려준다.
-fn second_pass(ctx: &ConsCtx<'_>, p: &FusionParams, used: &[bool], ovs: &[Vec<usize>], consumed: &[Vec<AtomicU8>], first: &PointCloud) -> Vec<(PointCloud, Vec<Vec<u32>>)> {
+fn second_pass(
+    ctx: &ConsCtx<'_>,
+    p: &FusionParams,
+    used: &[bool],
+    ovs: &[Vec<usize>],
+    consumed: &[Vec<AtomicU8>],
+    first: &PointCloud,
+) -> Vec<(PointCloud, Vec<Vec<u32>>)> {
     let rp = &p.residual_params;
     let cams = ctx.cams;
     let n = cams.len();
@@ -477,7 +520,8 @@ fn second_pass(ctx: &ConsCtx<'_>, p: &FusionParams, used: &[bool], ovs: &[Vec<us
         offset[v + 1] = offset[v] + if used[v] { (cams[v].w * cams[v].h) as u64 } else { 0 };
     }
     assert!(offset[n] < u32::MAX as u64, "2차 융합: 픽셀 수가 u32 범위를 넘음");
-    let owner: Vec<Vec<AtomicU32>> = (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU32::new(u32::MAX)).collect() } else { Vec::new() }).collect();
+    let owner: Vec<Vec<AtomicU32>> =
+        (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU32::new(u32::MAX)).collect() } else { Vec::new() }).collect();
     // 1단계: 뷰 단위 병렬로 후보를 만들고 점유.
     struct Cand {
         pix: usize,
@@ -540,11 +584,18 @@ fn second_pass(ctx: &ConsCtx<'_>, p: &FusionParams, used: &[bool], ovs: &[Vec<us
 }
 
 /// 확장 중앙값 융합.
-pub fn fuse_traversal(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overlap: &[Vec<usize>], p: &FusionParams, threads: usize) -> FusionOutput {
+pub fn fuse_traversal(
+    scene: &DenseScene,
+    inputs: &[Option<FusionInput<'_>>],
+    overlap: &[Vec<usize>],
+    p: &FusionParams,
+    threads: usize,
+) -> FusionOutput {
     let n = scene.views.len();
     let cams: Vec<Cam> = scene.views.iter().map(|v| Cam { k: v.k, r: v.r, t: v.t, w: v.width, h: v.height }).collect();
     let used: Vec<bool> = (0..n).map(|v| inputs.get(v).is_some_and(|i| i.is_some())).collect();
-    let fused: Vec<Vec<AtomicU8>> = (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU8::new(0)).collect() } else { Vec::new() }).collect();
+    let fused: Vec<Vec<AtomicU8>> =
+        (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU8::new(0)).collect() } else { Vec::new() }).collect();
     let mut done = vec![false; n];
     let mut out = FusionOutput::default();
     let cos_max_normal = p.max_normal_error_deg.to_radians().cos();

@@ -32,8 +32,8 @@
 //! 뷰 그래프와 회전 평균: 최대 신장 트리 초기화 → L1(ADMM) → IRLS(Geman-McClure).
 
 use crate::math::{so3_exp, so3_log, CsrMatrix};
-use nalgebra::{Cholesky, DMatrix, DVector, Dyn};
 use cumulus3d_core::{Error, ImageId, Mat3, Result, Rigid3};
+use nalgebra::{Cholesky, DMatrix, DVector, Dyn};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// 뷰 그래프 간선(상대 자세가 있는 영상 짝). `image_id1 < image_id2`.
@@ -126,8 +126,7 @@ impl ViewGraph {
         for e in self.edges.iter_mut().filter(|e| e.valid) {
             let (Some(r1), Some(r2)) = (rotations.get(&e.image_id1), rotations.get(&e.image_id2)) else { continue };
             let est = r2 * r1.transpose();
-            let ang = cumulus3d_core::Quat::from_rotation_matrix(&est)
-                .angular_distance(&e.cam1_to_cam2.rotation.normalized());
+            let ang = cumulus3d_core::Quat::from_rotation_matrix(&est).angular_distance(&e.cam1_to_cam2.rotation.normalized());
             if ang > max_rad {
                 e.valid = false;
                 n += 1;
@@ -434,8 +433,8 @@ pub fn solve_rotation_averaging(
 mod tests {
     use super::*;
     use crate::math::gaussian;
-    use rand::{RngExt, SeedableRng};
     use cumulus3d_core::{Quat, Vec3};
+    use rand::{RngExt, SeedableRng};
 
     fn random_rot(rng: &mut rand_pcg::Pcg64, scale: f64) -> Mat3 {
         so3_exp(&(Vec3::new(gaussian(rng), gaussian(rng), gaussian(rng)) * scale))
@@ -449,8 +448,7 @@ mod tests {
             sum += truth[id].transpose() * r;
         }
         let g = crate::math::nearest_rotation(&sum);
-        let mut errs: Vec<f64> =
-            est.iter().map(|(id, r)| crate::math::rotation_angle_between(r, &(truth[id] * g)).to_degrees()).collect();
+        let mut errs: Vec<f64> = est.iter().map(|(id, r)| crate::math::rotation_angle_between(r, &(truth[id] * g)).to_degrees()).collect();
         errs.sort_by(|a, b| a.total_cmp(b));
         errs
     }
@@ -558,13 +556,7 @@ mod tests {
 
     #[test]
     fn largest_component_and_filter() {
-        let e = |a, b| ViewGraphEdge {
-            image_id1: a,
-            image_id2: b,
-            cam1_to_cam2: Rigid3::identity(),
-            num_matches: 20,
-            valid: true,
-        };
+        let e = |a, b| ViewGraphEdge { image_id1: a, image_id2: b, cam1_to_cam2: Rigid3::identity(), num_matches: 20, valid: true };
         let mut g = ViewGraph::new(vec![e(1, 2), e(2, 3), e(4, 5), e(6, 7), e(7, 8), e(8, 9)]);
         let cc = g.largest_connected_component(|_| true);
         assert_eq!(cc, BTreeSet::from([6, 7, 8, 9]));

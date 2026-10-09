@@ -115,53 +115,23 @@ impl Quat {
         let (xx, yy, zz) = (x * x * s, y * y * s, z * z * s);
         let (xy, xz, yz) = (x * y * s, x * z * s, y * z * s);
         let (wx, wy, wz) = (w * x * s, w * y * s, w * z * s);
-        Mat3::new(
-            1.0 - yy - zz,
-            xy - wz,
-            xz + wy,
-            xy + wz,
-            1.0 - xx - zz,
-            yz - wx,
-            xz - wy,
-            yz + wx,
-            1.0 - xx - yy,
-        )
+        Mat3::new(1.0 - yy - zz, xy - wz, xz + wy, xy + wz, 1.0 - xx - zz, yz - wx, xz - wy, yz + wx, 1.0 - xx - yy)
     }
     /// 회전 행렬 → 단위 쿼터니언(Shepperd 방식).
     pub fn from_rotation_matrix(m: &Mat3) -> Quat {
         let tr = m[(0, 0)] + m[(1, 1)] + m[(2, 2)];
         let q = if tr > 0.0 {
             let s = (tr + 1.0).sqrt() * 2.0;
-            Quat {
-                w: 0.25 * s,
-                x: (m[(2, 1)] - m[(1, 2)]) / s,
-                y: (m[(0, 2)] - m[(2, 0)]) / s,
-                z: (m[(1, 0)] - m[(0, 1)]) / s,
-            }
+            Quat { w: 0.25 * s, x: (m[(2, 1)] - m[(1, 2)]) / s, y: (m[(0, 2)] - m[(2, 0)]) / s, z: (m[(1, 0)] - m[(0, 1)]) / s }
         } else if m[(0, 0)] > m[(1, 1)] && m[(0, 0)] > m[(2, 2)] {
             let s = (1.0 + m[(0, 0)] - m[(1, 1)] - m[(2, 2)]).sqrt() * 2.0;
-            Quat {
-                w: (m[(2, 1)] - m[(1, 2)]) / s,
-                x: 0.25 * s,
-                y: (m[(0, 1)] + m[(1, 0)]) / s,
-                z: (m[(0, 2)] + m[(2, 0)]) / s,
-            }
+            Quat { w: (m[(2, 1)] - m[(1, 2)]) / s, x: 0.25 * s, y: (m[(0, 1)] + m[(1, 0)]) / s, z: (m[(0, 2)] + m[(2, 0)]) / s }
         } else if m[(1, 1)] > m[(2, 2)] {
             let s = (1.0 + m[(1, 1)] - m[(0, 0)] - m[(2, 2)]).sqrt() * 2.0;
-            Quat {
-                w: (m[(0, 2)] - m[(2, 0)]) / s,
-                x: (m[(0, 1)] + m[(1, 0)]) / s,
-                y: 0.25 * s,
-                z: (m[(1, 2)] + m[(2, 1)]) / s,
-            }
+            Quat { w: (m[(0, 2)] - m[(2, 0)]) / s, x: (m[(0, 1)] + m[(1, 0)]) / s, y: 0.25 * s, z: (m[(1, 2)] + m[(2, 1)]) / s }
         } else {
             let s = (1.0 + m[(2, 2)] - m[(0, 0)] - m[(1, 1)]).sqrt() * 2.0;
-            Quat {
-                w: (m[(1, 0)] - m[(0, 1)]) / s,
-                x: (m[(0, 2)] + m[(2, 0)]) / s,
-                y: (m[(1, 2)] + m[(2, 1)]) / s,
-                z: 0.25 * s,
-            }
+            Quat { w: (m[(1, 0)] - m[(0, 1)]) / s, x: (m[(0, 2)] + m[(2, 0)]) / s, y: (m[(1, 2)] + m[(2, 1)]) / s, z: 0.25 * s }
         };
         q.normalized()
     }
@@ -251,10 +221,7 @@ impl Rigid3 {
     }
     /// 파일 순서 [qw, qx, qy, qz, tx, ty, tz].
     pub fn from_params(p: &[f64; 7]) -> Self {
-        Self {
-            rotation: Quat::new(p[0], p[1], p[2], p[3]),
-            translation: Vec3::new(p[4], p[5], p[6]),
-        }
+        Self { rotation: Quat::new(p[0], p[1], p[2], p[3]), translation: Vec3::new(p[4], p[5], p[6]) }
     }
     /// 파일 순서 `[qw, qx, qy, qz, tx, ty, tz]`.
     pub fn to_params(&self) -> [f64; 7] {
@@ -359,11 +326,7 @@ impl Sim3 {
     pub fn from_matrix(m: &Mat3x4) -> Self {
         let sr: Mat3 = m.fixed_view::<3, 3>(0, 0).into_owned();
         let s = sr.column(0).norm();
-        Self {
-            scale: s,
-            rotation: Quat::from_rotation_matrix(&(sr / s)),
-            translation: m.column(3).into_owned(),
-        }
+        Self { scale: s, rotation: Quat::from_rotation_matrix(&(sr / s)), translation: m.column(3).into_owned() }
     }
     /// X_new = s·R·X_old + t.
     pub fn transform_point(&self, p: &Vec3) -> Vec3 {
@@ -372,19 +335,14 @@ impl Sim3 {
     /// 역변환: s' = 1/s, R' = Rᵀ, t' = −Rᵀ t / s.
     pub fn inverse(&self) -> Self {
         let rinv = self.rotation.conjugate();
-        Self {
-            scale: 1.0 / self.scale,
-            rotation: rinv,
-            translation: -(rinv.to_rotation_matrix() * self.translation) / self.scale,
-        }
+        Self { scale: 1.0 / self.scale, rotation: rinv, translation: -(rinv.to_rotation_matrix() * self.translation) / self.scale }
     }
     /// 합성 self ∘ rhs.
     pub fn compose(&self, rhs: &Sim3) -> Sim3 {
         Sim3 {
             scale: self.scale * rhs.scale,
             rotation: self.rotation.hamilton(&rhs.rotation).normalized(),
-            translation: self.scale * (self.rotation.to_rotation_matrix() * rhs.translation)
-                + self.translation,
+            translation: self.scale * (self.rotation.to_rotation_matrix() * rhs.translation) + self.translation,
         }
     }
     /// 자세(world_to_cam 또는 world_to_rig)에 적용: R' = R Qᵀ, t' = s t − R' T.

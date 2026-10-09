@@ -49,10 +49,7 @@ impl GrayImage {
     /// 버퍼로 만든다. 길이가 width × height 가 아니면 오류.
     pub fn new(width: usize, height: usize, data: Vec<u8>) -> Result<Self> {
         if data.len() != width * height {
-            return Err(Error::InvalidArgument(format!(
-                "회색 영상 크기 {width}x{height} 와 자료 길이 {} 불일치",
-                data.len()
-            )));
+            return Err(Error::InvalidArgument(format!("회색 영상 크기 {width}x{height} 와 자료 길이 {} 불일치", data.len())));
         }
         Ok(Self { width, height, data })
     }
@@ -108,8 +105,7 @@ impl GrayImage {
         if width == self.width && height == self.height {
             return self.clone();
         }
-        let buf = image::GrayImage::from_raw(self.width as u32, self.height as u32, self.data.clone())
-            .expect("크기 불변식");
+        let buf = image::GrayImage::from_raw(self.width as u32, self.height as u32, self.data.clone()).expect("크기 불변식");
         let out = image::imageops::resize(&buf, width as u32, height as u32, image::imageops::FilterType::Lanczos3);
         GrayImage { width, height, data: out.into_raw() }
     }
@@ -143,12 +139,8 @@ pub fn to_gray(img: &image::DynamicImage) -> Result<GrayImage> {
 
 /// 파일을 디코딩해 회색 영상으로 읽는다(EXIF 방향 자동 회전 없음).
 pub fn read_gray(path: &Path) -> Result<GrayImage> {
-    let reader = image::ImageReader::open(path)?
-        .with_guessed_format()
-        .map_err(Error::Io)?;
-    let img = reader
-        .decode()
-        .map_err(|e| Error::Format(format!("{}: 디코딩 실패: {e}", path.display())))?;
+    let reader = image::ImageReader::open(path)?.with_guessed_format().map_err(Error::Io)?;
+    let img = reader.decode().map_err(|e| Error::Format(format!("{}: 디코딩 실패: {e}", path.display())))?;
     to_gray(&img)
 }
 
@@ -166,14 +158,7 @@ pub fn rotate_keypoint_ccw(kp: &Keypoint, k: u32, width: f32, height: f32) -> Ke
     let mut p = *kp;
     let (mut w, mut h) = (width, height);
     for _ in 0..(k % 4) {
-        p = Keypoint {
-            x: p.y,
-            y: w - p.x,
-            a11: p.a21,
-            a12: p.a22,
-            a21: -p.a11,
-            a22: -p.a12,
-        };
+        p = Keypoint { x: p.y, y: w - p.x, a11: p.a21, a12: p.a22, a21: -p.a11, a22: -p.a12 };
         std::mem::swap(&mut w, &mut h);
     }
     p

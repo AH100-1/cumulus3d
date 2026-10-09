@@ -288,10 +288,7 @@ pub fn read_ply(path: impl AsRef<Path>) -> Result<PointCloud> {
             let mut toks = text.split_whitespace();
             for _ in 0..v.count {
                 for x in vals.iter_mut() {
-                    *x = toks
-                        .next()
-                        .and_then(|s| s.parse().ok())
-                        .ok_or_else(|| Error::Format("PLY ascii 값 부족".into()))?;
+                    *x = toks.next().and_then(|s| s.parse().ok()).ok_or_else(|| Error::Format("PLY ascii 값 부족".into()))?;
                 }
                 push(&vals, &mut cloud);
             }

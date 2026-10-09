@@ -72,12 +72,7 @@ fn focal_rules() {
     assert_eq!(f.focal, 4800.0);
     assert!(!f.prior);
     // 센서 폭 표
-    let e = ExifInfo {
-        focal_mm: Some(8.8),
-        make: Some("DJI".into()),
-        model: Some("FC6310".into()),
-        ..Default::default()
-    };
+    let e = ExifInfo { focal_mm: Some(8.8), make: Some("DJI".into()), model: Some("FC6310".into()), ..Default::default() };
     let f = infer_focal(&e, 5472, 3648, 1.2);
     assert!((f.focal - 8.8 / 13.2 * 5472.0).abs() < 1e-9);
 }

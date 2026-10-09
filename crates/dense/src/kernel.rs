@@ -182,17 +182,40 @@ pub trait PatchMatchSession {
     /// `views[i]` 의 상태 `states[i]` 에서 적·흑 반복 실행. 상태를 제자리 갱신한다.
     fn run(&mut self, views: &[usize], states: &mut [ViewState], params: &RunParams, snapshot: Option<&DepthSnapshot>) -> Result<()>;
     /// 현재 가설의 상위 K 평균 비용(기하면 `m + λ·min(Δe, δ)`).
-    fn evaluate(&mut self, level: usize, views: &[usize], states: &[ViewState], geometric: bool, snapshot: Option<&DepthSnapshot>) -> Result<Vec<Vec<f32>>>;
+    fn evaluate(
+        &mut self,
+        level: usize,
+        views: &[usize],
+        states: &[ViewState],
+        geometric: bool,
+        snapshot: Option<&DepthSnapshot>,
+    ) -> Result<Vec<Vec<f32>>>;
     /// 최종 스케일 판독: 픽셀마다 광도·기하 조건을 모두 만족한 원천 뷰 수.
     /// 조건: 삼각측량각 ≥ 필터 최소각, 입사 cos > 0, 방출 가시 확률 ≥ E(1 − min_ncc), 비절단 Δe ≤ 허용치.
     fn filter(&mut self, views: &[usize], states: &[ViewState], snapshot: &DepthSnapshot) -> Result<Vec<Vec<u8>>>;
     /// 스케일 `level − 1` 상태를 `level` 로 결합 양방향 상향 표본([`crate::upsample::joint_bilateral_upsample`] 과 같은 규칙).
     /// 기본 구현은 호스트 계산.
-    fn upsample(&mut self, input: &KernelInput, level: usize, views: &[usize], low: &[ViewState], sigma_s: f32, sigma_c: f32) -> Result<Vec<ViewState>> {
+    fn upsample(
+        &mut self,
+        input: &KernelInput,
+        level: usize,
+        views: &[usize],
+        low: &[ViewState],
+        sigma_s: f32,
+        sigma_c: f32,
+    ) -> Result<Vec<ViewState>> {
         Ok(views
             .iter()
             .zip(low)
-            .map(|(&v, s)| crate::upsample::joint_bilateral_upsample(s, &input.views[v].levels[level - 1], &input.views[v].levels[level], sigma_s, sigma_c))
+            .map(|(&v, s)| {
+                crate::upsample::joint_bilateral_upsample(
+                    s,
+                    &input.views[v].levels[level - 1],
+                    &input.views[v].levels[level],
+                    sigma_s,
+                    sigma_c,
+                )
+            })
             .collect())
     }
     /// 5×5 중앙값 평면 필터([`crate::upsample::median_plane_filter`] 와 같은 규칙). 기본 구현은 호스트 계산.

@@ -27,7 +27,7 @@
 
 //! 합성 장면 통합 테스트: 전역 매퍼(BA 0회) → 위치별 등록 + 삼각측량.
 
-use cumulus3d_core::{MatchGraph, MatchGraphOptions, ImageId, Reconstruction, Vec3};
+use cumulus3d_core::{ImageId, MatchGraph, MatchGraphOptions, Reconstruction, Vec3};
 use cumulus3d_sfm::global_mapper::{global_mapper, GlobalSfmOptions};
 use cumulus3d_sfm::math::umeyama;
 use cumulus3d_sfm::registration::{register_images, RegistrationOptions};
@@ -103,11 +103,8 @@ fn incremental(refiner: PointRefiner, scope_new: bool, refine_pose: bool) -> (Re
         for id in &scene.images_by_position[pos] {
             assert!(rec.is_image_registered(*id), "영상 {id} 등록 실패");
         }
-        let scope = if scope_new {
-            TriangulationScope::Images(scene.images_by_position[pos].clone())
-        } else {
-            TriangulationScope::AllRegistered
-        };
+        let scope =
+            if scope_new { TriangulationScope::Images(scene.images_by_position[pos].clone()) } else { TriangulationScope::AllRegistered };
         let topts = PointTriangulatorOptions { refiner, scope, ..Default::default() };
         let before = rec.num_points3d();
         let t = std::time::Instant::now();

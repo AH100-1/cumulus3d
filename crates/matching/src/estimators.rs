@@ -34,9 +34,9 @@
 use crate::essential::{epipolar_row, essential_five_point};
 use crate::linalg::{hartley_normalize, mat3_from_row_major, null_space_9, singular_values_9, solve8, svd3};
 use crate::poly::solve_cubic_monic;
-use nalgebra::SMatrix;
 use cumulus3d_core::ransac::Estimator;
 use cumulus3d_core::{Mat3, Vec2, Vec3};
+use nalgebra::SMatrix;
 
 /// Sampson 제곱 오차. l = M a, 분자 = (bᵀ l)², 분모 = (bᵀM)_x² + (bᵀM)_y² + l_x² + l_y². 분모 0 → +∞.
 #[inline]

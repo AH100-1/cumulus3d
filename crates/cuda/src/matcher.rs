@@ -85,7 +85,9 @@ impl CudaMatcher {
         let rh = s.clone_dtoh(&ro)?;
         let ch = s.clone_dtoh(&co)?;
         s.synchronize()?;
-        let conv = |v: &[u32], n: usize| -> Vec<Top2> { (0..n).map(|k| Top2 { best: v[3 * k], idx: v[3 * k + 1], second: v[3 * k + 2] }).collect() };
+        let conv = |v: &[u32], n: usize| -> Vec<Top2> {
+            (0..n).map(|k| Top2 { best: v[3 * k], idx: v[3 * k + 1], second: v[3 * k + 2] }).collect()
+        };
         Ok((conv(&rh, n1), conv(&ch, n2)))
     }
 }

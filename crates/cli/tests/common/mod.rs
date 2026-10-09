@@ -28,8 +28,8 @@
 //! 테스트 공용 합성 데이터: 레이 캐스팅으로 그린 무늬 바닥 + 건물 상자, 드론 3대 × NPOS 위치, gps_ref.txt.
 #![allow(dead_code)]
 
-use image::{Rgb, RgbImage};
 use cumulus3d_align::EnuFrame;
+use image::{Rgb, RgbImage};
 use std::io::Write;
 use std::path::Path;
 
@@ -216,4 +216,3 @@ pub fn make_dataset(root: &Path) {
         writeln!(f, "{l}").unwrap();
     }
 }
-

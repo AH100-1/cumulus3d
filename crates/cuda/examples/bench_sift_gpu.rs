@@ -30,14 +30,18 @@
 
 use cumulus3d_cuda::{CudaMatcher, CudaSift};
 use cumulus3d_features::{read_gray, CpuSift, SiftEngine, SiftOptions};
-use cumulus3d_matching::{CpuMatcher, MatcherBackend, DescriptorMatchOptions};
+use cumulus3d_matching::{CpuMatcher, DescriptorMatchOptions, MatcherBackend};
 use std::time::Instant;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let dir = std::path::Path::new(&args[1]);
     let n: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(6);
-    let mut files: Vec<_> = std::fs::read_dir(dir).expect("폴더").filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|e| e == "jpg")).collect();
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .expect("폴더")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|e| e == "jpg"))
+        .collect();
     files.sort();
     files.truncate(n);
     let imgs: Vec<_> = files.iter().map(|p| read_gray(p).expect("영상")).collect();
@@ -58,7 +62,16 @@ fn main() {
         tc += dc;
         tg += dg;
         let same = c.features == g.features && c.descriptors.as_slice() == g.descriptors.as_slice();
-        eprintln!("{} {}×{}: CPU {:.0} ms, GPU {:.0} ms, 특징 {} / {}, 같음 {same}", p.display(), img.width, img.height, dc * 1e3, dg * 1e3, c.len(), g.len());
+        eprintln!(
+            "{} {}×{}: CPU {:.0} ms, GPU {:.0} ms, 특징 {} / {}, 같음 {same}",
+            p.display(),
+            img.width,
+            img.height,
+            dc * 1e3,
+            dg * 1e3,
+            c.len(),
+            g.len()
+        );
         outs.push(g);
     }
     eprintln!("평균: CPU {:.0} ms, GPU {:.0} ms", tc / n as f64 * 1e3, tg / n as f64 * 1e3);

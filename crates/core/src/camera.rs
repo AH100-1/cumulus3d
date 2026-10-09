@@ -226,17 +226,7 @@ impl Camera {
     }
     /// 보정 행렬 K (왜곡 무시).
     pub fn calibration_matrix(&self) -> Mat3 {
-        Mat3::new(
-            self.focal_length_x(),
-            0.0,
-            self.principal_point_x(),
-            0.0,
-            self.focal_length_y(),
-            self.principal_point_y(),
-            0.0,
-            0.0,
-            1.0,
-        )
+        Mat3::new(self.focal_length_x(), 0.0, self.principal_point_x(), 0.0, self.focal_length_y(), self.principal_point_y(), 0.0, 0.0, 1.0)
     }
     /// 비정상 파라미터 판정.
     pub fn has_implausible_params(&self, min_focal_ratio: f64, max_focal_ratio: f64, max_extra_param: f64) -> bool {

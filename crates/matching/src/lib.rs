@@ -83,20 +83,19 @@ pub mod poly;
 pub mod pose;
 pub mod two_view;
 
-pub use descriptor::{AcceptRule, CpuMatcher, MatcherBackend, DescriptorMatchOptions, Top2};
+pub use descriptor::{AcceptRule, CpuMatcher, DescriptorMatchOptions, MatcherBackend, Top2};
 pub use essential::{essential_eight_point, essential_five_point};
 pub use estimators::{
     fundamental_eight_point, fundamental_seven_point, homography_dlt, homography_transfer_error_sq, sampson_error_sq,
-    EssentialFivePointEstimator, FundamentalEightPointEstimator, Fundamental7PtEstimator, HomographyEstimator,
-    TranslationEstimator,
+    EssentialFivePointEstimator, Fundamental7PtEstimator, FundamentalEightPointEstimator, HomographyEstimator, TranslationEstimator,
 };
 pub use pairs::{parse_pair_list, read_pair_list, PairList};
 pub use pipeline::{match_pair_list_file, match_pairs, verify_pair, MatchingStats, PairMatchingOptions};
 pub use pose::{
-    decompose_essential, decompose_homography, recover_two_view_pose, pose_from_essential, pose_from_homography,
+    decompose_essential, decompose_homography, pose_from_essential, pose_from_homography, recover_two_view_pose,
     refit_and_estimate_relative_pose, triangulate_midpoint,
 };
 pub use two_view::{
-    decide_calibrated, decide_uncalibrated, estimate_two_view, finalize_geometry, is_watermark, Decision, MaskChoice,
-    ModelOutcome, TwoViewOptions,
+    decide_calibrated, decide_uncalibrated, estimate_two_view, finalize_geometry, is_watermark, Decision, MaskChoice, ModelOutcome,
+    TwoViewOptions,
 };

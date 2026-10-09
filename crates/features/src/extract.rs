@@ -35,9 +35,9 @@ use crate::camera_init::init_camera;
 use crate::exif_info::ExifInfo;
 use crate::gray::{self, GrayImage};
 use crate::sift::{CpuSift, SiftEngine, SiftOptions, SiftOutput};
-use rayon::prelude::*;
 use cumulus3d_core::store::PosePrior;
 use cumulus3d_core::{CameraId, CameraModelKind, Error, FeatureStore, ImageId, Keypoint, Result, Vec3};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -376,8 +376,15 @@ impl FeatureExtractor {
             let Some(cam) = store.camera(job.camera_id) else {
                 return (job.idx, ImageStatus::Failed { error: format!("카메라 {} 없음", job.camera_id) });
             };
-            match extract_for_camera(self.backend.as_ref(), &inp.gray, inp.exif.orientation, cam.width, cam.height, ro.max_image_size, &opts.sift)
-            {
+            match extract_for_camera(
+                self.backend.as_ref(),
+                &inp.gray,
+                inp.exif.orientation,
+                cam.width,
+                cam.height,
+                ro.max_image_size,
+                &opts.sift,
+            ) {
                 Ok((kps, out)) => {
                     let n = kps.len();
                     store.set_keypoints(job.image_id, kps);

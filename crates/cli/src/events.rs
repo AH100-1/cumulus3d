@@ -413,12 +413,31 @@ impl Event {
     pub fn meta(&self) -> &Meta {
         use Event::*;
         match self {
-            FrameIngested { meta, .. } | FeaturesExtracted { meta, .. } | PairsMatched { meta, .. } | ModelInitialized { meta, .. }
-            | FrameRegistered { meta, .. } | PositionDone { meta, .. } | ZoneArrived { meta, .. } | ZonePreview { meta, .. }
-            | ZoneRefinedPose { meta, .. } | ZoneRefined { meta, .. } | BaseAdopted { meta, .. } | Reanchored { meta, .. }
-            | Snapshot { meta, .. } | AllPositionsDone { meta } | AllRefinedDone { meta, .. }
-            | FrameDecoded { meta, .. } | Started { meta, .. } | Log { meta, .. } | RefineStarted { meta, .. } | ZoneAdjusted { meta, .. } | Finished { meta, .. }
-            | Reset { meta, .. } | ZoneInvalidated { meta, .. } | Warning { meta, .. } | Error { meta, .. } => meta,
+            FrameIngested { meta, .. }
+            | FeaturesExtracted { meta, .. }
+            | PairsMatched { meta, .. }
+            | ModelInitialized { meta, .. }
+            | FrameRegistered { meta, .. }
+            | PositionDone { meta, .. }
+            | ZoneArrived { meta, .. }
+            | ZonePreview { meta, .. }
+            | ZoneRefinedPose { meta, .. }
+            | ZoneRefined { meta, .. }
+            | BaseAdopted { meta, .. }
+            | Reanchored { meta, .. }
+            | Snapshot { meta, .. }
+            | AllPositionsDone { meta }
+            | AllRefinedDone { meta, .. }
+            | FrameDecoded { meta, .. }
+            | Started { meta, .. }
+            | Log { meta, .. }
+            | RefineStarted { meta, .. }
+            | ZoneAdjusted { meta, .. }
+            | Finished { meta, .. }
+            | Reset { meta, .. }
+            | ZoneInvalidated { meta, .. }
+            | Warning { meta, .. }
+            | Error { meta, .. } => meta,
         }
     }
 }
@@ -438,10 +457,9 @@ impl Event {
             ZoneArrived { range, .. } => format!("region {} arrived pos[{},{})", range.zone, range.lo, range.hi),
             ZonePreview { range, .. } => format!("preview {} ready", range.zone),
             RefineStarted { zone, .. } => format!("refined {zone} ba_start"),
-            ZoneRefinedPose { range, registered, mean_reproj_px, .. } => format!(
-                "refined {} pose_ready Registered images: {registered} Mean reprojection error: {mean_reproj_px:.6}px ",
-                range.zone
-            ),
+            ZoneRefinedPose { range, registered, mean_reproj_px, .. } => {
+                format!("refined {} pose_ready Registered images: {registered} Mean reprojection error: {mean_reproj_px:.6}px ", range.zone)
+            }
             ZoneRefined { range, .. } => format!("refined {} ready", range.zone),
             AllPositionsDone { .. } => "all positions done".to_string(),
             AllRefinedDone { .. } => "all refined done".to_string(),

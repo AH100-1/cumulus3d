@@ -55,9 +55,21 @@ fn interop_chain() {
     // 위치 0–4: 첫 위치는 폴더당 카메라, 이후 기존 카메라 id(스크립트와 같은 호출 방식).
     std::fs::write(&list, "camF/camF_0000.jpg\ncamR/camR_0000.jpg\ncamL/camL_0000.jpg\n").unwrap();
     run(&[
-        "feature_extractor", "--database_path", s(&db), "--image_path", s(&imgs), "--image_list_path", s(&list),
-        "--ImageReader.single_camera_per_folder", "1", "--ImageReader.camera_model", "OPENCV",
-        "--FeatureExtraction.use_gpu", "1", "--SiftExtraction.max_num_features", "8192",
+        "feature_extractor",
+        "--database_path",
+        s(&db),
+        "--image_path",
+        s(&imgs),
+        "--image_list_path",
+        s(&list),
+        "--ImageReader.single_camera_per_folder",
+        "1",
+        "--ImageReader.camera_model",
+        "OPENCV",
+        "--FeatureExtraction.use_gpu",
+        "1",
+        "--SiftExtraction.max_num_features",
+        "8192",
     ]);
     let cam_of = |c: &str| match c {
         "camF" => "1",
@@ -68,8 +80,17 @@ fn interop_chain() {
         for c in ["camF", "camR", "camL"] {
             std::fs::write(&list, format!("{c}/{c}_{:04}.jpg\n", p * 3)).unwrap();
             run(&[
-                "feature_extractor", "--database_path", s(&db), "--image_path", s(&imgs), "--image_list_path", s(&list),
-                "--ImageReader.existing_camera_id", cam_of(c), "--ImageReader.camera_model", "OPENCV",
+                "feature_extractor",
+                "--database_path",
+                s(&db),
+                "--image_path",
+                s(&imgs),
+                "--image_list_path",
+                s(&list),
+                "--ImageReader.existing_camera_id",
+                cam_of(c),
+                "--ImageReader.camera_model",
+                "OPENCV",
             ]);
         }
     }
@@ -92,20 +113,54 @@ fn interop_chain() {
     run(&["matches_importer", "--database_path", s(&db), "--match_list_path", s(&pl), "--match_type", "pairs"]);
     let sg = base.join("sg0");
     run(&[
-        "global_mapper", "--database_path", s(&db), "--image_path", s(&imgs), "--output_path", s(&sg),
-        "--GlobalMapper.ba_num_iterations", "0", "--GlobalMapper.skip_retriangulation", "1", "--GlobalMapper.keep_max_num_tracks", "100000",
+        "global_mapper",
+        "--database_path",
+        s(&db),
+        "--image_path",
+        s(&imgs),
+        "--output_path",
+        s(&sg),
+        "--GlobalMapper.ba_num_iterations",
+        "0",
+        "--GlobalMapper.skip_retriangulation",
+        "1",
+        "--GlobalMapper.keep_max_num_tracks",
+        "100000",
     ]);
     let m0 = sg.join("0");
     let a = run(&["model_analyzer", "--path", s(&m0)]);
     assert!(a.contains("Registered images: 15"), "{a}");
     let tri = base.join("tri");
-    run(&["point_triangulator", "--database_path", s(&db), "--image_path", s(&imgs), "--input_path", s(&m0), "--output_path", s(&tri), "--clear_points", "0"]);
+    run(&[
+        "point_triangulator",
+        "--database_path",
+        s(&db),
+        "--image_path",
+        s(&imgs),
+        "--input_path",
+        s(&m0),
+        "--output_path",
+        s(&tri),
+        "--clear_points",
+        "0",
+    ]);
     let ba = base.join("ba");
     run(&["bundle_adjuster", "--input_path", s(&tri), "--output_path", s(&ba)]);
     let al = base.join("al");
     run(&[
-        "model_aligner", "--input_path", s(&ba), "--output_path", s(&al), "--ref_images_path", s(&src.join("gps_ref.txt")),
-        "--ref_is_gps", "1", "--alignment_type", "enu", "--alignment_max_error", "3",
+        "model_aligner",
+        "--input_path",
+        s(&ba),
+        "--output_path",
+        s(&al),
+        "--ref_images_path",
+        s(&src.join("gps_ref.txt")),
+        "--ref_is_gps",
+        "1",
+        "--alignment_type",
+        "enu",
+        "--alignment_max_error",
+        "3",
     ]);
     let a = run(&["model_analyzer", "--path", s(&al), "--verbose", "1"]);
     assert!(a.contains("Mean reprojection error: ") && a.contains("Camera Id: 1, Model Name: OPENCV"), "{a}");
@@ -134,7 +189,19 @@ fn interop_chain() {
     for p in 5..6 {
         for c in ["camF", "camR", "camL"] {
             std::fs::write(&list, format!("{c}/{c}_{:04}.jpg\n", p * 3)).unwrap();
-            run(&["feature_extractor", "--database_path", s(&db), "--image_path", s(&imgs), "--image_list_path", s(&list), "--ImageReader.existing_camera_id", cam_of(c), "--ImageReader.camera_model", "OPENCV"]);
+            run(&[
+                "feature_extractor",
+                "--database_path",
+                s(&db),
+                "--image_path",
+                s(&imgs),
+                "--image_list_path",
+                s(&list),
+                "--ImageReader.existing_camera_id",
+                cam_of(c),
+                "--ImageReader.camera_model",
+                "OPENCV",
+            ]);
         }
     }
     let mut pairs = String::new();

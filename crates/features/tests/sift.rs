@@ -65,8 +65,7 @@ fn scale_space_table() {
     }
     let init = (1.6f32 * 1.6 - 1.0).sqrt();
     assert!((init - 1.249).abs() < 1e-3);
-    let widths: Vec<usize> =
-        [init, inc[0], inc[1], inc[2], inc[3], inc[4]].iter().map(|&s| pyramid::gaussian_kernel(s).len()).collect();
+    let widths: Vec<usize> = [init, inc[0], inc[1], inc[2], inc[3], inc[4]].iter().map(|&s| pyramid::gaussian_kernel(s).len()).collect();
     assert_eq!(widths, vec![11, 11, 13, 17, 21, 25]);
     assert_eq!(pyramid::auto_num_octaves(6400, 4800), 9);
     let k = pyramid::gaussian_kernel(2.0);
@@ -110,9 +109,7 @@ fn gaussian_blob_position_and_scale() {
 #[test]
 fn translation_covariance() {
     let big = noise_field(560, 560, 11, 2.5, 2.5);
-    let crop = |ox: usize, oy: usize| {
-        GrayImage::from_f32(512, 512, |x, y| big.get(x + ox, y + oy) as f32 / 255.0)
-    };
+    let crop = |ox: usize, oy: usize| GrayImage::from_f32(512, 512, |x, y| big.get(x + ox, y + oy) as f32 / 255.0);
     let (dx, dy) = (16usize, 32usize);
     let a = crop(dx, dy);
     let b = crop(0, 0);
@@ -127,13 +124,22 @@ fn translation_covariance() {
             continue;
         }
         let (tx, ty) = (f.x + dx as f32, f.y + dy as f32);
-        let m = fb.features.iter().position(|g| (g.x - tx).abs() < 0.05 && (g.y - ty).abs() < 0.05 && (g.scale - f.scale).abs() < 1e-3 && g.orientation == f.orientation);
+        let m = fb.features.iter().position(|g| {
+            (g.x - tx).abs() < 0.05 && (g.y - ty).abs() < 0.05 && (g.scale - f.scale).abs() < 1e-3 && g.orientation == f.orientation
+        });
         checked += 1;
         match m {
             Some(j) if fa.descriptors.row(i) == fb.descriptors.row(j) => {}
             Some(j) => {
                 bad += 1;
-                eprintln!("desc diff o={} j={} x={} y={} d={}", f.octave, f.level, f.x, f.y, l2u8(fa.descriptors.row(i), fb.descriptors.row(j)));
+                eprintln!(
+                    "desc diff o={} j={} x={} y={} d={}",
+                    f.octave,
+                    f.level,
+                    f.x,
+                    f.y,
+                    l2u8(fa.descriptors.row(i), fb.descriptors.row(j))
+                );
             }
             None => {
                 bad += 1;
@@ -253,9 +259,7 @@ fn max_features_rules() {
     let topk = sift.extract(&img, &SiftOptions { selection: FeatureSelection::TopK, ..Default::default() }).unwrap();
     assert_eq!(topk.len(), 8192);
     assert_eq!(topk.descriptors.len(), 8192);
-    let grid = sift
-        .extract(&img, &SiftOptions { selection: FeatureSelection::SpatialGrid { cells: 8 }, ..Default::default() })
-        .unwrap();
+    let grid = sift.extract(&img, &SiftOptions { selection: FeatureSelection::SpatialGrid { cells: 8 }, ..Default::default() }).unwrap();
     assert_eq!(grid.len(), 8192);
 }
 
@@ -288,7 +292,6 @@ fn deterministic() {
     assert_eq!(a.features, b.features);
     assert_eq!(a.descriptors, b.descriptors);
 }
-
 
 #[test]
 fn real_photo_if_available() {

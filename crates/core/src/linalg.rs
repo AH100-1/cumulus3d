@@ -104,7 +104,6 @@ fn any_orthogonal(v: &Vec3) -> Vec3 {
     v.cross(&a).normalize()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

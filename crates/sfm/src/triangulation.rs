@@ -31,10 +31,10 @@
 
 //! 삼각측량 수식: 두 뷰 DLT, 다중 뷰, 중점법, 각도·깊이 검사, RANSAC 삼각측량.
 
-use nalgebra::{Matrix4, SymmetricEigen, SVD};
 use cumulus3d_core::geometry::triangulation_angle;
-use cumulus3d_core::ransac::{n_choose_k, ransac_with_sampler, ExhaustiveSampler, Estimator, RansacParams};
+use cumulus3d_core::ransac::{n_choose_k, ransac_with_sampler, Estimator, ExhaustiveSampler, RansacParams};
 use cumulus3d_core::{Mat3x4, Rigid3, Vec2, Vec3};
+use nalgebra::{Matrix4, SymmetricEigen, SVD};
 
 /// 두 뷰 DLT. `x1`, `x2` 는 정규화 평면 좌표, `p1`, `p2` 는 [R|t].
 pub fn triangulate_dlt(p1: &Mat3x4, p2: &Mat3x4, x1: &Vec2, x2: &Vec2) -> Option<Vec3> {
@@ -302,7 +302,6 @@ mod tests {
         // 3 자유도 χ² 의 3σ 대응 값(≈ 14.2)
         assert!(mahal < 14.2, "mahalanobis² = {mahal}");
     }
-
 
     #[test]
     fn positive_depth_rejects_behind() {

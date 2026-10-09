@@ -526,8 +526,8 @@ impl FeatureStore {
         }
         for _ in 0..check_count(r.get_u64()?, "두 뷰 기하")? {
             let pid = r.get_u64()?;
-            let config = TwoViewGeometryConfig::from_i32(r.get_i32()?)
-                .ok_or_else(|| Error::Format("두 뷰 기하 config 값이 잘못됨".into()))?;
+            let config =
+                TwoViewGeometryConfig::from_i32(r.get_i32()?).ok_or_else(|| Error::Format("두 뷰 기하 config 값이 잘못됨".into()))?;
             let mut mats = [None, None, None];
             for m in mats.iter_mut() {
                 if r.get_u8()? != 0 {
@@ -538,10 +538,7 @@ impl FeatureStore {
             let cam1_to_cam2 = if r.get_u8()? != 0 { Some(Rigid3::from_params(&r.get_f64_array::<7>()?)) } else { None };
             let inlier_matches = read_match_list(&mut r)?;
             let [e, f, h] = mats;
-            g.two_view.insert(
-                pid,
-                Arc::new(TwoViewGeometry { config, e, f, h, cam1_to_cam2, inlier_matches, tri_angle: None }),
-            );
+            g.two_view.insert(pid, Arc::new(TwoViewGeometry { config, e, f, h, cam1_to_cam2, inlier_matches, tri_angle: None }));
             g.tvg_log.push(pid);
         }
         Ok(Self { inner: RwLock::new(g) })

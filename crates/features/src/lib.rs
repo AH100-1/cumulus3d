@@ -75,8 +75,8 @@ pub mod sift;
 pub use camera_init::{infer_focal, init_camera, lookup_sensor_width, FocalEstimate};
 pub use exif_info::ExifInfo;
 pub use extract::{
-    extract_for_camera, image_folder, read_image_list, CameraMode, ExtractionOptions, FeatureExtractor, ImageSource,
-    ImageReport, ImageStatus, ReaderOptions,
+    extract_for_camera, image_folder, read_image_list, CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageSource,
+    ImageStatus, ReaderOptions,
 };
 pub use gray::{limited_size, read_gray, rgb_to_gray, rotate_keypoint_ccw, GrayImage};
 pub use sift::{CpuSift, DescriptorNormalization, FeatureSelection, SiftEngine, SiftFeature, SiftOptions, SiftOutput};

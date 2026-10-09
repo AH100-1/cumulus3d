@@ -136,27 +136,15 @@ pub fn decompose_homography(h: &Mat3, k1: &Mat3, k2: &Mat3) -> Vec<(Mat3, Vec3, 
         match idx {
             0 => {
                 let e = sgn(m12);
-                (
-                    Vec3::new(s00, s01 + rt(m22), s02 + e * rt(m11)),
-                    Vec3::new(s00, s01 - rt(m22), s02 - e * rt(m11)),
-                    s00,
-                )
+                (Vec3::new(s00, s01 + rt(m22), s02 + e * rt(m11)), Vec3::new(s00, s01 - rt(m22), s02 - e * rt(m11)), s00)
             }
             1 => {
                 let e = sgn(m02);
-                (
-                    Vec3::new(s01 + rt(m22), s11, s12 - e * rt(m00)),
-                    Vec3::new(s01 - rt(m22), s11, s12 + e * rt(m00)),
-                    s11,
-                )
+                (Vec3::new(s01 + rt(m22), s11, s12 - e * rt(m00)), Vec3::new(s01 - rt(m22), s11, s12 + e * rt(m00)), s11)
             }
             _ => {
                 let e = sgn(m01);
-                (
-                    Vec3::new(s02 + e * rt(m11), s12 + rt(m00), s22),
-                    Vec3::new(s02 - e * rt(m11), s12 - rt(m00), s22),
-                    s22,
-                )
+                (Vec3::new(s02 + e * rt(m11), s12 + rt(m00), s22), Vec3::new(s02 - e * rt(m11), s12 - rt(m00), s22), s22)
             }
         }
     };
@@ -247,13 +235,7 @@ pub fn inlier_rays(cam1: &Camera, cam2: &Camera, kps1: &[Keypoint], kps2: &[Keyp
 
 /// 두 뷰 기하에서 상대 자세를 분해해 `cam1_to_cam2`, `tri_angle`, (PoP 이면) 구성을 채운다.
 /// 대상: CALIBRATED/UNCALIBRATED/PLANAR/PANORAMIC/PLANAR_OR_PANORAMIC. 실패하면 false.
-pub fn recover_two_view_pose(
-    cam1: &Camera,
-    cam2: &Camera,
-    kps1: &[Keypoint],
-    kps2: &[Keypoint],
-    tvg: &mut TwoViewGeometry,
-) -> bool {
+pub fn recover_two_view_pose(cam1: &Camera, cam2: &Camera, kps1: &[Keypoint], kps2: &[Keypoint], tvg: &mut TwoViewGeometry) -> bool {
     use TwoViewGeometryConfig as C;
     if tvg.inlier_matches.is_empty() {
         return false;
@@ -279,9 +261,7 @@ pub fn recover_two_view_pose(
         }
         C::Planar | C::Panoramic | C::PlanarOrRotation => {
             let Some(h) = tvg.h else { return false };
-            let Some((pose, _n, pts)) =
-                pose_from_homography(&h, &cam1.calibration_matrix(), &cam2.calibration_matrix(), &r1, &r2)
-            else {
+            let Some((pose, _n, pts)) = pose_from_homography(&h, &cam1.calibration_matrix(), &cam2.calibration_matrix(), &r1, &r2) else {
                 return false;
             };
             if pose.translation.norm_squared() < 1e-12 {

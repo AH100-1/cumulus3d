@@ -27,7 +27,7 @@
 
 //! GPU 조밀화 정확도: 합성 장면(무늬 바닥 + 상자, 3×3 카메라)의 참 깊이·법선과 직접 비교. 장치가 없으면 건너뛴다.
 
-use cumulus3d_cuda::{is_available, CudaPatchMatch, CudaPatchMatchOptions, CudaDevice};
+use cumulus3d_cuda::{is_available, CudaDevice, CudaPatchMatch, CudaPatchMatchOptions};
 use cumulus3d_dense::synthetic::{make_scene, SynthConfig, SynthScene};
 use cumulus3d_dense::{compute_depth_maps, fuse_depth_maps, DensifyOptions, DepthMapSet, MvsProfile};
 use std::sync::OnceLock;

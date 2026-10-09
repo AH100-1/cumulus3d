@@ -64,7 +64,6 @@
 //! println!("RMS {:.3} px, 반복 {}", summary.rms_reprojection_error(), summary.num_iterations);
 //! ```
 #![warn(missing_docs)]
-
 // 수치 커널은 인덱스 루프가 읽기 쉽다.
 #![allow(clippy::needless_range_loop)]
 
@@ -74,8 +73,8 @@ mod loss;
 mod problem;
 mod tr;
 
-use problem::{BaProblem, ProblemInput};
 use cumulus3d_core::{CameraId, Error, FrameId, ImageId, Point3DId, Reconstruction, Rigid3, SensorKey, Vec2, Vec3};
+use problem::{BaProblem, ProblemInput};
 use std::collections::{BTreeMap, HashSet};
 use tr::TrOptions;
 
@@ -345,12 +344,7 @@ fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_
     let mut prob = BaProblem::new(input).ok_or_else(|| Error::Invariant("BA 선형 풀이기 구조 생성 실패".into()))?;
     summary.linear_solver = prob.solver_kind;
     summary.free_point_count = prob.num_var_points();
-    let opts = TrOptions::new(
-        config.max_num_iterations,
-        config.function_tolerance,
-        config.gradient_tolerance,
-        config.parameter_tolerance,
-    );
+    let opts = TrOptions::new(config.max_num_iterations, config.function_tolerance, config.gradient_tolerance, config.parameter_tolerance);
     let r = tr::minimize(&mut prob, &opts);
     summary.num_iterations = r.num_iterations;
     summary.num_successful_steps = r.num_successful_steps;
@@ -562,8 +556,7 @@ fn build_problem(rec: &Reconstruction, config: &BaConfig, images: &[ImageId]) ->
                 }
                 _ => {
                     // 세 점 고정 대체.
-                    let mut fixed: Vec<Vec3> =
-                        (0..points.len()).filter(|&j| point_const[j]).map(|j| points[j]).collect();
+                    let mut fixed: Vec<Vec3> = (0..points.len()).filter(|&j| point_const[j]).map(|j| points[j]).collect();
                     let mut count = fixed.len();
                     let mut j = 0;
                     while count < 3 && j < points.len() {

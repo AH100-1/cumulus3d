@@ -27,8 +27,8 @@
 
 //! 작은 선형대수 도우미(영공간, 3×3 SVD, 하틀리 정규화).
 
-use nalgebra::{DMatrix, SMatrix};
 use cumulus3d_core::{Mat3, Vec2, Vec3};
+use nalgebra::{DMatrix, SMatrix};
 
 /// 행 우선 N×9 제약 행렬의 영공간 기저(가장 작은 특이값 순서대로 `k` 개).
 ///

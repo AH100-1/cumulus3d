@@ -111,10 +111,8 @@ pub fn align_reconstructions(
     if pairs.len() < 3 {
         return Err(AlignError::TooFewCorrespondences { found: pairs.len(), required: 3 });
     }
-    let (xs, ys): (Vec<Vec3>, Vec<Vec3>) = pairs
-        .iter()
-        .map(|(i, j)| (src.point3d(*i).expect("track id").xyz, dst.point3d(*j).expect("track id").xyz))
-        .unzip();
+    let (xs, ys): (Vec<Vec3>, Vec<Vec3>) =
+        pairs.iter().map(|(i, j)| (src.point3d(*i).expect("track id").xyz, dst.point3d(*j).expect("track id").xyz)).unzip();
     let r = robust_umeyama(&xs, &ys, robust).ok_or(AlignError::Degenerate)?;
     Ok((r, pairs))
 }
@@ -130,8 +128,7 @@ mod tests {
         rec.add_camera_own_rig(camera(1)).unwrap();
         for i in 1..=n_img {
             let pts: Vec<Vec2> = (0..n_pts).map(|k| Vec2::new(k as f64, 0.0)).collect();
-            rec.add_image_own_frame(Image::new(i, format!("camF/camF_{:04}.jpg", i - 1), 1, pts), Some(Rigid3::identity()))
-                .unwrap();
+            rec.add_image_own_frame(Image::new(i, format!("camF/camF_{:04}.jpg", i - 1), 1, pts), Some(Rigid3::identity())).unwrap();
             rec.register_image(i).unwrap();
         }
         rec
@@ -166,8 +163,7 @@ mod tests {
                 if k == 0 {
                     y += Vec3::new(1000.0, 0.0, 0.0); // 이상치
                 }
-                b.add_point3d_with_id(k as u64 + 100, cumulus3d_core::Point3D { xyz: y, color: [0; 3], error: -1.0, track: tb })
-                    .unwrap();
+                b.add_point3d_with_id(k as u64 + 100, cumulus3d_core::Point3D { xyz: y, color: [0; 3], error: -1.0, track: tb }).unwrap();
             }
         }
         let pairs = shared_point_correspondences(&a, &b, &Default::default());

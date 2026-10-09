@@ -205,8 +205,8 @@ mod tests {
     use super::*;
     use crate::geodesy::EnuFrame;
     use crate::umeyama::tests::{gauss, rand_vec, random_sim3};
-    use rand::RngExt;
     use cumulus3d_core::{Camera, CameraModelKind, Image, Quat, Rigid3, TrackEntry};
+    use rand::RngExt;
 
     /// ENU 궤적(드론 3대 × 위치)을 만들고, 임의 Sim3 로 "모델 좌표"로 옮긴 재구성 + GPS 목록.
     fn scene(num_pos: usize, seed: u64) -> (Reconstruction, Vec<GpsRecord>, Vec<Vec3>, Sim3) {
@@ -349,10 +349,8 @@ mod tests {
                 assert!(!a.inlier_mask[i], "오염 {k} 이 인라이어");
             }
         }
-        let mut errs: Vec<f64> = (0..n)
-            .filter(|k| !out[*k])
-            .map(|k| (r.projection_center(k as u32 + 1).unwrap() - (centers[k] - c0)).norm())
-            .collect();
+        let mut errs: Vec<f64> =
+            (0..n).filter(|k| !out[*k]).map(|k| (r.projection_center(k as u32 + 1).unwrap() - (centers[k] - c0)).norm()).collect();
         let med = median(&mut errs);
         assert!(med < 1.5, "median {med}");
     }

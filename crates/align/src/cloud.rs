@@ -28,9 +28,9 @@
 //! 점군 후처리: Sim3 변환, 정밀 점군 근접 마스킹, 1/N 추출, 스냅샷 합성.
 
 use crate::kdtree::KdTree;
-use rayon::prelude::*;
 use cumulus3d_core::io::PointCloud;
 use cumulus3d_core::{Sim3, Vec3};
+use rayon::prelude::*;
 
 /// 점과 법선에 Sim3 적용(점: sRx+t, 법선: Rn). 계산은 f64.
 pub fn transform_cloud(cloud: &mut PointCloud, t: &Sim3) {

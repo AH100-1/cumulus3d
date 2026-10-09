@@ -28,12 +28,11 @@
 //! 합성 장면: 드론 편대(위치마다 OPENCV 카메라 3대, 롤 −25°/0°/+25°)가 지면 점을 내려다본다.
 #![allow(dead_code)]
 
+use cumulus3d_core::{
+    Camera, CameraModelKind, Image, ImageId, Mat3, Point3DId, Quat, Reconstruction, Rigid3, Sim3, TrackEntry, Vec2, Vec3,
+};
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use cumulus3d_core::{
-    Camera, CameraModelKind, Image, ImageId, Mat3, Point3DId, Quat, Reconstruction, Rigid3, Sim3, TrackEntry, Vec2,
-    Vec3,
-};
 use std::collections::BTreeMap;
 
 pub struct SceneOpts {
@@ -50,16 +49,7 @@ pub struct SceneOpts {
 
 impl Default for SceneOpts {
     fn default() -> Self {
-        Self {
-            num_positions: 12,
-            num_points: 4000,
-            spacing: 8.0,
-            altitude: 50.0,
-            noise_px: 0.5,
-            min_track: 2,
-            spare_points: 4,
-            seed: 1,
-        }
+        Self { num_positions: 12, num_points: 4000, spacing: 8.0, altitude: 50.0, noise_px: 0.5, min_track: 2, spare_points: 4, seed: 1 }
     }
 }
 

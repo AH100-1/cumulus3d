@@ -134,7 +134,12 @@ pub fn run_variants(scene: &DenseScene, maps: &DepthMapSet, variants: &[FusionVa
         let write_s = tw.elapsed().as_secs_f64();
         let extra = if wrote_residual { format!(" (2차 점 {} → {})", out.num_residual(), rpath.display()) } else { String::new() };
         let (p1, p2) = (out.timings.fusion_pass1.as_secs_f64(), out.timings.fusion_pass2.as_secs_f64());
-        println!("변형 {}: 점 {} 융합 {fusion_s:.2}s (1차 {p1:.2}s 2차 {p2:.2}s) 쓰기 {write_s:.2}s → {}{extra}", v.name, out.cloud.len(), path.display());
+        println!(
+            "변형 {}: 점 {} 융합 {fusion_s:.2}s (1차 {p1:.2}s 2차 {p2:.2}s) 쓰기 {write_s:.2}s → {}{extra}",
+            v.name,
+            out.cloud.len(),
+            path.display()
+        );
         if stats {
             let ts = Instant::now();
             let st = cumulus3d_dense::cloud_stats(scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
@@ -151,7 +156,13 @@ pub fn run_variants(scene: &DenseScene, maps: &DepthMapSet, variants: &[FusionVa
                 ts.elapsed().as_secs_f64()
             );
         }
-        tsv.push_str(&format!("{}\t{}\t{}\t{fusion_s:.3}\t{p1:.3}\t{p2:.3}\t{write_s:.3}\t{}\n", v.name, out.cloud.len(), out.num_residual(), v.flags));
+        tsv.push_str(&format!(
+            "{}\t{}\t{}\t{fusion_s:.3}\t{p1:.3}\t{p2:.3}\t{write_s:.3}\t{}\n",
+            v.name,
+            out.cloud.len(),
+            out.num_residual(),
+            v.flags
+        ));
     }
     let p = out_dir.join("fusion_variants.tsv");
     std::fs::write(&p, tsv).map_err(|e| format!("{}: {e}", p.display()))
@@ -201,7 +212,14 @@ mod tests {
     #[test]
     fn rejects_depth_flags_and_bad_names() {
         let base = DensifyOptions::default();
-        for (n, body) in [("f", "a|--filter-min-views 1"), ("s", "a|--max_image_size 100"), ("n", "a b|--fusion-min-views 2"), ("d", "a|\na|"), ("u", "a|--nope 1"), ("t", "a|--score-tau 2")] {
+        for (n, body) in [
+            ("f", "a|--filter-min-views 1"),
+            ("s", "a|--max_image_size 100"),
+            ("n", "a b|--fusion-min-views 2"),
+            ("d", "a|\na|"),
+            ("u", "a|--nope 1"),
+            ("t", "a|--score-tau 2"),
+        ] {
             let p = write_tmp(n, body);
             assert!(read_variants(&p, &args(&[]), &base).is_err(), "{body}");
             std::fs::remove_file(p).ok();

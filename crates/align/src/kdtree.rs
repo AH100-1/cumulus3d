@@ -208,13 +208,11 @@ mod tests {
     #[test]
     fn nearest_matches_brute_force() {
         let mut rng = cumulus3d_core::ransac::make_rng(Some(21));
-        let pts: Vec<[f64; 3]> = (0..10_000)
-            .map(|_| [rng.random_range(-50.0..50.0), rng.random_range(-50.0..50.0), rng.random_range(-5.0..5.0)])
-            .collect();
+        let pts: Vec<[f64; 3]> =
+            (0..10_000).map(|_| [rng.random_range(-50.0..50.0), rng.random_range(-50.0..50.0), rng.random_range(-5.0..5.0)]).collect();
         let tree = KdTree::new(pts.iter().copied());
-        let qs: Vec<[f64; 3]> = (0..2000)
-            .map(|_| [rng.random_range(-60.0..60.0), rng.random_range(-60.0..60.0), rng.random_range(-10.0..10.0)])
-            .collect();
+        let qs: Vec<[f64; 3]> =
+            (0..2000).map(|_| [rng.random_range(-60.0..60.0), rng.random_range(-60.0..60.0), rng.random_range(-10.0..10.0)]).collect();
         let got = tree.nearest_many(&qs);
         for (q, g) in qs.iter().zip(&got) {
             let (bi, bd) = pts.iter().enumerate().map(|(i, p)| (i, d2(p, q))).min_by(|a, b| a.1.total_cmp(&b.1)).unwrap();

@@ -187,7 +187,14 @@ struct ViewCands {
 }
 
 /// 기준 뷰 v 의 후보 계산(공유 상태 없음).
-fn view_candidates(scene: &DenseScene, cams: &[Cam], inputs: &[Option<FusionInput<'_>>], ov: &[usize], v: usize, o: &ScoreFusionOptions) -> ViewCands {
+fn view_candidates(
+    scene: &DenseScene,
+    cams: &[Cam],
+    inputs: &[Option<FusionInput<'_>>],
+    ov: &[usize],
+    v: usize,
+    o: &ScoreFusionOptions,
+) -> ViewCands {
     let Some(inp) = inputs[v] else { return ViewCands::default() };
     let cam = &cams[v];
     let (w, h) = (cam.w, cam.h);
@@ -303,18 +310,36 @@ const LOCKED: u32 = 0;
 ///
 /// 연결: densify 의 `fuse_depth_maps` 에서 새 융합 모드일 때 `fuse(..)` 대신
 /// `fuse_scored(scene, &inputs, &overlap, &ScoreFusionOptions::from_fusion(&opts.fusion), threads)` 를 호출한다.
-pub fn fuse_scored(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overlap: &[Vec<usize>], opts: &ScoreFusionOptions, threads: usize) -> FusionOutput {
+pub fn fuse_scored(
+    scene: &DenseScene,
+    inputs: &[Option<FusionInput<'_>>],
+    overlap: &[Vec<usize>],
+    opts: &ScoreFusionOptions,
+    threads: usize,
+) -> FusionOutput {
     let n = scene.views.len();
     let cams: Vec<Cam> = scene.views.iter().map(|v| Cam { k: v.k, r: v.r, t: v.t, c: v.center(), w: v.width, h: v.height }).collect();
     let used: Vec<bool> = (0..n).map(|v| inputs.get(v).is_some_and(|i| i.is_some())).collect();
-    let ovs: Vec<Vec<usize>> = (0..n).map(|v| overlap.get(v).map_or_else(Vec::new, |l| l.iter().copied().filter(|&o| o != v && o < n && used[o]).take(opts.num_neighbors).collect())).collect();
+    let ovs: Vec<Vec<usize>> = (0..n)
+        .map(|v| {
+            overlap
+                .get(v)
+                .map_or_else(Vec::new, |l| l.iter().copied().filter(|&o| o != v && o < n && used[o]).take(opts.num_neighbors).collect())
+        })
+        .collect();
     let pool = if threads > 0 { rayon::ThreadPoolBuilder::new().num_threads(threads).build().ok() } else { None };
 
     // 1단계: 기준 영상 단위 병렬 후보 계산.
-    let per_view: Vec<ViewCands> = install(&pool, || (0..n).into_par_iter().map(|v| if used[v] { view_candidates(scene, &cams, inputs, &ovs[v], v, opts) } else { ViewCands::default() }).collect());
+    let per_view: Vec<ViewCands> = install(&pool, || {
+        (0..n)
+            .into_par_iter()
+            .map(|v| if used[v] { view_candidates(scene, &cams, inputs, &ovs[v], v, opts) } else { ViewCands::default() })
+            .collect()
+    });
 
     // 전역 후보 목록 (뷰, 후보 색인) — (뷰, 픽셀) 순.
-    let ids: Vec<(u32, u32)> = per_view.iter().enumerate().flat_map(|(v, vc)| (0..vc.cands.len() as u32).map(move |i| (v as u32, i))).collect();
+    let ids: Vec<(u32, u32)> =
+        per_view.iter().enumerate().flat_map(|(v, vc)| (0..vc.cands.len() as u32).map(move |i| (v as u32, i))).collect();
     let mut accepted = vec![!opts.mark_used; ids.len()];
 
     if opts.mark_used && !ids.is_empty() {
@@ -330,7 +355,8 @@ pub fn fuse_scored(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overl
         for (r, &g) in order.iter().enumerate() {
             rank[g as usize] = r as u32 + 1;
         }
-        let claim: Vec<Vec<AtomicU32>> = (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU32::new(FREE)).collect() } else { Vec::new() }).collect();
+        let claim: Vec<Vec<AtomicU32>> =
+            (0..n).map(|v| if used[v] { (0..cams[v].w * cams[v].h).map(|_| AtomicU32::new(FREE)).collect() } else { Vec::new() }).collect();
         let pixels = |g: usize| {
             let (v, i) = ids[g];
             let vc = &per_view[v as usize];
@@ -394,7 +420,8 @@ pub fn fuse_scored(scene: &DenseScene, inputs: &[Option<FusionInput<'_>>], overl
         out.cloud.positions.push(c.pos);
         out.cloud.normals.push(c.nrm);
         out.cloud.colors.push(c.col);
-        let mut vis: Vec<u32> = std::iter::once(v).chain(vc.hits[c.hit0 as usize..(c.hit0 + c.nhit) as usize].iter().map(|&(o, _)| o)).collect();
+        let mut vis: Vec<u32> =
+            std::iter::once(v).chain(vc.hits[c.hit0 as usize..(c.hit0 + c.nhit) as usize].iter().map(|&(o, _)| o)).collect();
         vis.sort_unstable();
         vis.dedup();
         out.visibility.push(vis);
@@ -466,7 +493,9 @@ mod tests {
                 depth[4][row * w + col] *= 0.6;
             }
         }
-        let floating = |out: &FusionOutput| out.cloud.positions.iter().filter(|p| s.surface_distance([p[0] as f64, p[1] as f64, p[2] as f64]) > 1.0).count();
+        let floating = |out: &FusionOutput| {
+            out.cloud.positions.iter().filter(|p| s.surface_distance([p[0] as f64, p[1] as f64, p[2] as f64]) > 1.0).count()
+        };
         // 기준 혼자서도 채택되는 낮은 문턱: 벌점이 없으면 떠 있는 점이 남는다.
         let base = ScoreFusionOptions { tau: 0.5, ..Default::default() };
         let no_pen = run(&s, &depth, &ScoreFusionOptions { lambda: 0.0, ..base.clone() }, 0);
@@ -479,7 +508,19 @@ mod tests {
     fn deterministic_across_threads() {
         let s = synth();
         // 결정적 잡음으로 충돌을 늘린다.
-        let depth: Vec<Vec<f32>> = s.depth.iter().enumerate().map(|(v, d)| d.iter().enumerate().map(|(i, &x)| x * (1.0 + 0.004 * ((crate::math::mix64((v * 1_000_003 + i) as u64) >> 40) as f32 / (1u64 << 24) as f32 - 0.5))).collect()).collect();
+        let depth: Vec<Vec<f32>> = s
+            .depth
+            .iter()
+            .enumerate()
+            .map(|(v, d)| {
+                d.iter()
+                    .enumerate()
+                    .map(|(i, &x)| {
+                        x * (1.0 + 0.004 * ((crate::math::mix64((v * 1_000_003 + i) as u64) >> 40) as f32 / (1u64 << 24) as f32 - 0.5))
+                    })
+                    .collect()
+            })
+            .collect();
         let o = ScoreFusionOptions { tau: 1.5, ..Default::default() };
         let a = run(&s, &depth, &o, 1);
         for t in [2, 4, 0] {

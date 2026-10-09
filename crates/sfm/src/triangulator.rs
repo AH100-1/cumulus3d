@@ -33,13 +33,13 @@
 //! 자세 고정 점 정제 반복과 필터.
 
 use crate::triangulation::{angular_error, estimate_triangulation, has_positive_depth, TriObservation, TriangulationRansacParams};
-use rayon::prelude::*;
 use cumulus3d_ba::{BaConfig, Loss};
 use cumulus3d_core::graph::Correspondence;
 use cumulus3d_core::{
-    images_of_pair, Camera, MatchGraph, Error, ImageId, Mat3x4, Point2DIdx, Point3DId, Reconstruction,
-    Result, Rigid3, TrackEntry, Vec3, INVALID_POINT3D_ID,
+    images_of_pair, Camera, Error, ImageId, Mat3x4, MatchGraph, Point2DIdx, Point3DId, Reconstruction, Result, Rigid3, TrackEntry, Vec3,
+    INVALID_POINT3D_ID,
 };
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -219,10 +219,7 @@ impl<'a> TrackTriangulator<'a> {
                 }
                 let pose = rec.world_to_cam(id)?;
                 let rays = im.points2d().iter().map(|p| cam.img_to_ray(&p.xy)).collect();
-                Some((
-                    id,
-                    PoseInfo { pose, proj: pose.matrix(), center: pose.center(), camera: cam.clone(), rays: Arc::new(rays) },
-                ))
+                Some((id, PoseInfo { pose, proj: pose.matrix(), center: pose.center(), camera: cam.clone(), rays: Arc::new(rays) }))
             })
             .collect();
         Self {
@@ -250,9 +247,7 @@ impl<'a> TrackTriangulator<'a> {
     }
 
     fn point_of(rec: &Reconstruction, c: &Correspondence) -> Point3DId {
-        rec.image(c.image_id)
-            .and_then(|im| im.points2d().get(c.point2d_idx as usize))
-            .map_or(INVALID_POINT3D_ID, |p| p.point3d_id)
+        rec.image(c.image_id).and_then(|im| im.points2d().get(c.point2d_idx as usize)).map_or(INVALID_POINT3D_ID, |p| p.point3d_id)
     }
 
     /// 영상 하나의 2D 점 하나를 읽기 전용으로 계획(연장 → 생성). 반환: (참조한 상태, 동작).
@@ -304,18 +299,12 @@ impl<'a> TrackTriangulator<'a> {
         angle_limit_deg: f64,
     ) {
         loop {
-            let sel: Vec<Correspondence> = input
-                .iter()
-                .filter(|c| state.get(c).copied().unwrap_or(INVALID_POINT3D_ID) == INVALID_POINT3D_ID)
-                .copied()
-                .collect();
+            let sel: Vec<Correspondence> =
+                input.iter().filter(|c| state.get(c).copied().unwrap_or(INVALID_POINT3D_ID) == INVALID_POINT3D_ID).copied().collect();
             if sel.len() < 2 {
                 return;
             }
-            if self.opts.skip_two_view_tracks
-                && sel.len() == 2
-                && self.graph.in_two_view_track(sel[0].image_id, sel[0].point2d_idx)
-            {
+            if self.opts.skip_two_view_tracks && sel.len() == 2 && self.graph.in_two_view_track(sel[0].image_id, sel[0].point2d_idx) {
                 return;
             }
             let mut obs = Vec::with_capacity(sel.len());
@@ -353,7 +342,8 @@ impl<'a> TrackTriangulator<'a> {
         for a in actions {
             match a {
                 Action::Continue(pid, e) => {
-                    if rec.exists_point3d(pid) && Self::point_of(rec, &Correspondence::new(e.image_id, e.point2d_idx)) == INVALID_POINT3D_ID {
+                    if rec.exists_point3d(pid) && Self::point_of(rec, &Correspondence::new(e.image_id, e.point2d_idx)) == INVALID_POINT3D_ID
+                    {
                         rec.add_observation(pid, e)?;
                         self.touched.insert(pid);
                         self.report.num_continued += 1;
@@ -462,9 +452,8 @@ impl<'a> TrackTriangulator<'a> {
                 let (wa, wb) = (a.track.len() as f64, b.track.len() as f64);
                 let x = (a.xyz * wa + b.xyz * wb) / (wa + wb);
                 let ok = a.track.iter().chain(b.track.iter()).all(|t| {
-                    rec.image(t.image_id).is_some_and(|im| {
-                        self.reproj_ok(t.image_id, &im.point2d(t.point2d_idx).xy, &x, self.opts.merge_max_reproj_error)
-                    })
+                    rec.image(t.image_id)
+                        .is_some_and(|im| self.reproj_ok(t.image_id, &im.point2d(t.point2d_idx).xy, &x, self.opts.merge_max_reproj_error))
                 });
                 if !ok {
                     continue;
@@ -713,11 +702,7 @@ fn refine_one_point(rec: &Reconstruction, id: Point3DId, max_iterations: usize) 
 }
 
 /// point_triangulator. 반환: 통계.
-pub fn triangulate_points(
-    rec: &mut Reconstruction,
-    graph: &MatchGraph,
-    opts: &PointTriangulatorOptions,
-) -> Result<TriangulationReport> {
+pub fn triangulate_points(rec: &mut Reconstruction, graph: &MatchGraph, opts: &PointTriangulatorOptions) -> Result<TriangulationReport> {
     if rec.registered_image_count() < 2 {
         return Err(Error::InvalidArgument("point_triangulator: 등록 영상 2장 미만".into()));
     }

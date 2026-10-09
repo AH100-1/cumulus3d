@@ -73,8 +73,8 @@ impl CudaDevice {
         if !is_available() {
             return Err(GpuError::NotAvailable("드라이버/NVRTC 라이브러리 또는 장치 없음".into()));
         }
-        let ctx = std::panic::catch_unwind(|| CudaContext::new(ordinal))
-            .map_err(|_| GpuError::NotAvailable("문맥 생성 중 panic".into()))??;
+        let ctx =
+            std::panic::catch_unwind(|| CudaContext::new(ordinal)).map_err(|_| GpuError::NotAvailable("문맥 생성 중 panic".into()))??;
         let stream = ctx.new_stream()?;
         let cc = ctx.compute_capability()?;
         let arch = match cc {

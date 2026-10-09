@@ -39,9 +39,9 @@ use cumulus3d_align::{align_to_gps, ModelAlignerOptions};
 use cumulus3d_ba::{bundle_adjust, BaConfig};
 use cumulus3d_core::analyzer::analyzer_lines;
 use cumulus3d_core::interop::{read_model, write_model_binary, write_model_text, ImageOrder};
-use cumulus3d_core::io::{read_gps_file, write_ply, PointCloud, PlyLayout};
+use cumulus3d_core::io::{read_gps_file, write_ply, PlyLayout, PointCloud};
 use cumulus3d_core::reconstruction::bilinear_rgb;
-use cumulus3d_core::{CameraModelKind, MatchGraph, MatchGraphOptions, FeatureStore, ImageId, Reconstruction};
+use cumulus3d_core::{CameraModelKind, FeatureStore, ImageId, MatchGraph, MatchGraphOptions, Reconstruction};
 use cumulus3d_dense::densify::densify_with;
 use cumulus3d_dense::fusion_score::ScoreFusionOptions;
 use cumulus3d_dense::{write_undistorted_workspace, DenseScene, UndistortCache, UndistortOptions};
@@ -585,7 +585,11 @@ fn has_score_args(a: &DensifyArgs) -> bool {
 
 /// 점수 융합 설정. `--fusion-mode score` 면 `o.fusion`(다른 융합 플래그 반영 후)의 허용치를 이어받고 `--score-*` 를 덮어쓴다.
 /// `base` 는 융합 변형에서 densify 명령 자체의 인자: 변형 줄에 `--fusion-mode` 가 없으면 그 방식을 따르고, 그 `--score-*` 를 먼저 반영한다.
-pub(crate) fn score_options(a: &DensifyArgs, o: &cumulus3d_dense::DensifyOptions, base: Option<&DensifyArgs>) -> Result<Option<ScoreFusionOptions>, String> {
+pub(crate) fn score_options(
+    a: &DensifyArgs,
+    o: &cumulus3d_dense::DensifyOptions,
+    base: Option<&DensifyArgs>,
+) -> Result<Option<ScoreFusionOptions>, String> {
     let mode = a.fusion_mode.as_deref().or_else(|| base.and_then(|b| b.fusion_mode.as_deref()));
     if !mode.is_some_and(is_score_mode) {
         if has_score_args(a) || base.is_some_and(|b| a.fusion_mode.is_none() && has_score_args(b)) {
@@ -848,7 +852,8 @@ pub fn run(cmd: InteropCmd) -> R {
             apply_densify_args(&a, &mut cfg.densify)?;
             cfg.score = score_options(&a, &cfg.densify, None)?;
             // 변형 파일은 깊이 추정 전에 검사한다.
-            let variants = a.fusion_variants.as_deref().map(|vp| crate::fusion_variants::read_variants(vp, &a, &cfg.densify)).transpose()?;
+            let variants =
+                a.fusion_variants.as_deref().map(|vp| crate::fusion_variants::read_variants(vp, &a, &cfg.densify)).transpose()?;
             let backend = cfg.backend.clone()?;
             let tl = Instant::now();
             let (out, frames, scene) = match &a.image_path {
@@ -893,7 +898,14 @@ pub fn run(cmd: InteropCmd) -> R {
                 }
             }
             eprintln!("[time] PLY 쓰기 {:.2}s", tw.elapsed().as_secs_f64());
-            println!("점 {} (2차 {}) 융합 {:.2}s (1차 {:.2}s 2차 {:.2}s)", out.cloud.len(), out.num_residual(), tm.fusion.as_secs_f64(), tm.fusion_pass1.as_secs_f64(), tm.fusion_pass2.as_secs_f64());
+            println!(
+                "점 {} (2차 {}) 융합 {:.2}s (1차 {:.2}s 2차 {:.2}s)",
+                out.cloud.len(),
+                out.num_residual(),
+                tm.fusion.as_secs_f64(),
+                tm.fusion_pass1.as_secs_f64(),
+                tm.fusion_pass2.as_secs_f64()
+            );
             if a.stats {
                 let ts = Instant::now();
                 let st = cumulus3d_dense::cloud_stats(&scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);

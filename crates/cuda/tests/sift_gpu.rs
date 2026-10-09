@@ -71,7 +71,16 @@ fn gpu_sift_equals_cpu() {
         (643usize, 417usize, SiftOptions::default()),
         (512, 384, SiftOptions { first_octave: 0, ..SiftOptions::default() }),
         (640, 480, SiftOptions { max_num_features: 300, selection: FeatureSelection::TopK, ..SiftOptions::default() }),
-        (640, 480, SiftOptions { max_num_features: 500, selection: FeatureSelection::SpatialGrid { cells: 4 }, upright: true, ..SiftOptions::default() }),
+        (
+            640,
+            480,
+            SiftOptions {
+                max_num_features: 500,
+                selection: FeatureSelection::SpatialGrid { cells: 4 },
+                upright: true,
+                ..SiftOptions::default()
+            },
+        ),
     ] {
         let img = image(w, h, (w * h) as u64);
         let c = cpu.extract(&img, &opts).unwrap();

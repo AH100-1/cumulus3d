@@ -32,9 +32,9 @@
 //! 절대 자세: P3P 최소해법, EPnP 비최소해법, LO-RANSAC.
 
 use crate::math::{adjugate3, kabsch, solve_cubic_real, solve_quadratic_real};
-use nalgebra::{Matrix3, SMatrix, SVector, SymmetricEigen, SVD};
 use cumulus3d_core::ransac::{lo_ransac, Estimator, RansacParams};
 use cumulus3d_core::{Camera, Mat3, Rigid3, Vec2, Vec3};
+use nalgebra::{Matrix3, SMatrix, SVector, SymmetricEigen, SVD};
 
 /// P3P. 단위 광선 3개와 월드점 3개 → 최대 4개 world_to_cam.
 ///
@@ -268,9 +268,7 @@ pub fn epnp(rays: &[Vec3], points: &[Vec3], camera: Option<&Camera>, points2d: O
     let mut rho = SVector::<f64, 6>::zeros();
     for (row, &(a, b)) in pairs.iter().enumerate() {
         let dv: Vec<Vec3> = (0..4)
-            .map(|k| {
-                Vec3::new(v[k][3 * a] - v[k][3 * b], v[k][3 * a + 1] - v[k][3 * b + 1], v[k][3 * a + 2] - v[k][3 * b + 2])
-            })
+            .map(|k| Vec3::new(v[k][3 * a] - v[k][3 * b], v[k][3 * a + 1] - v[k][3 * b + 1], v[k][3 * a + 2] - v[k][3 * b + 2]))
             .collect();
         let vals = [
             dv[0].dot(&dv[0]),
@@ -533,17 +531,11 @@ pub struct AbsolutePoseResult {
 }
 
 /// P3P + EPnP LO-RANSAC (초점 고정 경로). 인라이어 < 3 이면 None.
-pub fn solve_abs_pose(
-    camera: &Camera,
-    points2d: &[Vec2],
-    points3d: &[Vec3],
-    opts: &AbsolutePoseOptions,
-) -> Option<AbsolutePoseResult> {
+pub fn solve_abs_pose(camera: &Camera, points2d: &[Vec2], points3d: &[Vec3], opts: &AbsolutePoseOptions) -> Option<AbsolutePoseResult> {
     if points2d.len() != points3d.len() || points2d.len() < 3 {
         return None;
     }
-    let corrs: Vec<Corr2D> =
-        points2d.iter().map(|xy| Corr2D { xy: *xy, ray: camera.img_to_ray(xy).unwrap_or_else(Vec3::zeros) }).collect();
+    let corrs: Vec<Corr2D> = points2d.iter().map(|xy| Corr2D { xy: *xy, ray: camera.img_to_ray(xy).unwrap_or_else(Vec3::zeros) }).collect();
     let ropts = RansacParams {
         max_error: opts.max_error,
         min_inlier_ratio: opts.min_inlier_ratio,
@@ -568,8 +560,8 @@ pub fn solve_abs_pose(
 mod tests {
     use super::*;
     use crate::math::so3_exp;
-    use rand::{RngExt, SeedableRng};
     use cumulus3d_core::CameraModelKind;
+    use rand::{RngExt, SeedableRng};
 
     fn random_pose(rng: &mut rand_pcg::Pcg64) -> Rigid3 {
         let w = Vec3::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));
@@ -605,11 +597,7 @@ mod tests {
             let rays = [0, 1, 2].map(|i| (pose * pts[i]).normalize());
             let sols = p3p(&rays, &[pts[0], pts[1], pts[2]]);
             assert!(!sols.is_empty() && sols.len() <= 4, "해 {}", sols.len());
-            let best = sols
-                .iter()
-                .map(|s| pose_err(s, &pose))
-                .min_by(|a, b| (a.0 + a.1).total_cmp(&(b.0 + b.1)))
-                .unwrap();
+            let best = sols.iter().map(|s| pose_err(s, &pose)).min_by(|a, b| (a.0 + a.1).total_cmp(&(b.0 + b.1))).unwrap();
             worst.0 = worst.0.max(best.0);
             worst.1 = worst.1.max(best.1);
         }
@@ -632,8 +620,7 @@ mod tests {
     }
 
     fn opencv_cam() -> Camera {
-        Camera::new(1, CameraModelKind::OpenCv, 1920, 1080, vec![1500.0, 1500.0, 960.0, 540.0, -0.1, 0.02, 0.001, 0.001])
-            .unwrap()
+        Camera::new(1, CameraModelKind::OpenCv, 1920, 1080, vec![1500.0, 1500.0, 960.0, 540.0, -0.1, 0.02, 0.001, 0.001]).unwrap()
     }
 
     #[test]
@@ -667,10 +654,8 @@ mod tests {
             // 등록 경로에서는 RANSAC 뒤 비선형 정제(refine_abs_pose)가 따른다. 여기서는
             // 그 대신 인라이어 전체 EPnP 로 다듬어 평가한다(LO 는 인라이어 수 우선이라
             // 경계 이상치 1개를 품은 P3P 모델이 남을 수 있음).
-            let (ir, (ip2, ip3)): (Vec<Vec3>, (Vec<Vec2>, Vec<Vec3>)) = (0..p2.len())
-                .filter(|&i| res.inlier_mask[i])
-                .map(|i| (cam.img_to_ray(&p2[i]).unwrap(), (p2[i], p3[i])))
-                .unzip();
+            let (ir, (ip2, ip3)): (Vec<Vec3>, (Vec<Vec2>, Vec<Vec3>)) =
+                (0..p2.len()).filter(|&i| res.inlier_mask[i]).map(|i| (cam.img_to_ray(&p2[i]).unwrap(), (p2[i], p3[i]))).unzip();
             let polished = epnp(&ir, &ip3, Some(&cam), Some(&ip2)).unwrap();
             let rot = crate::math::rotation_angle_between(&polished.rotation_matrix(), &pose.rotation_matrix()).to_degrees();
             let cerr = (polished.center() - pose.center()).norm();

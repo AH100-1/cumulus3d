@@ -34,8 +34,8 @@
 //! 정수 내적 d = Σ a_k b_k (u8×u8→u32) 를 블록 GEMM 처럼 계산하고, 행·열별 top-2 를
 //! 타일 안에서 바로 축약한다(내적 행렬 전체를 저장하지 않음). 거리 = arccos(min(d/512², 1)).
 
-use rayon::prelude::*;
 use cumulus3d_core::{Descriptors, FeatureMatch, DESCRIPTOR_DIM};
+use rayon::prelude::*;
 
 /// 512² — 정규화 기술자 노름의 제곱.
 pub const DOT_NORM: f32 = 262144.0;
@@ -119,7 +119,13 @@ pub trait MatcherBackend: Send + Sync {
 
     /// 비율·거리·교차 검사를 적용한 매칭. 영상1 인덱스 오름차순, 최대 `max_num_matches`.
     /// 기술자 수가 `max_num_matches` 를 넘으면 앞쪽만 쓴다(GPU 동작).
-    fn match_descriptors(&self, d1: &Descriptors, d2: &Descriptors, opts: &DescriptorMatchOptions, max_num_matches: usize) -> Vec<FeatureMatch> {
+    fn match_descriptors(
+        &self,
+        d1: &Descriptors,
+        d2: &Descriptors,
+        opts: &DescriptorMatchOptions,
+        max_num_matches: usize,
+    ) -> Vec<FeatureMatch> {
         let n1 = d1.len().min(max_num_matches);
         let n2 = d2.len().min(max_num_matches);
         if n1 == 0 || n2 == 0 {

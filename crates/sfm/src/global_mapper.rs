@@ -35,14 +35,11 @@
 use crate::positioning::{global_positioning, PositionSolverOptions, PositioningSummary};
 use crate::rotation_averaging::{solve_rotation_averaging, RotationAveragingOptions, ViewGraph, ViewGraphEdge};
 use crate::tracks::{establish_tracks, TrackOptions, TrackSummary};
-use crate::triangulator::{refine_points, TrackTriangulator, PointRefiner, TrackTriangulatorOptions};
-use rayon::prelude::*;
+use crate::triangulator::{refine_points, PointRefiner, TrackTriangulator, TrackTriangulatorOptions};
 use cumulus3d_ba::{BaConfig, Loss};
 use cumulus3d_core::reconstruction::{FilterErrorUpdate, NormalizeOptions};
-use cumulus3d_core::{
-    images_of_pair, Camera, MatchGraph, FeatureStore, Image, ImageId, Reconstruction, Result, Rigid3, Vec2,
-    Vec3,
-};
+use cumulus3d_core::{images_of_pair, Camera, FeatureStore, Image, ImageId, MatchGraph, Reconstruction, Result, Rigid3, Vec2, Vec3};
+use rayon::prelude::*;
 use std::collections::HashSet;
 
 /// 전역 매퍼 옵션. 기본값은 일반 항공 영상 기준으로 정한 값.
@@ -190,13 +187,10 @@ pub fn init_reconstruction(store: &FeatureStore, graph: &MatchGraph) -> Result<R
     for id in ids {
         let Some(si) = store.image(id) else { continue };
         if rec.camera(si.camera_id).is_none() {
-            let cam = store
-                .camera(si.camera_id)
-                .ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
+            let cam = store.camera(si.camera_id).ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
             rec.add_camera_own_rig(cam)?;
         }
-        let kps: Vec<Vec2> =
-            store.keypoints(id).map(|k| k.iter().map(|p| Vec2::new(p.x as f64, p.y as f64)).collect()).unwrap_or_default();
+        let kps: Vec<Vec2> = store.keypoints(id).map(|k| k.iter().map(|p| Vec2::new(p.x as f64, p.y as f64)).collect()).unwrap_or_default();
         rec.add_image_own_frame(Image::new(id, si.name.clone(), si.camera_id, kps), None)?;
     }
     Ok(rec)
@@ -236,12 +230,7 @@ pub fn build_view_graph(rec: &Reconstruction, graph: &MatchGraph, decompose: boo
 }
 
 /// 회전 평균 한 회차. `posed_only` 면 자세 있는 프레임만 노드.
-pub fn rotation_averaging_round(
-    rec: &mut Reconstruction,
-    vg: &mut ViewGraph,
-    posed_only: bool,
-    opts: &GlobalSfmOptions,
-) -> Result<()> {
+pub fn rotation_averaging_round(rec: &mut Reconstruction, vg: &mut ViewGraph, posed_only: bool, opts: &GlobalSfmOptions) -> Result<()> {
     let nodes = if posed_only {
         let posed: HashSet<ImageId> = rec.image_ids().filter(|i| rec.has_pose(*i)).collect();
         vg.largest_connected_component(|i| posed.contains(&i))

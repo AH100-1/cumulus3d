@@ -33,8 +33,8 @@
 
 use crate::linalg::{mat3_from_row_major, null_space_9, null_vector3, singular_values_9, svd3};
 use crate::poly::{poly_add, poly_mul, roots_companion};
-use nalgebra::SMatrix;
 use cumulus3d_core::{Mat3, Vec3};
+use nalgebra::SMatrix;
 
 /// 에피폴라 제약 행 bᵀ M a = 0 (행 우선 9-벡터).
 #[inline]
@@ -48,8 +48,7 @@ type P2 = [f64; 10];
 type P3 = [f64; 20];
 
 const M1: [[u8; 3]; 4] = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]];
-const M2: [[u8; 3]; 10] =
-    [[2, 0, 0], [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]];
+const M2: [[u8; 3]; 10] = [[2, 0, 0], [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]];
 /// A 의 열 순서: 앞 10개(x 또는 y 포함) + 뒤 10개 [xz², xz, x, yz², yz, y, z³, z², z, 1].
 /// 앞쪽 마지막 6개는 (x²z, x²), (y²z, y²), (xyz, xy) 짝으로 B(z) 를 만든다.
 const M3: [[u8; 3]; 20] = [
@@ -228,12 +227,7 @@ pub fn essential_five_point(rays1: &[Vec3], rays2: &[Vec3]) -> Vec<Mat3> {
         let gf = |c: usize| g[(fi, c)];
         for (col, base) in [(0usize, 0usize), (1, 3)] {
             // e: [z², z, 1] at base..base+3; minus z·f
-            bmat[r][col] = vec![
-                ge(base + 2),
-                ge(base + 1) - gf(base + 2),
-                ge(base) - gf(base + 1),
-                -gf(base),
-            ];
+            bmat[r][col] = vec![ge(base + 2), ge(base + 1) - gf(base + 2), ge(base) - gf(base + 1), -gf(base)];
         }
         bmat[r][2] = vec![ge(9), ge(8) - gf(9), ge(7) - gf(8), ge(6) - gf(7), -gf(6)];
     }
@@ -253,7 +247,17 @@ pub fn essential_five_point(rays1: &[Vec3], rays2: &[Vec3]) -> Vec<Mat3> {
         }
         let z = re;
         let ev = |p: &Vec<f64>| crate::poly::poly_eval(p, z);
-        let bmz = Mat3::new(ev(&b[0][0]), ev(&b[0][1]), ev(&b[0][2]), ev(&b[1][0]), ev(&b[1][1]), ev(&b[1][2]), ev(&b[2][0]), ev(&b[2][1]), ev(&b[2][2]));
+        let bmz = Mat3::new(
+            ev(&b[0][0]),
+            ev(&b[0][1]),
+            ev(&b[0][2]),
+            ev(&b[1][0]),
+            ev(&b[1][1]),
+            ev(&b[1][2]),
+            ev(&b[2][0]),
+            ev(&b[2][1]),
+            ev(&b[2][2]),
+        );
         let v = smallest_right_singular(&bmz);
         if v.z.abs() < 1e-10 {
             continue;

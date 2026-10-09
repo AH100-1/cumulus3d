@@ -31,11 +31,11 @@
 
 //! 짝 목록 기반 매칭 → 두 뷰 기하 검증 → FeatureStore 기록.
 
-use crate::descriptor::{MatcherBackend, DescriptorMatchOptions};
+use crate::descriptor::{DescriptorMatchOptions, MatcherBackend};
 use crate::pairs::{read_pair_list, PairList};
 use crate::two_view::{derive_seed, estimate_two_view, finalize_geometry, TwoViewOptions};
-use rayon::prelude::*;
 use cumulus3d_core::{pair_id_of, Error, FeatureMatch, FeatureStore, ImageId, Result, TwoViewGeometry};
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -186,13 +186,7 @@ pub fn match_pairs(
 }
 
 /// 짝 하나 검증(저장소에서 카메라·키포인트를 읽음). 최소 인라이어 규칙 적용 후 결과.
-pub fn verify_pair(
-    store: &FeatureStore,
-    id1: ImageId,
-    id2: ImageId,
-    matches: &[FeatureMatch],
-    opts: &TwoViewOptions,
-) -> TwoViewGeometry {
+pub fn verify_pair(store: &FeatureStore, id1: ImageId, id2: ImageId, matches: &[FeatureMatch], opts: &TwoViewOptions) -> TwoViewGeometry {
     if matches.len() < opts.min_num_inliers {
         return TwoViewGeometry::default();
     }

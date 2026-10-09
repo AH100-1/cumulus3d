@@ -240,13 +240,11 @@ fn refine(dm: &[f32], d0: &[f32], dp: &[f32], w: usize, h: usize, r0: usize, c0:
 
 /// DoG D_d = G_{d} − G_{d−1} (배열 색인: `gauss[d+1] − gauss[d]`).
 pub fn dog(a: &[f32], b: &[f32], out: &mut [f32]) {
-    out.par_chunks_mut(4096)
-        .zip(a.par_chunks(4096).zip(b.par_chunks(4096)))
-        .for_each(|(o, (hi, lo))| {
-            for ((o, x), y) in o.iter_mut().zip(hi).zip(lo) {
-                *o = x - y;
-            }
-        });
+    out.par_chunks_mut(4096).zip(a.par_chunks(4096).zip(b.par_chunks(4096))).for_each(|(o, (hi, lo))| {
+        for ((o, x), y) in o.iter_mut().zip(hi).zip(lo) {
+            *o = x - y;
+        }
+    });
 }
 
 #[cfg(test)]

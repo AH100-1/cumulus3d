@@ -74,12 +74,12 @@ pub mod math;
 pub mod positioning;
 pub mod registration;
 pub mod rotation_averaging;
+#[doc(hidden)]
+pub mod synthetic;
 pub mod tracks;
 pub mod triangulation;
 pub mod triangulator;
-#[doc(hidden)]
-pub mod synthetic;
 
-pub use global_mapper::{global_mapper, GlobalSfmOptions, GlobalMapperOutput};
+pub use global_mapper::{global_mapper, GlobalMapperOutput, GlobalSfmOptions};
 pub use registration::{register_images, RegistrationOptions, RegistrationOrder, RegistrationReport};
 pub use triangulator::{triangulate_points, PointRefiner, PointTriangulatorOptions, TriangulationScope};

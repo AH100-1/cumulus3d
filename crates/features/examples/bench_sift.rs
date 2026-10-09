@@ -62,10 +62,8 @@ fn main() {
     }
     println!("입력 {} ({}x{}), 읽기 {:.1} ms, 스레드 {}", src, g.width, g.height, t_read.as_secs_f64() * 1e3, rayon::current_num_threads());
     let sift = CpuSift::new();
-    for (name, opts) in [
-        ("compat(기본)", SiftOptions::default()),
-        ("무제한", SiftOptions { max_num_features: 0, ..Default::default() }),
-    ] {
+    for (name, opts) in [("compat(기본)", SiftOptions::default()), ("무제한", SiftOptions { max_num_features: 0, ..Default::default() })]
+    {
         let mut times = Vec::new();
         let mut n = 0;
         for _ in 0..5 {

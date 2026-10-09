@@ -46,7 +46,8 @@ fn build() -> (Reconstruction, Arc<ImageBuffer>) {
     let mut rec = Reconstruction::new();
     rec.add_camera_own_rig(c.clone()).unwrap();
     let poses = [Rigid3::identity(), Rigid3::from_params(&[1.0, 0.0, 0.05, 0.0, -0.5, 0.0, 0.0])];
-    let pts: Vec<Vec3> = (0..60).map(|k| Vec3::new(((k % 10) as f64 - 4.5) * 0.9, ((k / 10) as f64 - 2.5) * 0.7, 6.0 + (k % 7) as f64 * 0.3)).collect();
+    let pts: Vec<Vec3> =
+        (0..60).map(|k| Vec3::new(((k % 10) as f64 - 4.5) * 0.9, ((k / 10) as f64 - 2.5) * 0.7, 6.0 + (k % 7) as f64 * 0.3)).collect();
     let mut obs = [Vec::new(), Vec::new()];
     for (ii, pose) in poses.iter().enumerate() {
         for p in &pts {
@@ -129,7 +130,14 @@ fn undistort_model_images_and_folder() {
     let dir = std::env::temp_dir().join(format!("cumulus3d_undist_{}", std::process::id()));
     std::fs::remove_dir_all(&dir).ok();
     write_undistorted_workspace(&res, &dir, &opts).unwrap();
-    for f in ["images/sub/img0.png", "sparse/cameras.bin", "sparse/images.bin", "sparse/points3D.bin", "stereo/fusion.cfg", "stereo/patch-match.cfg"] {
+    for f in [
+        "images/sub/img0.png",
+        "sparse/cameras.bin",
+        "sparse/images.bin",
+        "sparse/points3D.bin",
+        "stereo/fusion.cfg",
+        "stereo/patch-match.cfg",
+    ] {
         assert!(dir.join(f).exists(), "{f}");
     }
     for d in ["depth_maps/sub", "normal_maps/sub", "consistency_graphs/sub"] {

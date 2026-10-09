@@ -30,8 +30,8 @@
 
 use cumulus3d_core::{ImageId, Reconstruction};
 use cumulus3d_dense::{
-    undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions, UndistortCache,
-    UndistortOptions,
+    undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions,
+    UndistortCache, UndistortOptions,
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -133,12 +133,8 @@ pub fn dense_model(model: &Reconstruction, keep: impl Fn(&str) -> bool, image_ro
     let backend = cfg.backend.clone()?;
     let t0 = Instant::now();
     let mut m = model.clone();
-    let del: Vec<String> = m
-        .registered_images()
-        .into_iter()
-        .filter_map(|id| m.image(id).map(|im| im.name.clone()))
-        .filter(|n| !keep(n))
-        .collect();
+    let del: Vec<String> =
+        m.registered_images().into_iter().filter_map(|id| m.image(id).map(|im| im.name.clone())).filter(|n| !keep(n)).collect();
     let del_ref: Vec<&str> = del.iter().map(|s| s.as_str()).collect();
     m.deregister_images_by_name(&del_ref);
     let root: PathBuf = image_root.to_path_buf();
@@ -153,7 +149,9 @@ pub fn dense_model(model: &Reconstruction, keep: impl Fn(&str) -> bool, image_ro
     let guard = cfg.lock.as_ref().map(|l| l.lock().unwrap_or_else(|p| p.into_inner()));
     let lock_wait = tw.elapsed();
     let t1 = Instant::now();
-    let output = cumulus3d_dense::densify::densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), cfg.depth_cache.as_deref()).map_err(|e| format!("조밀화 실패: {e}"));
+    let output =
+        cumulus3d_dense::densify::densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), cfg.depth_cache.as_deref())
+            .map_err(|e| format!("조밀화 실패: {e}"));
     drop(guard);
     let output = output?;
     Ok(DenseRun { frames, scene, output, undistort_time, densify_time: t1.elapsed(), lock_wait })

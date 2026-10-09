@@ -36,12 +36,12 @@ pub mod orient;
 pub mod pyramid;
 
 use crate::gray::GrayImage;
+use cumulus3d_core::{Descriptors, Error, Keypoint, Result};
 use detect::{Candidate, DetectParams};
 pub use orient::DescriptorNormalization;
 use orient::{Gradient, OrientParams};
 use pyramid::{BufferPool, ScaleSpace};
 use rayon::prelude::*;
-use cumulus3d_core::{Descriptors, Error, Keypoint, Result};
 
 /// 최대 특징 수 제한 방식.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -238,10 +238,7 @@ impl SiftEngine for CpuSift {
             sigma0: ss.sigma0,
             k: ss.k,
         };
-        let op = OrientParams {
-            max_num_orientations: opts.max_num_orientations,
-            bin_interpolation: opts.orientation_bin_interpolation,
-        };
+        let op = OrientParams { max_num_orientations: opts.max_num_orientations, bin_interpolation: opts.orientation_bin_interpolation };
 
         // 거친 옥타브·높은 레벨부터. 레벨 단위 규칙상 잘릴 레벨은 검출 자체를 생략(결과 동일).
         let mut levels: Vec<LevelFeats> = Vec::new();
@@ -278,9 +275,7 @@ impl SiftEngine for CpuSift {
                     let grad = Gradient::lazy(oct.level(j as i32), ow, oh);
                     cands
                         .par_iter()
-                        .flat_map_iter(|c| {
-                            orient::orientations(&grad, c.x, c.y, c.sigma, &op).into_iter().map(move |q| (*c, q))
-                        })
+                        .flat_map_iter(|c| orient::orientations(&grad, c.x, c.y, c.sigma, &op).into_iter().map(move |q| (*c, q)))
                         .collect()
                 };
                 cum_or += items.len();
@@ -306,11 +301,7 @@ impl SiftEngine for CpuSift {
             let g = oct.level(lv.j as i32);
             let sig = ss.sigma(lv.j as f32);
             let work = lv.items.len() as f64 * 225.0 * (sig as f64).powi(2);
-            let grad = if work > (oct.w * oct.h) as f64 {
-                Gradient::precomputed(g, oct.w, oct.h)
-            } else {
-                Gradient::lazy(g, oct.w, oct.h)
-            };
+            let grad = if work > (oct.w * oct.h) as f64 { Gradient::precomputed(g, oct.w, oct.h) } else { Gradient::lazy(g, oct.w, oct.h) };
             let ds: Vec<[u8; 128]> = lv
                 .items
                 .par_iter()

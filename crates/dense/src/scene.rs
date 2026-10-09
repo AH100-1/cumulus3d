@@ -185,7 +185,10 @@ impl DenseScene {
                 return Err(Error::InvalidArgument(format!("조밀화: 영상 {} 의 카메라가 핀홀이 아님(왜곡 보정 필요)", im.name)));
             }
             if buf.width as u64 != cam.width || buf.height as u64 != cam.height {
-                return Err(Error::InvalidArgument(format!("조밀화: 영상 {} 크기 {}x{} != 카메라 {}x{}", im.name, buf.width, buf.height, cam.width, cam.height)));
+                return Err(Error::InvalidArgument(format!(
+                    "조밀화: 영상 {} 크기 {}x{} != 카메라 {}x{}",
+                    im.name, buf.width, buf.height, cam.width, cam.height
+                )));
             }
             let Some(pose) = rec.world_to_cam(iid) else { continue };
             let rm = pose.rotation_matrix();

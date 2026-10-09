@@ -30,7 +30,9 @@
 use cumulus3d_dense::fusion::{fuse, FusionInput};
 use cumulus3d_dense::neighbors::{depth_ranges, PairStats};
 use cumulus3d_dense::synthetic::{make_scene, SynthConfig, SynthScene};
-use cumulus3d_dense::{pair_geometry, CachedDepth, DenseOutput, DenseScene, DenseView, DepthMapCache, FusionMode, FusionParams, ImageBuffer, ScenePoint};
+use cumulus3d_dense::{
+    pair_geometry, CachedDepth, DenseOutput, DenseScene, DenseView, DepthMapCache, FusionMode, FusionParams, ImageBuffer, ScenePoint,
+};
 use std::sync::{Arc, OnceLock};
 
 fn synth() -> &'static SynthScene {
@@ -43,7 +45,17 @@ fn bare_view(c: [f64; 3]) -> DenseView {
     let r = [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]];
     let t = [-(r[0][0] * c[0]), -(r[1][1] * c[1]), -(r[2][2] * c[2])];
     let img = Arc::new(ImageBuffer::new(4, 4, 3));
-    DenseView { image_id: 0, name: String::new(), width: 4, height: 4, k: [100.0, 100.0, 1.5, 1.5], r, t, gray: Arc::new(vec![0; 16]), color: img }
+    DenseView {
+        image_id: 0,
+        name: String::new(),
+        width: 4,
+        height: 4,
+        k: [100.0, 100.0, 1.5, 1.5],
+        r,
+        t,
+        gray: Arc::new(vec![0; 16]),
+        color: img,
+    }
 }
 
 #[test]
@@ -201,7 +213,14 @@ fn ply_output_layout() {
 #[test]
 fn depth_cache_capacity() {
     let c = DepthMapCache::with_capacity(2);
-    let e = Arc::new(CachedDepth { width: 1, height: 1, raw_depth: vec![1.0], depth: vec![1.0], normal: vec![[0.0, 0.0, -1.0]], cost: vec![0.0] });
+    let e = Arc::new(CachedDepth {
+        width: 1,
+        height: 1,
+        raw_depth: vec![1.0],
+        depth: vec![1.0],
+        normal: vec![[0.0, 0.0, -1.0]],
+        cost: vec![0.0],
+    });
     for k in 0..3u64 {
         c.insert((k, 0), e.clone());
     }

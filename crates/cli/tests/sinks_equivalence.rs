@@ -100,11 +100,7 @@ fn stamped_events(dir: &Path, texts: &BTreeSet<String>) -> Vec<String> {
 /// run.log 의 후처리 요약 덩어리("== 구역별 시간" ~ "== 단계별 시간" 앞).
 fn post_block(dir: &Path) -> Vec<String> {
     let s = std::fs::read_to_string(dir.join("run.log")).unwrap();
-    s.lines()
-        .skip_while(|l| !l.starts_with("== 구역별 시간"))
-        .take_while(|l| !l.starts_with("== 단계별 시간"))
-        .map(String::from)
-        .collect()
+    s.lines().skip_while(|l| !l.starts_with("== 구역별 시간")).take_while(|l| !l.starts_with("== 단계별 시간")).map(String::from).collect()
 }
 
 /// 후처리 산출 파일(상대 경로, 스냅샷 이름의 시각 부분 제거, snapshots/timeline.txt 제외) → 점 수.
@@ -145,7 +141,15 @@ fn manifest_masked(dir: &Path) -> String {
     s.lines()
         .map(|l| {
             let t = l.trim_start();
-            let timed = ["\"arrived_s\"", "\"preview_ready_s\"", "\"preview_latency_s\"", "\"refined_pose_s\"", "\"refined_ready_s\"", "\"refined_latency_s\"", "\"time_s\""];
+            let timed = [
+                "\"arrived_s\"",
+                "\"preview_ready_s\"",
+                "\"preview_latency_s\"",
+                "\"refined_pose_s\"",
+                "\"refined_ready_s\"",
+                "\"refined_latency_s\"",
+                "\"time_s\"",
+            ];
             if timed.iter().any(|k| t.starts_with(k)) {
                 format!("{}: T", t.split(':').next().unwrap())
             } else {

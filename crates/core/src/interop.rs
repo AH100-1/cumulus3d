@@ -35,12 +35,12 @@
 //! 각각 `.bin`·`.txt`)과 조밀 복원용 작업 폴더 구성(`stereo/patch-match.cfg`, `stereo/fusion.cfg`)을
 //! 이 모듈 한 곳에서만 다룬다. 파일 이름·헤더 문자열·필드 순서는 그 형식을 그대로 따른다.
 
-use crate::io::binary::{check_count, ReadLe, WriteLe};
-use crate::io::fmt::g17;
 use crate::camera::{Camera, CameraModelKind};
 use crate::error::{Error, Result};
 use crate::geometry::{Rigid3, Vec2, Vec3};
 use crate::ids::*;
+use crate::io::binary::{check_count, ReadLe, WriteLe};
+use crate::io::fmt::g17;
 use crate::reconstruction::{Frame, Image, Point3D, Reconstruction, Rig, TrackEntry};
 use std::collections::HashMap;
 use std::fs::File;
@@ -117,9 +117,9 @@ fn assemble(raw: RawModel) -> Result<Reconstruction> {
             }
             reg_order.extend(frame_order.into_iter().filter(|f| !seen.contains(f)));
             for im in raw.images {
-                let fid = *data_to_frame.get(&SensorDataKey::image(im.camera_id, im.image_id)).ok_or_else(|| {
-                    Error::Format(format!("영상 {} 이 어떤 프레임에도 없음", im.image_id))
-                })?;
+                let fid = *data_to_frame
+                    .get(&SensorDataKey::image(im.camera_id, im.image_id))
+                    .ok_or_else(|| Error::Format(format!("영상 {} 이 어떤 프레임에도 없음", im.image_id)))?;
                 let mut image = Image::new(im.image_id, im.name, im.camera_id, im.points);
                 image.frame_id = fid;
                 rec.add_image(image)?;
@@ -628,13 +628,7 @@ pub fn write_model_text(rec: &Reconstruction, dir: impl AsRef<Path>, order: Imag
         writeln!(w, "#   FRAME_ID, RIG_ID, RIG_FROM_WORLD[QW, QX, QY, QZ, TX, TY, TZ], NUM_DATA_IDS, DATA_IDS[] as (SENSOR_TYPE, SENSOR_ID, DATA_ID)")?;
         writeln!(w, "# Number of frames: {}", frames.len())?;
         for f in frames {
-            let mut s = format!(
-                "{} {} {} {}",
-                f.frame_id,
-                f.rig_id,
-                pose_str(&f.world_to_rig.expect("자세 있음")),
-                f.data_ids().len()
-            );
+            let mut s = format!("{} {} {} {}", f.frame_id, f.rig_id, pose_str(&f.world_to_rig.expect("자세 있음")), f.data_ids().len());
             for dd in f.data_ids() {
                 s += &format!(" {} {} {}", dd.sensor_id.sensor_type.name(), dd.sensor_id.id, dd.id);
             }
@@ -755,11 +749,8 @@ mod tests {
         }
         let npts2d = 2000usize;
         for i in 1..=39u32 {
-            let pts: Vec<Vec2> = (0..npts2d)
-                .map(|_| Vec2::new(rng.random_range(0.0..2048.0), rng.random_range(0.0..1152.0)))
-                .collect();
-            let q = Quat::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), 0.5)
-                .normalized();
+            let pts: Vec<Vec2> = (0..npts2d).map(|_| Vec2::new(rng.random_range(0.0..2048.0), rng.random_range(0.0..1152.0))).collect();
+            let q = Quat::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), 0.5).normalized();
             let pose = Rigid3::new(q, Vec3::new(rng.random_range(-5.0..5.0), 0.1 / 3.0, i as f64 * 1e-7));
             let cam = (i - 1) % 3 + 1;
             let pose = if i == 39 { None } else { Some(pose) };

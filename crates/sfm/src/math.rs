@@ -27,8 +27,8 @@
 
 //! 내부 수치 유틸: SO(3) 지수/로그, 점 정렬(Kabsch/Umeyama), 다항식 근, 희소 행렬.
 
-use nalgebra::{DMatrix, DVector, Matrix3};
 use cumulus3d_core::{Mat3, Quat, Sim3, Vec3};
+use nalgebra::{DMatrix, DVector, Matrix3};
 
 /// 회전 벡터 → 회전 행렬.
 pub(crate) fn so3_exp(w: &Vec3) -> Mat3 {

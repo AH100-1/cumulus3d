@@ -33,7 +33,7 @@
 
 use crate::rotation_averaging::ViewGraph;
 use cumulus3d_core::graph::Correspondence;
-use cumulus3d_core::{MatchGraph, ImageId, Point3D, Reconstruction, Result, TrackEntry, Vec2, Vec3};
+use cumulus3d_core::{ImageId, MatchGraph, Point3D, Reconstruction, Result, TrackEntry, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet};
 
 /// 트랙 옵션.
@@ -143,18 +143,10 @@ pub fn select_tracks(tracks: &[Vec<Correspondence>], opts: &TrackOptions) -> Vec
 
 /// 등록 영상의 유효 간선으로 트랙을 만들어 재구성에 3D 점(좌표 0, error −1)으로 추가.
 /// 점 id = 통과 트랙의 순번(0부터).
-pub fn establish_tracks(
-    rec: &mut Reconstruction,
-    graph: &MatchGraph,
-    view_graph: &ViewGraph,
-    opts: &TrackOptions,
-) -> Result<TrackSummary> {
-    let valid: HashSet<(ImageId, ImageId)> =
-        view_graph.edges.iter().filter(|e| e.valid).map(|e| (e.image_id1, e.image_id2)).collect();
+pub fn establish_tracks(rec: &mut Reconstruction, graph: &MatchGraph, view_graph: &ViewGraph, opts: &TrackOptions) -> Result<TrackSummary> {
+    let valid: HashSet<(ImageId, ImageId)> = view_graph.edges.iter().filter(|e| e.valid).map(|e| (e.image_id1, e.image_id2)).collect();
     let registered: HashSet<ImageId> = rec.registered_images().into_iter().collect();
-    let candidates = graph.union_find_tracks(|a, b| {
-        valid.contains(&(a, b)) && registered.contains(&a) && registered.contains(&b)
-    });
+    let candidates = graph.union_find_tracks(|a, b| valid.contains(&(a, b)) && registered.contains(&a) && registered.contains(&b));
     let mut summary = TrackSummary::default();
     let tracks = filter_candidate_tracks(
         candidates,

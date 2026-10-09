@@ -573,13 +573,7 @@ mod tests {
         }
     }
     fn refined(v: u64, z: usize) -> Event {
-        Event::ZoneRefined {
-            meta: meta(v),
-            range: range(z),
-            cloud: cloud(),
-            model: Arc::new(Reconstruction::default()),
-            dense: true,
-        }
+        Event::ZoneRefined { meta: meta(v), range: range(z), cloud: cloud(), model: Arc::new(Reconstruction::default()), dense: true }
     }
 
     /// 입력 n 하나에 대해 PositionDone(n), 짝수면 ZonePreview(zone n/2) 를 낸다.
@@ -613,10 +607,7 @@ mod tests {
             }
         }
         fn finish(&mut self) -> Vec<Event> {
-            self.zones
-                .drain(..)
-                .map(|z| refined(self.v, z))
-                .collect()
+            self.zones.drain(..).map(|z| refined(self.v, z)).collect()
         }
     }
 
@@ -637,12 +628,7 @@ mod tests {
         p.push(2);
         let (_, s) = p.finish();
         let got = l.lock().unwrap().clone();
-        assert_eq!(
-            got,
-            vec![
-                "pos:1", "any:PositionDone", "pos:2", "any:PositionDone", "prev:1", "any:ZonePreview", "any:ZoneRefined"
-            ]
-        );
+        assert_eq!(got, vec!["pos:1", "any:PositionDone", "pos:2", "any:PositionDone", "prev:1", "any:ZonePreview", "any:ZoneRefined"]);
         assert_eq!(s.events, 4);
         assert_eq!(s.by_kind[&EventKind::PositionDone], 2);
     }
@@ -692,9 +678,8 @@ mod tests {
             }
         }
 
-        let mut p = Pipeline::new(Previews(0)).policy(EventKind::ZonePreview, QueuePolicy::LatestPerKey).on(
-            EventKind::ZonePreview,
-            move |e| {
+        let mut p =
+            Pipeline::new(Previews(0)).policy(EventKind::ZonePreview, QueuePolicy::LatestPerKey).on(EventKind::ZonePreview, move |e| {
                 let (m, cv) = &*g;
                 let mut open = m.lock().unwrap();
                 while !*open {
@@ -703,8 +688,7 @@ mod tests {
                 if let Event::ZonePreview { meta, range, .. } = e {
                     s2.lock().unwrap().push(format!("{}@{}", range.zone, meta.version));
                 }
-            },
-        );
+            });
         // 첫 이벤트는 워커가 집어 막혀 있을 수 있으므로 잠시 기다려 확실히 집게 한다.
         p.push((9, 0));
         std::thread::sleep(Duration::from_millis(50));

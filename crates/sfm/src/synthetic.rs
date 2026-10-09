@@ -29,11 +29,10 @@
 //! 지면 근처 점, 2D 잡음, 파이프라인 짝 규칙(같은 카메라 간격 1..5,8,16 / 다른 카메라 위치 차 0..4).
 
 use crate::math::{gaussian, so3_exp};
-use rand::{RngExt, SeedableRng};
 use cumulus3d_core::{
-    Camera, CameraModelKind, FeatureMatch, FeatureStore, ImageId, Keypoint, Rigid3, TwoViewGeometry, TwoViewGeometryConfig, Vec2,
-    Vec3,
+    Camera, CameraModelKind, FeatureMatch, FeatureStore, ImageId, Keypoint, Rigid3, TwoViewGeometry, TwoViewGeometryConfig, Vec2, Vec3,
 };
+use rand::{RngExt, SeedableRng};
 use std::collections::{BTreeMap, HashMap};
 
 /// 장면 설정.
@@ -69,9 +68,8 @@ pub struct Scene {
 
 /// 카메라 3대(전방·우·좌) 의 OPENCV 내부값.
 pub fn opencv_camera(id: u32) -> Camera {
-    let mut c =
-        Camera::new(id, CameraModelKind::OpenCv, 1920, 1080, vec![1500.0, 1500.0, 960.0, 540.0, -0.1, 0.02, 0.001, 0.001])
-            .expect("파라미터 수");
+    let mut c = Camera::new(id, CameraModelKind::OpenCv, 1920, 1080, vec![1500.0, 1500.0, 960.0, 540.0, -0.1, 0.02, 0.001, 0.001])
+        .expect("파라미터 수");
     c.focal_from_prior = true;
     c
 }
@@ -96,13 +94,7 @@ pub fn generate(cfg: &SceneConfig) -> Scene {
     }
     let len = cfg.num_positions as f64 * cfg.spacing;
     let points: Vec<Vec3> = (0..cfg.num_points)
-        .map(|_| {
-            Vec3::new(
-                rng.random_range(-25.0..len + 25.0),
-                rng.random_range(-30.0..30.0),
-                rng.random_range(0.0..10.0),
-            )
-        })
+        .map(|_| Vec3::new(rng.random_range(-25.0..len + 25.0), rng.random_range(-30.0..30.0), rng.random_range(0.0..10.0)))
         .collect();
     // 카메라별 (y 오프셋, 롤, 피치).
     let rigs = [(0.0, 0.0, 20.0), (8.0, 25.0, 5.0), (-8.0, -25.0, 5.0)];
@@ -196,10 +188,6 @@ pub fn generate(cfg: &SceneConfig) -> Scene {
 impl Scene {
     /// 위치 0..n 영상 이름 집합(대응 그래프 이름 필터용).
     pub fn names_up_to(&self, n: usize) -> std::collections::HashSet<String> {
-        self.images_by_position[..n.min(self.images_by_position.len())]
-            .iter()
-            .flatten()
-            .map(|id| self.image_names[id].clone())
-            .collect()
+        self.images_by_position[..n.min(self.images_by_position.len())].iter().flatten().map(|id| self.image_names[id].clone()).collect()
     }
 }

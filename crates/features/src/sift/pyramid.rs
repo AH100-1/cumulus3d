@@ -44,12 +44,7 @@ impl BufferPool {
     /// 길이 `len` 버퍼(내용은 덮어쓰기 전제). 용량이 맞는 것을 우선 재사용.
     pub fn take(&self, len: usize) -> Vec<f32> {
         let mut g = self.bufs.lock().unwrap_or_else(|e| e.into_inner());
-        let pos = g
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| b.capacity() >= len)
-            .min_by_key(|(_, b)| b.capacity())
-            .map(|(i, _)| i);
+        let pos = g.iter().enumerate().filter(|(_, b)| b.capacity() >= len).min_by_key(|(_, b)| b.capacity()).map(|(i, _)| i);
         let mut v = match pos {
             Some(i) => g.swap_remove(i),
             None => g.pop().unwrap_or_default(),

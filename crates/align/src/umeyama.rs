@@ -31,9 +31,9 @@
 
 //! Umeyama Sim3 와 견고 추정.
 
-use nalgebra::Matrix3xX;
 use cumulus3d_core::ransac::{lo_ransac, Estimator, RansacParams, RansacReport};
 use cumulus3d_core::{Mat3, Mat3x4, Sim3, Vec3};
+use nalgebra::Matrix3xX;
 
 /// 퇴화 검사 방식.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -250,9 +250,9 @@ pub fn robust_umeyama(src: &[Vec3], dst: &[Vec3], opts: &RobustUmeyamaOptions) -
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use cumulus3d_core::Quat;
     use rand::RngExt;
     use rand_pcg::Pcg64;
-    use cumulus3d_core::Quat;
 
     pub fn random_sim3(rng: &mut Pcg64) -> Sim3 {
         let axis = Vec3::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));

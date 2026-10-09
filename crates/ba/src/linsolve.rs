@@ -247,8 +247,7 @@ impl SchurSolver {
 
 fn dot(a: &[f64], b: &[f64]) -> f64 {
     // 결정적 합: 고정 크기 조각 합을 순서대로.
-    let parts: Vec<f64> =
-        a.par_chunks(4096).zip(b.par_chunks(4096)).map(|(x, y)| x.iter().zip(y).map(|(p, q)| p * q).sum()).collect();
+    let parts: Vec<f64> = a.par_chunks(4096).zip(b.par_chunks(4096)).map(|(x, y)| x.iter().zip(y).map(|(p, q)| p * q).sum()).collect();
     parts.iter().sum()
 }
 

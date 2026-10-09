@@ -27,11 +27,11 @@
 
 //! 해법·잔차·분해 검증.
 
-use rand::{RngExt, SeedableRng};
-use rand_pcg::Pcg64;
 use cumulus3d_core::ransac::{static_max_num_trials, RansacParams};
 use cumulus3d_core::{Mat3, Quat, Vec2, Vec3};
 use cumulus3d_matching::*;
+use rand::{RngExt, SeedableRng};
+use rand_pcg::Pcg64;
 
 fn rng(s: u64) -> Pcg64 {
     Pcg64::seed_from_u64(s)
@@ -174,10 +174,13 @@ fn seven_and_eight_point_fundamental() {
         let x2: Vec<Vec2> = b.iter().map(|p| project(&k, p)).collect();
         let sols = fundamental_seven_point(&x1[..7], &x2[..7]);
         assert!(!sols.is_empty() && sols.len() <= 3);
-        let (best, fb) = sols
-            .iter()
-            .map(|f| ((normalize_sign(f) - f_true).norm(), *f))
-            .fold((f64::INFINITY, Mat3::zeros()), |acc, v| if v.0 < acc.0 { v } else { acc });
+        let (best, fb) = sols.iter().map(|f| ((normalize_sign(f) - f_true).norm(), *f)).fold((f64::INFINITY, Mat3::zeros()), |acc, v| {
+            if v.0 < acc.0 {
+                v
+            } else {
+                acc
+            }
+        });
         assert!(best < 1e-6, "{best}");
         let sv = fb.singular_values();
         let (mx, mn) = (sv.max(), sv.min());
@@ -187,12 +190,9 @@ fn seven_and_eight_point_fundamental() {
         let n1: Vec<Vec2> = x1.iter().map(|p| p + Vec2::new(0.5 * gauss(&mut r), 0.5 * gauss(&mut r))).collect();
         let n2: Vec<Vec2> = x2.iter().map(|p| p + Vec2::new(0.5 * gauss(&mut r), 0.5 * gauss(&mut r))).collect();
         let f8 = fundamental_eight_point(&n1, &n2).unwrap();
-        let mean: f64 = n1
-            .iter()
-            .zip(&n2)
-            .map(|(a, b)| sampson_error_sq(&f8, &Vec3::new(a.x, a.y, 1.0), &Vec3::new(b.x, b.y, 1.0)))
-            .sum::<f64>()
-            / n1.len() as f64;
+        let mean: f64 =
+            n1.iter().zip(&n2).map(|(a, b)| sampson_error_sq(&f8, &Vec3::new(a.x, a.y, 1.0), &Vec3::new(b.x, b.y, 1.0))).sum::<f64>()
+                / n1.len() as f64;
         assert!(mean < 1.0, "평균 Sampson {mean}");
     }
 }
@@ -278,10 +278,8 @@ fn essential_decomposition_cheirality() {
         assert!(ang < 1e-6, "t err {ang}");
         // 4후보 중 정답만 모든 점 통과.
         let cands = decompose_essential(&e).unwrap();
-        let full: Vec<usize> = cands
-            .iter()
-            .map(|(rr, tt)| r1.iter().zip(&r2).filter(|(a, b)| triangulate_midpoint(rr, tt, a, b).is_some()).count())
-            .collect();
+        let full: Vec<usize> =
+            cands.iter().map(|(rr, tt)| r1.iter().zip(&r2).filter(|(a, b)| triangulate_midpoint(rr, tt, a, b).is_some()).count()).collect();
         assert_eq!(full.iter().filter(|&&c| c == 30).count(), 1, "{full:?}");
     }
 }

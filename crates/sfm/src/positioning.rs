@@ -35,10 +35,10 @@
 //! 슈어 소거하고 프레임 중심의 밀집 축약 계통을 촐레스키로 푼다.
 //! 병렬 합산은 고정 크기 덩어리 단위로 하고 덩어리 순서대로 더해 스레드 수와 무관하게 결정적이다.
 
+use cumulus3d_core::{Error, ImageId, Mat3, Point3DId, Reconstruction, Result, Rigid3, Vec3};
 use nalgebra::{DMatrix, DVector};
 use rand::{RngExt, SeedableRng};
 use rayon::prelude::*;
-use cumulus3d_core::{Error, ImageId, Mat3, Point3DId, Reconstruction, Result, Rigid3, Vec3};
 use std::collections::BTreeMap;
 
 /// 위치 추정 옵션.
@@ -231,10 +231,8 @@ pub fn global_positioning(rec: &mut Reconstruction, opts: &PositionSolverOptions
         return Err(Error::InvalidArgument("위치 추정: 등록 영상 없음".into()));
     }
     let fidx: BTreeMap<ImageId, usize> = frames.iter().enumerate().map(|(i, id)| (*id, i)).collect();
-    let rots: Vec<Mat3> = frames
-        .iter()
-        .map(|id| rec.world_to_cam(*id).map(|p| p.rotation_matrix()).unwrap_or_else(Mat3::identity))
-        .collect();
+    let rots: Vec<Mat3> =
+        frames.iter().map(|id| rec.world_to_cam(*id).map(|p| p.rotation_matrix()).unwrap_or_else(Mat3::identity)).collect();
     // 관측 구성.
     let point_ids: Vec<Point3DId> = rec.point3d_ids();
     let mut obs = Vec::new();
@@ -276,12 +274,7 @@ pub fn global_positioning(rec: &mut Reconstruction, opts: &PositionSolverOptions
     for (k, pid) in used_points.iter().enumerate() {
         rec.set_point3d_xyz(*pid, prob.points[k])?;
     }
-    Ok(PositioningSummary {
-        num_frames: frames.len(),
-        num_points: used_points.len(),
-        num_observations: prob.obs.len(),
-        ..summary
-    })
+    Ok(PositioningSummary { num_frames: frames.len(), num_points: used_points.len(), num_observations: prob.obs.len(), ..summary })
 }
 
 fn solve(prob: &mut Problem, opts: &PositionSolverOptions) -> PositioningSummary {
@@ -421,9 +414,7 @@ fn solve(prob: &mut Problem, opts: &PositionSolverOptions) -> PositioningSummary
             cost = new_cost;
             mu = (mu / 3.0).max(1e-16);
             nu = 2.0;
-            if rel < opts.function_tolerance
-                || step_norm2.sqrt() < opts.parameter_tolerance * (x_norm2.sqrt() + opts.parameter_tolerance)
-            {
+            if rel < opts.function_tolerance || step_norm2.sqrt() < opts.parameter_tolerance * (x_norm2.sqrt() + opts.parameter_tolerance) {
                 summary.converged = true;
                 break;
             }

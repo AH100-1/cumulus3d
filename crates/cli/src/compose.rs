@@ -181,7 +181,9 @@ impl fmt::Debug for FramePayload {
         match self {
             FramePayload::File { relative_name } => f.debug_struct("File").field("relative_name", relative_name).finish(),
             FramePayload::Rgb8 { width, height, .. } => f.debug_struct("Rgb8").field("width", width).field("height", height).finish(),
-            FramePayload::Encoded { bytes, format } => f.debug_struct("Encoded").field("bytes", &bytes.len()).field("format", format).finish(),
+            FramePayload::Encoded { bytes, format } => {
+                f.debug_struct("Encoded").field("bytes", &bytes.len()).field("format", format).finish()
+            }
         }
     }
 }
@@ -474,7 +476,11 @@ pub struct Closed {
 
 impl fmt::Debug for Closed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Closed").field("positions", &self.session.positions()).field("summary", &self.summary).field("stats", &self.stats).finish()
+        f.debug_struct("Closed")
+            .field("positions", &self.session.positions())
+            .field("summary", &self.summary)
+            .field("stats", &self.stats)
+            .finish()
     }
 }
 
@@ -1163,7 +1169,8 @@ impl Core {
                 // Store the corrected pixels under the original names so rebuilt outputs read them.
                 let names: Vec<String> = self.pl().reducer().frames()[p].iter().map(|f| f.name.clone()).collect();
                 self.resolve(&set, Some(&names))?;
-                let zones: Vec<usize> = self.pl().reducer().arrived_zones().into_iter().filter(|z| z.lo <= p && p < z.hi).map(|z| z.zone).collect();
+                let zones: Vec<usize> =
+                    self.pl().reducer().arrived_zones().into_iter().filter(|z| z.lo <= p && p < z.hi).map(|z| z.zone).collect();
                 for &z in &zones {
                     self.pl().command(Command::InvalidateZone(z));
                 }

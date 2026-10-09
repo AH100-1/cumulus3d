@@ -118,7 +118,16 @@ fn stream_end_to_end_synthetic() {
         assert!(parts[3] == "preview" || parts[3] == "refined");
     }
     let man = std::fs::read_to_string(out.join("snapshots/manifest.json")).unwrap();
-    for key in ["\"timeline\"", "\"events\"", "\"align\"", "\"reanchor\"", "\"preview_latency_s\"", "\"points_1of6\"", "\"frame\"", "\"fit_median_m\""] {
+    for key in [
+        "\"timeline\"",
+        "\"events\"",
+        "\"align\"",
+        "\"reanchor\"",
+        "\"preview_latency_s\"",
+        "\"points_1of6\"",
+        "\"frame\"",
+        "\"fit_median_m\"",
+    ] {
         assert!(man.contains(key), "manifest 에 {key} 없음");
     }
     // 정밀·초벌 모두 GPS ENU 좌표계(첫 GPS 기록 camF_0000 = 원점, 고도 15 m): 바닥(하위 10%)이 z ≈ −15.
@@ -142,7 +151,8 @@ fn stream_end_to_end_synthetic() {
     assert_eq!(refined_err.len(), 2);
     assert!(refined_err.iter().all(|e| *e < 0.2), "정밀 GPS 정렬 오차 {refined_err:?}");
     let log = std::fs::read_to_string(out.join("run.log")).unwrap();
-    for s in ["== 구역별 시간(초, 시작 기준)", "== 정렬", "== 사건 순서", "정밀 0-1 겹침 차 중앙", "최종 좌표계 정밀 0-1", "== 단계별 시간"] {
+    for s in ["== 구역별 시간(초, 시작 기준)", "== 정렬", "== 사건 순서", "정밀 0-1 겹침 차 중앙", "최종 좌표계 정밀 0-1", "== 단계별 시간"]
+    {
         assert!(log.contains(s), "run.log 에 {s} 없음");
     }
 }

@@ -195,7 +195,14 @@ pub struct FilterParams {
 
 impl Default for FilterParams {
     fn default() -> Self {
-        Self { min_ncc: 0.1, min_triangulation_angle_deg: 3.0, min_num_consistent: 2, geom_max_cost: 1.0, ncc_sigma: 0.6, median_filter: true }
+        Self {
+            min_ncc: 0.1,
+            min_triangulation_angle_deg: 3.0,
+            min_num_consistent: 2,
+            geom_max_cost: 1.0,
+            ncc_sigma: 0.6,
+            median_filter: true,
+        }
     }
 }
 
@@ -312,7 +319,25 @@ pub struct FusionParams {
 
 impl Default for FusionParams {
     fn default() -> Self {
-        Self { mode: FusionMode::Consistency, residual: FusionResidual::None, residual_params: ResidualParams::default(), min_consistent_views: 5, mark_used: true, mark_radius: 0, inverse_variance: true, sigma_px0: 0.25, sigma_px_slope: 1.0, consistency_num_images: 12, min_num_pixels: 5, max_num_pixels: 10000, max_traversal_depth: 100, max_reproj_error: 2.0, max_depth_error: 0.01, max_normal_error_deg: 10.0, check_num_images: 50 }
+        Self {
+            mode: FusionMode::Consistency,
+            residual: FusionResidual::None,
+            residual_params: ResidualParams::default(),
+            min_consistent_views: 5,
+            mark_used: true,
+            mark_radius: 0,
+            inverse_variance: true,
+            sigma_px0: 0.25,
+            sigma_px_slope: 1.0,
+            consistency_num_images: 12,
+            min_num_pixels: 5,
+            max_num_pixels: 10000,
+            max_traversal_depth: 100,
+            max_reproj_error: 2.0,
+            max_depth_error: 0.01,
+            max_normal_error_deg: 10.0,
+            check_num_images: 50,
+        }
     }
 }
 
@@ -422,14 +447,33 @@ impl DensifyOptions {
             },
             MvsProfile::Fast => {
                 let _ = top;
-                LevelSchedule { photometric_iters: if level == 0 { 6 } else { 3 }, restorer_random_init: false, geometric_rounds: 2, geometric_iters: 2 }
+                LevelSchedule {
+                    photometric_iters: if level == 0 { 6 } else { 3 },
+                    restorer_random_init: false,
+                    geometric_rounds: 2,
+                    geometric_iters: 2,
+                }
             }
         }
     }
 
     /// 설정 해시(깊이맵 캐시 열쇠용).
     pub fn fingerprint(&self) -> u64 {
-        let s = format!("{:?}", (self.profile, &self.neighbors, &self.pm, &self.filter, &self.post, self.max_levels, self.min_level_size, self.jbu_sigma_spatial, self.jbu_sigma_color, (self.restorer_threshold, self.seed, self.geometric_iters_override, self.geometric_rounds_override)));
+        let s = format!(
+            "{:?}",
+            (
+                self.profile,
+                &self.neighbors,
+                &self.pm,
+                &self.filter,
+                &self.post,
+                self.max_levels,
+                self.min_level_size,
+                self.jbu_sigma_spatial,
+                self.jbu_sigma_color,
+                (self.restorer_threshold, self.seed, self.geometric_iters_override, self.geometric_rounds_override)
+            )
+        );
         crate::math::hash_bytes(s.as_bytes())
     }
 }

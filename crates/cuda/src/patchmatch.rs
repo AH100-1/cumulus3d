@@ -68,7 +68,13 @@ pub struct CudaPatchMatchOptions {
 
 impl Default for CudaPatchMatchOptions {
     fn default() -> Self {
-        Self { hw_interp: true, batch_pixels: 2_200_000, max_batch: 64, min_blocks: std::env::var("CUMULUS3D_PM_MIN_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(2), fast_math: std::env::var("CUMULUS3D_PM_FAST_MATH").map(|v| v != "0").unwrap_or(true) }
+        Self {
+            hw_interp: true,
+            batch_pixels: 2_200_000,
+            max_batch: 64,
+            min_blocks: std::env::var("CUMULUS3D_PM_MIN_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(2),
+            fast_math: std::env::var("CUMULUS3D_PM_FAST_MATH").map(|v| v != "0").unwrap_or(true),
+        }
     }
 }
 
@@ -251,9 +257,20 @@ impl CudaPatchMatch {
         if let Some(f) = g.get(&key) {
             return Ok(f.clone());
         }
-        let defs = vec![format!("WR={wr}"), format!("WSTEP={step}"), format!("HW_INTERP={}", self.opts.hw_interp as i32), format!("MIN_BLOCKS={}", self.opts.min_blocks.max(1))];
+        let defs = vec![
+            format!("WR={wr}"),
+            format!("WSTEP={step}"),
+            format!("HW_INTERP={}", self.opts.hw_interp as i32),
+            format!("MIN_BLOCKS={}", self.opts.min_blocks.max(1)),
+        ];
         let m = self.dev.compile_with(SRC, true, self.opts.fast_math, &defs)?;
-        let f = Arc::new(Funcs { half: m.load_function("pm_half")?, eval: m.load_function("pm_eval")?, filter: m.load_function("pm_filter")?, upsample: m.load_function("pm_upsample")?, median: m.load_function("pm_median")? });
+        let f = Arc::new(Funcs {
+            half: m.load_function("pm_half")?,
+            eval: m.load_function("pm_eval")?,
+            filter: m.load_function("pm_filter")?,
+            upsample: m.load_function("pm_upsample")?,
+            median: m.load_function("pm_median")?,
+        });
         if trace() {
             use cudarc::driver::sys::CUfunction_attribute_enum as A;
             for (n, k) in [("pm_half", &f.half), ("pm_eval", &f.eval), ("pm_filter", &f.filter)] {
@@ -393,7 +410,12 @@ impl<'a> Session<'a> {
                 let (off, pitch) = layout[i];
                 i += 1;
                 // 블록 선형 배열(2D 지역성이 좋은 텍스처 배치)에 복사.
-                let ad = sys::CUDA_ARRAY_DESCRIPTOR { Width: l.width, Height: l.height, Format: sys::CUarray_format::CU_AD_FORMAT_UNSIGNED_INT8, NumChannels: 1 };
+                let ad = sys::CUDA_ARRAY_DESCRIPTOR {
+                    Width: l.width,
+                    Height: l.height,
+                    Format: sys::CUarray_format::CU_AD_FORMAT_UNSIGNED_INT8,
+                    NumChannels: 1,
+                };
                 let mut arr: sys::CUarray = std::ptr::null_mut();
                 // SAFETY: 유효한 서술자. 배열은 Drop 에서 해제한다.
                 let r = unsafe { sys::cuArrayCreate_v2(&mut arr, &ad) };
@@ -606,7 +628,14 @@ impl<'a> Session<'a> {
     }
 
     /// 묶음 하나의 상태를 올리고 매개변수를 채운다. 반환: (픽셀 수, 최대 폭, 최대 높이, 항목들).
-    fn upload_batch(&mut self, views: &[usize], states: &[ViewState], level: usize, with_plane: bool, with_prior: bool) -> Result<(usize, usize, usize, Vec<BatchItem>)> {
+    fn upload_batch(
+        &mut self,
+        views: &[usize],
+        states: &[ViewState],
+        level: usize,
+        with_plane: bool,
+        with_prior: bool,
+    ) -> Result<(usize, usize, usize, Vec<BatchItem>)> {
         let mut items = Vec::with_capacity(views.len());
         let (mut off, mut mw, mut mh) = (0usize, 0usize, 0usize);
         for (&v, st) in views.iter().zip(states) {
@@ -673,7 +702,11 @@ impl<'a> Session<'a> {
     }
 
     fn launch_eval(&self, k: &KParams, mode: i32, mw: usize, mh: usize, nb: usize) -> Result<()> {
-        let cfg = LaunchConfig { grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32), block_dim: (BX, BY, 1), shared_mem_bytes: 0 };
+        let cfg = LaunchConfig {
+            grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32),
+            block_dim: (BX, BY, 1),
+            shared_mem_bytes: 0,
+        };
         let s = &self.be.dev.stream;
         let mut l = s.launch_builder(&self.f.eval);
         l.arg(k).arg(&mode);
@@ -684,7 +717,8 @@ impl<'a> Session<'a> {
 
     fn launch_half(&self, k: &KParams, mw: usize, mh: usize, nb: usize) -> Result<()> {
         let hw = mw.div_ceil(2) as u32;
-        let cfg = LaunchConfig { grid_dim: (hw.div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32), block_dim: (BX, BY, 1), shared_mem_bytes: 0 };
+        let cfg =
+            LaunchConfig { grid_dim: (hw.div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32), block_dim: (BX, BY, 1), shared_mem_bytes: 0 };
         let s = &self.be.dev.stream;
         let mut l = s.launch_builder(&self.f.half);
         l.arg(k);
@@ -733,7 +767,8 @@ impl PatchMatchSession for Session<'_> {
             k.random_init = p.random_init as i32;
             k.use_prior = (p.use_prior && states[a..b].iter().all(|s| s.prior.len() == s.width * s.height)) as i32;
             self.launch_eval(&k, 1, mw, mh, b - a)?;
-            let (eps0, phi0) = if p.geometric { (pm.eps0_geometric, pm.phi0_geometric_deg) } else { (pm.eps0_photometric, pm.phi0_photometric_deg) };
+            let (eps0, phi0) =
+                if p.geometric { (pm.eps0_geometric, pm.phi0_geometric_deg) } else { (pm.eps0_photometric, pm.phi0_photometric_deg) };
             for t in 0..p.iterations {
                 let tf = t as f32;
                 k.t = t as i32;
@@ -766,7 +801,14 @@ impl PatchMatchSession for Session<'_> {
         Ok(())
     }
 
-    fn evaluate(&mut self, level: usize, views: &[usize], states: &[ViewState], geometric: bool, snapshot: Option<&DepthSnapshot>) -> Result<Vec<Vec<f32>>> {
+    fn evaluate(
+        &mut self,
+        level: usize,
+        views: &[usize],
+        states: &[ViewState],
+        geometric: bool,
+        snapshot: Option<&DepthSnapshot>,
+    ) -> Result<Vec<Vec<f32>>> {
         if geometric {
             let snap = snapshot.ok_or_else(|| Error::InvalidArgument("기하 평가에 스냅숏 필요".into()))?;
             self.ensure_snapshot(snap)?;
@@ -776,14 +818,23 @@ impl PatchMatchSession for Session<'_> {
             let (npix, mw, mh, items) = self.upload_batch(&views[a..b], &states[a..b], level, true, false)?;
             let k = self.params(level, geometric);
             self.launch_eval(&k, 0, mw, mh, b - a)?;
-            let mut tmp: Vec<ViewState> = states[a..b].iter().map(|s| ViewState { width: s.width, height: s.height, ..Default::default() }).collect();
+            let mut tmp: Vec<ViewState> =
+                states[a..b].iter().map(|s| ViewState { width: s.width, height: s.height, ..Default::default() }).collect();
             self.download_plane_cost(&items, npix, &mut tmp, false)?;
             out.extend(tmp.into_iter().map(|s| s.cost));
         }
         Ok(out)
     }
 
-    fn upsample(&mut self, _input: &KernelInput, level: usize, views: &[usize], low: &[ViewState], sigma_s: f32, sigma_c: f32) -> Result<Vec<ViewState>> {
+    fn upsample(
+        &mut self,
+        _input: &KernelInput,
+        level: usize,
+        views: &[usize],
+        low: &[ViewState],
+        sigma_s: f32,
+        sigma_c: f32,
+    ) -> Result<Vec<ViewState>> {
         self.upsample_gpu(level, views, low, sigma_s, sigma_c)
     }
 
@@ -798,7 +849,11 @@ impl PatchMatchSession for Session<'_> {
         for (a, b) in self.batches(views, level) {
             let (npix, mw, mh, items) = self.upload_batch(&views[a..b], &states[a..b], level, true, false)?;
             let k = self.params(level, true);
-            let cfg = LaunchConfig { grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), (b - a) as u32), block_dim: (BX, BY, 1), shared_mem_bytes: 0 };
+            let cfg = LaunchConfig {
+                grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), (b - a) as u32),
+                block_dim: (BX, BY, 1),
+                shared_mem_bytes: 0,
+            };
             let s = self.be.dev.stream.clone();
             let mut l = s.launch_builder(&self.f.filter);
             l.arg(&k);
@@ -859,7 +914,11 @@ impl Session<'_> {
     }
 
     fn launch_simple(&self, f: &CudaFunction, k: &KParams, extra: Option<(f32, f32)>, mw: usize, mh: usize, nb: usize) -> Result<()> {
-        let cfg = LaunchConfig { grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32), block_dim: (BX, BY, 1), shared_mem_bytes: 0 };
+        let cfg = LaunchConfig {
+            grid_dim: ((mw as u32).div_ceil(BX), (mh as u32).div_ceil(BY), nb as u32),
+            block_dim: (BX, BY, 1),
+            shared_mem_bytes: 0,
+        };
         let s = &self.be.dev.stream;
         let mut l = s.launch_builder(f);
         l.arg(k);

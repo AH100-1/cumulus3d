@@ -55,9 +55,8 @@ target/release/cumulus3d model_analyzer --path <모델 폴더>
 
 선언형 함수 전체 안내(계획 항목, 빌더 메서드, 검사, 실행 단계, TOML 대응): [docs/DECLARATIVE.ko.md](docs/DECLARATIVE.ko.md).
 
-이벤트 기반 파이프라인 앞에 선언형 빌더 층이 있다. 빌더 메서드는 **계획만 기록**하고 아무것도 실행하지 않는다
-(파일·폴더를 만들지 않고 장치를 열지 않는다). `.build()` 가 계획을 검사해 실행 가능한 재구성으로 만들고,
-`.run()` 이 위치 반복·배경 정밀 작업 대기·종료까지 한 번에 실행한다(지연 실행).
+`declare` 모듈은 재구성 파이프라인을 선언적으로 구성하는 API 다. 빌더로 구성한 `Plan` 은 부수효과가 없는 값이며,
+`build()` 에서 일괄 검증되고 `run()` 에서 지연 실행된다. 실행은 위치 단위 입력, 배경 정밀화 대기, 종료 처리까지 포함한다.
 
 ```rust
 use cumulus3d_cli::declare::{Dense, Recon, Sinks};

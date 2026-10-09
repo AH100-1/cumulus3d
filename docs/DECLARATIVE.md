@@ -2,10 +2,9 @@ English | [한국어](DECLARATIVE.ko.md)
 
 # Declarative functions (`cumulus3d_cli::declare`)
 
-The declarative layer is a set of functions that writes down **what to do** as a **plan value**, **checks** that plan,
-and then **runs it in one call**. Every builder method only records a value in the plan and executes nothing
-(no files or folders are created, no device is opened). The actual work happens only in `.run()`, which drives the
-event-driven pipeline (`session`, `pipeline`, `sinks`) unchanged.
+The `declare` module provides a declarative API for composing the reconstruction pipeline.
+A `Plan` assembled through the builder is a side-effect-free value: it is validated as a whole in `build()` and executed lazily in `run()`.
+No I/O or device initialisation happens during building; execution runs on the event-driven runtime (`session`, `pipeline`, `sinks`).
 
 ```
 Recon::declare()                    create a builder with an empty plan
@@ -28,7 +27,7 @@ Code: `crates/cli/src/declare.rs` · tests: `crates/cli/tests/declare_synthetic.
 
 ## 2. The plan value `Plan`
 
-A pure value with no execution code. It can be cloned, compared and saved (TOML); the same plan gives the same result (with a fixed seed).
+A value type with no execution logic: it can be cloned, compared and serialised (TOML), and with a fixed seed the same plan yields the same result.
 
 | Group | Fields | Defaults (`aerial-formation` preset) |
 |---|---|---|
@@ -55,7 +54,7 @@ Plan functions:
 
 ## 3. The builder `ReconBuilder` — recording functions
 
-Every method takes `self`, changes only the plan and returns `self`, so calls can be chained.
+Each method consumes `self`, updates only the plan and returns it, so the pipeline is composed by method chaining.
 
 | Method | Plan field it records |
 |---|---|
@@ -74,7 +73,7 @@ Every method takes `self`, changes only the plan and returns `self`, so calls ca
 | `seed(n)`, `threads(n)` | `seed`, `threads` |
 | `plan()` | Read the plan recorded so far |
 
-**Hook functions** (kept in the builder's hook list, not in the plan, because functions cannot be saved as TOML):
+**Hook functions** — closures are not serialisable, so they are kept in the builder's hook list rather than in the `Plan`:
 `on(EventKind, f)`, `on_any(f)`, `on_zone_preview(f)`, `on_zone_refined(f)`, `on_snapshot(f)`, `on_position_done(f)`, `on_message(f)`, `policy(kind, QueuePolicy)`.
 
 ### Densification settings `Dense` (chainable)
@@ -89,7 +88,7 @@ Start with `Sinks::default_files(out)` or `Sinks::none()` and switch `clean`, `e
 
 ## 4. Checking with `build()`
 
-`build()` never creates or deletes files. All problems are collected into one `PlanError`, each tagged with its plan field.
+`build()` never modifies the file system; it collects every problem, tagged with its plan field path, into a single `PlanError`.
 
 | Check | What |
 |---|---|

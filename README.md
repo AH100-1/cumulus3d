@@ -57,9 +57,9 @@ target/release/cumulus3d model_analyzer --path <model folder>
 
 Full reference of every declarative function (plan fields, builder methods, checks, run steps, TOML mapping): [docs/DECLARATIVE.md](docs/DECLARATIVE.md).
 
-A declarative builder sits on top of the event-driven pipeline. Each builder method only **records the plan** and executes nothing
-(no files or folders are created, no device is opened). `.build()` checks the plan and turns it into a runnable reconstruction,
-and `.run()` performs the position loop, waits for background refinement and finishes, all in one call (lazy execution).
+The `declare` module provides a declarative API for composing the reconstruction pipeline. A `Plan` assembled through the
+builder is a side-effect-free value: it is validated as a whole in `build()` and executed lazily in `run()`, which covers
+position-wise ingestion, waiting for background refinement and shutdown.
 
 ```rust
 use cumulus3d_cli::declare::{Dense, Recon, Sinks};

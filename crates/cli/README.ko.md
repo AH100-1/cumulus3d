@@ -193,6 +193,8 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 
 ### `declare` — 선언형 빌더(계획 → 검사 → 실행)
 
+전체 안내: [docs/DECLARATIVE.ko.md](https://github.com/AH100-1/cumulus3d/blob/main/docs/DECLARATIVE.ko.md).
+
 | 항목 | 종류 | 역할 |
 |---|---|---|
 | `Recon` | struct | 검사를 마친 실행 가능한 재구성: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |

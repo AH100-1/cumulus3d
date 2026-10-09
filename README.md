@@ -55,6 +55,8 @@ target/release/cumulus3d model_analyzer --path <model folder>
 
 ## Declarative usage (plan → build → run)
 
+Full reference of every declarative function (plan fields, builder methods, checks, run steps, TOML mapping): [docs/DECLARATIVE.md](docs/DECLARATIVE.md).
+
 A declarative builder sits on top of the event-driven pipeline. Each builder method only **records the plan** and executes nothing
 (no files or folders are created, no device is opened). `.build()` checks the plan and turns it into a runnable reconstruction,
 and `.run()` performs the position loop, waits for background refinement and finishes, all in one call (lazy execution).

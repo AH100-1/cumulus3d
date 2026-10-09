@@ -195,6 +195,8 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 
 ### `declare` — declarative builder (plan → build → run)
 
+Full reference: [docs/DECLARATIVE.md](https://github.com/AH100-1/cumulus3d/blob/main/docs/DECLARATIVE.md).
+
 | Item | Kind | Role |
 |---|---|---|
 | `Recon` | struct | Checked, runnable reconstruction: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |

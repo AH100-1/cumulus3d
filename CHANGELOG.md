@@ -9,6 +9,12 @@ The date of each version is the actual work/commit date.
 
 ## [0.4.0] — planned (in progress)
 ### Added
+- Live composition layer `compose` (declare the current input state, the retained node reconciles it): `CompositionHost`,
+  `ReconNode::declare()…build(&host)`, `compose(FrameState)`, `reconstruct(&host, id, state)`, `close()`. Frame identity
+  `FrameKey { source_id, sequence, revision }`; duplicate declarations are no-ops, `Pending`/incomplete sets wait, gaps are reported.
+  `ReconcilePolicy::{AppendOnly, ReplayWindow, InvalidateAffectedZones, Strict}` for late arrivals and corrections (built on
+  `ResetFrom`/`InvalidateZone`). In-memory payloads (`Rgb8`, `Encoded`) spooled atomically. `ReconNode::spawn` producer queue with
+  `Backpressure::{Block, KeepLatest, Unbounded}`, `try_send`, queue statistics. Reference: `docs/COMPOSE.md`.
 - Declarative builder layer `declare` in front of the event-driven pipeline. Builder methods only record a plan; nothing runs until
   `.build()` (checks) and `.run()` (position loop, background refinement wait and finish in one call).
   - `Recon::declare() -> ReconBuilder`: `.input`, `.images`, `.cameras`, `.preset("aerial-formation")`, `.stride`, `.positions`,

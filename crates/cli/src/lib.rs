@@ -6,6 +6,7 @@
 //! - [`events`]: 단계별 결과 [`events::Event`] 와 명령 [`events::Command`].
 //! - [`sinks`]: `cumulus3d stream` 의 파일 출력(timeline.txt, run.log, PLY, 스냅샷)을 만드는 기본 훅.
 //! - [`stream`]: 입력 폴더 → 세션 → 파이프라인 조립([`stream::run_stream`]).
+//! - [`compose`]: 실시간 입력용 유지 노드. 지금의 입력 상태([`compose::FrameState`])를 선언하면 받아들인 기록과 비교해 증분 처리한다.
 //! - [`declare`]: 선언형 빌더 층. 계획([`declare::Plan`])을 기록만 하고, `build` 에서 검사, `run` 에서 한 번에 실행
 //!   ([`declare::Recon`]). 계획은 TOML 로 저장·읽기(`cumulus3d run plan.toml`).
 //!
@@ -81,6 +82,7 @@
 
 #![warn(missing_docs)]
 
+pub mod compose;
 pub mod declare;
 pub mod interop;
 pub mod densewrap;

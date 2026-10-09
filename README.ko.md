@@ -90,6 +90,25 @@ target/release/cumulus3d run plan.toml                      # 검사 후 실행
 주석이 달린 예는 [`examples/plans/aerial-formation.toml`](examples/plans/aerial-formation.toml). 계획 파일의 상대 경로는
 실행 위치(현재 폴더) 기준이다.
 
+## 실시간 입력(상태 선언 → 조정)
+
+입력이 계속 들어오는 경우 `compose` 가 재구성 노드를 유지하고, 선언된 프레임 묶음을 이미 받아들인 것과 비교한다. 새 묶음은 한 번만
+처리하고, 재선언은 아무것도 하지 않으며, 덜 모인 묶음은 기다리고, 늦게 오거나 정정된 프레임은 명시한 정책(추가만, 되감아 다시 처리,
+구역 무효화, 엄격)을 따른다. 메모리 프레임 입력, 역압이 있는 생산자 스레드, id 로 노드를 찾는 호스트도 있다.
+설명: [docs/COMPOSE.ko.md](docs/COMPOSE.ko.md).
+
+```rust
+use cumulus3d_cli::compose::{CompositionHost, FrameKey, FrameState, LiveFrameSet, ReconNode};
+
+let host = CompositionHost::new();
+let recon = ReconNode::declare().images("live/images").cameras(["camF", "camR", "camL"]).zones(12, 2).build(&host)?;
+let set = LiveFrameSet::new(FrameKey::new("drone-1", 0, 0))
+    .file("camF", "camF/0000.jpg").file("camR", "camR/0000.jpg").file("camL", "camL/0000.jpg");
+recon.compose(FrameState::ready(set.clone()))?;  // 처리
+recon.compose(FrameState::ready(set))?;          // 아무것도 안 함
+let closed = recon.close()?;
+```
+
 ## 이벤트 기반 구조
 
 파이프라인은 **상태 값 + 리듀서 + 이벤트 + 훅** 네 층으로 나뉜다. 내부 계산은 상태 객체가 맡고,

@@ -94,6 +94,25 @@ target/release/cumulus3d run plan.toml                      # check, then run
 An annotated example is in [`examples/plans/aerial-formation.toml`](examples/plans/aerial-formation.toml). Relative paths in a plan
 file are resolved against the current working directory.
 
+## Live input (declare state → reconcile)
+
+For input that keeps arriving, `compose` keeps a reconstruction node alive and reconciles each declared frame set against what it
+already accepted: new sets are ingested once, re-declarations are no-ops, incomplete sets wait, and late or corrected frames follow
+an explicit policy (append-only, replay window, zone invalidation, strict). In-memory frames, a producer thread with backpressure
+and a host that addresses nodes by id are included. Reference: [docs/COMPOSE.md](docs/COMPOSE.md).
+
+```rust
+use cumulus3d_cli::compose::{CompositionHost, FrameKey, FrameState, LiveFrameSet, ReconNode};
+
+let host = CompositionHost::new();
+let recon = ReconNode::declare().images("live/images").cameras(["camF", "camR", "camL"]).zones(12, 2).build(&host)?;
+let set = LiveFrameSet::new(FrameKey::new("drone-1", 0, 0))
+    .file("camF", "camF/0000.jpg").file("camR", "camR/0000.jpg").file("camL", "camL/0000.jpg");
+recon.compose(FrameState::ready(set.clone()))?;  // ingested
+recon.compose(FrameState::ready(set))?;          // no-op
+let closed = recon.close()?;
+```
+
 ## Event-driven architecture
 
 The pipeline is split into four layers: **state value + reducer + event + hook**. Internal computation is owned by the state object,

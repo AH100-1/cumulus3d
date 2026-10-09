@@ -9,6 +9,12 @@
 
 ## [0.4.0] — 계획(작업 중)
 ### 추가
+- 실시간 합성 층 `compose`(지금의 입력 상태를 선언하면 유지되는 노드가 조정): `CompositionHost`,
+  `ReconNode::declare()…build(&host)`, `compose(FrameState)`, `reconstruct(&host, id, state)`, `close()`. 프레임 식별자
+  `FrameKey { source_id, sequence, revision }`. 재선언은 아무것도 하지 않고, `Pending`·불완전 묶음은 기다리며, 순번 건너뜀을 알린다.
+  늦은 도착·정정용 `ReconcilePolicy::{AppendOnly, ReplayWindow, InvalidateAffectedZones, Strict}`(`ResetFrom`/`InvalidateZone` 기반).
+  메모리 입력(`Rgb8`, `Encoded`)은 원자적으로 저장. `ReconNode::spawn` 생산자 큐와 `Backpressure::{Block, KeepLatest, Unbounded}`,
+  `try_send`, 큐 통계. 설명: `docs/COMPOSE.ko.md`.
 - 이벤트 기반 파이프라인 앞의 선언형 빌더 층 `declare`. 빌더 메서드는 계획만 기록하고, `.build()`(검사)와
   `.run()`(위치 반복·배경 정밀 작업 대기·종료를 한 번에) 전에는 아무것도 실행하지 않는다.
   - `Recon::declare() -> ReconBuilder`: `.input`, `.images`, `.cameras`, `.preset("aerial-formation")`, `.stride`, `.positions`,

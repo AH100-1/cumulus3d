@@ -1,53 +1,55 @@
+English | [한국어](CHANGELOG.ko.md)
+
 # Changelog
 
-0.3.0 까지는 skyrecon 이라는 이름으로 개발됨.
+Developed under the name skyrecon up to and including 0.3.0.
 
-이 프로젝트는 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다. 0.x 동안에는 부 버전(0.1 → 0.2)에서 호환이 깨질 수 있다.
-각 버전의 날짜는 실제 작업·커밋 날짜다.
+This project follows [Semantic Versioning](https://semver.org/). During 0.x, minor versions (0.1 → 0.2) may contain breaking changes.
+The date of each version is the actual work/commit date.
 
 ## [0.3.1] — 2026-10-09
-### 변경
-- 프로젝트 이름을 cumulus3d 로 변경. 크레이트 `cumulus3d-core`/`-features`/`-matching`/`-ba`/`-sfm`/`-align`/`-dense`/`-cuda`/`-cli`,
-  실행 파일 `cumulus3d`, 저장소 https://github.com/AH100-1/cumulus3d, 환경 변수 접두어 `CUMULUS3D_`.
-- 특징 저장소 파일 표지를 `C3DFS` 로 변경. 옛 표지로 저장된 파일도 그대로 읽는다. 동작은 바뀌지 않았다.
+### Changed
+- Renamed the project to cumulus3d. Crates `cumulus3d-core`/`-features`/`-matching`/`-ba`/`-sfm`/`-align`/`-dense`/`-cuda`/`-cli`,
+  executable `cumulus3d`, repository https://github.com/AH100-1/cumulus3d, environment variable prefix `CUMULUS3D_`.
+- Changed the feature store file magic to `C3DFS`. Files saved with the old magic are still read as before. Behavior is unchanged.
 
 ## [0.3.0] — 2026-10-09
-### 추가
-- 이벤트 계약 `events`: `Event`/`EventKind`/`Meta`(세션 버전·발생 시각)/`ZoneRange`/`Command`.
-  단계별 이벤트 `Started`, `FrameIngested`, `FeaturesExtracted`, `PairsMatched`, `ModelInitialized`, `FrameRegistered`,
+### Added
+- Event contract `events`: `Event`/`EventKind`/`Meta` (session version, emission time)/`ZoneRange`/`Command`.
+  Per-stage events `Started`, `FrameIngested`, `FeaturesExtracted`, `PairsMatched`, `ModelInitialized`, `FrameRegistered`,
   `PositionDone`, `ZoneArrived`, `ZonePreview`, `RefineStarted`, `ZoneAdjusted`, `ZoneRefinedPose`, `ZoneRefined`,
   `BaseAdopted`, `Reanchored`, `Snapshot`, `AllPositionsDone`, `AllRefinedDone`, `Finished`, `Reset`, `ZoneInvalidated`,
-  `Log`, `Warning`, `Error`. 구역 이벤트는 모델·점군(`Arc`)을 함께 싣는다. `Event::timeline_text` 가 timeline.txt 문구를 준다.
-- 상태 값 세션 `session`: `Session` + `step(&Session, FrameSet) -> (Session, Vec<Event>)`, `poll`, `command`, `finish`.
-  위치 하나의 프레임 묶음(`FrameSet`)마다 특징 → 매칭 → 등록·삼각측량 → 구역 초벌/정밀(배경)을 이벤트로 내보내며 파일은 쓰지 않는다.
-  `SessionConfig`(구역·겹침, 전체 위치 수, GPS, 조밀화 설정, 되감기 지점 수), `Command::ResetFrom`·`InvalidateZone`.
-- 람다 훅 파이프라인 `pipeline::Pipeline`: `.on(EventKind, 훅)`, `.on_any`, `.on_zone_preview`/`.on_zone_refined`/
-  `.on_snapshot`/`.on_position_done`/`.on_message`, 채널 수신 `subscribe`. 훅은 종류별 워커 레인에서 돌아 처리를 막지 않고
-  (`sync(true)` 면 즉시 동기 실행), 종류별 큐 정책(`KeepAll`/`LatestPerKey`/`LatestOnly`), 훅 패닉 격리(`Error` 이벤트), `finish` 요약.
-- 기본 출력 훅 `sinks`: `TimelineSink`(timeline.txt), `RunLogSink`(run.log·DONE), `ZonePlySink`(full/*.ply), `ModelSink`(work/models),
-  `SnapshotSink`(초벌 정렬·마스킹·사건별 스냅샷·manifest.json·재고정 final_frame). `sinks::attach(pipeline, out, opts)` 로 한 번에 붙이고,
-  종류별 목록 `default_sinks` 도 있다. 출력 문구·파일 이름·manifest 형식은 0.2 의 `skyrecon stream` 과 같다.
-- 후처리 메모리 입력 `post::run_zones`(`PostZones`): 이벤트로 모은 구역 점군·모델을 바로 받는다. 기존 `post::run` 은 이를 감싼다.
-- 예제 `examples/hooks.rs`(합성 장면에 람다 훅 + 기본 출력 훅), 시험 `tests/sinks_equivalence.rs`
-  (`run_stream` 출력과, 같은 이벤트 열을 기본 훅에 흘린 출력의 timeline·run.log·파일 목록·manifest·점 수 비교).
-### 변경
-- `util::Logger::clock_at`/`stamped_at`: 주어진 시각으로 `[HH:MM:SS]` 머리를 붙인다(이벤트 발생 시각 기록용).
+  `Log`, `Warning`, `Error`. Zone events carry the model and point cloud (`Arc`). `Event::timeline_text` gives the timeline.txt message.
+- State-value session `session`: `Session` + `step(&Session, FrameSet) -> (Session, Vec<Event>)`, `poll`, `command`, `finish`.
+  For each frame set of one position (`FrameSet`) it emits features → matching → registration and triangulation → zone preview/refined (background) as events, and writes no files.
+  `SessionConfig` (zone size and overlap, total position count, GPS, densification settings, number of rewind points), `Command::ResetFrom`/`InvalidateZone`.
+- Closure-hook pipeline `pipeline::Pipeline`: `.on(EventKind, hook)`, `.on_any`, `.on_zone_preview`/`.on_zone_refined`/
+  `.on_snapshot`/`.on_position_done`/`.on_message`, channel receiver `subscribe`. Hooks run on per-kind worker lanes and never block processing
+  (with `sync(true)` they run immediately and synchronously), per-kind queue policies (`KeepAll`/`LatestPerKey`/`LatestOnly`), hook panic isolation (`Error` event), and a `finish` summary.
+- Default output hooks `sinks`: `TimelineSink` (timeline.txt), `RunLogSink` (run.log, DONE), `ZonePlySink` (full/*.ply), `ModelSink` (work/models),
+  `SnapshotSink` (preview alignment, masking, per-event snapshots, manifest.json, re-anchored final_frame). Attach them all at once with `sinks::attach(pipeline, out, opts)`;
+  a per-kind list `default_sinks` is also available. Output messages, file names, and the manifest format are the same as `skyrecon stream` in 0.2.
+- In-memory input for post-processing `post::run_zones` (`PostZones`): takes zone point clouds and models collected from events directly. The existing `post::run` wraps it.
+- Example `examples/hooks.rs` (closure hooks + default output hooks on a synthetic scene), test `tests/sinks_equivalence.rs`
+  (compares the timeline, run.log, file list, manifest, and point counts of `run_stream` output against the output of feeding the same event sequence to the default hooks).
+### Changed
+- `util::Logger::clock_at`/`stamped_at`: prefix an `[HH:MM:SS]` header using a given time (for recording event emission times).
 
-## [0.2.0] — 작업 중 (2026-10-09)
-### 추가
-- 조밀화 융합 실행기 `skyrecon densify --fusion-variants <파일>`: 깊이맵은 한 번만 만들고 융합 설정만 바꿔 여러 결과를 냄.
-- 융합 옵션 `--fusion-residual none|release|second-pass`(남은 픽셀 2차 융합)와 `--residual-*`, 2차 점만 쓰는 `--residual-out`.
-- 점수 기반 융합 `--fusion-mode score`(`--score-tau`, `--score-sigma-e`, `--score-sigma-theta`, `--score-lambda`).
-- 조밀화 튜닝 기록 `docs/tuning/`: 밀도·입체감 스윕(2026-10-09), 잔여 픽셀 융합 비교(2026-10-09).
-### 변경 예정
-- 조밀화 기본값(융합 최소 일치 뷰, 법선 허용 각도, 깊이맵 필터, 중앙값 필터, 틈 메우기)을 스윕 결과로 갱신.
+## [0.2.0] — in progress (2026-10-09)
+### Added
+- Densification fusion runner `skyrecon densify --fusion-variants <file>`: builds depth maps only once and produces several results by varying only the fusion settings.
+- Fusion option `--fusion-residual none|release|second-pass` (second-pass fusion of remaining pixels) with `--residual-*`, and `--residual-out` to write only the second-pass points.
+- Score-based fusion `--fusion-mode score` (`--score-tau`, `--score-sigma-e`, `--score-sigma-theta`, `--score-lambda`).
+- Densification tuning records `docs/tuning/`: density and depth-relief sweep (2026-10-09), residual pixel fusion comparison (2026-10-09).
+### Planned changes
+- Update densification defaults (minimum consistent views for fusion, normal tolerance angle, depth map filter, median filter, hole filling) based on the sweep results.
 
 ## [0.1.0] — 2026-10-08
-### 추가
-- 한 프로세스 점진 재구성 파이프라인 `skyrecon stream`: 위치 단위 도착 → 특징 추출 → 짝 매칭 → 전역 SfM → 영상 등록·삼각측량 →
-  구역별 초벌(BA 없음)·정밀(BA) → GPS(ENU) 정렬 → 조밀화 → 단계별 스냅샷·재고정.
-- 크레이트: core, features(SIFT), matching(두 뷰 기하), ba(번들 조정), sfm(전역·증분), align(GPS·Sim3), dense(왜곡 보정·GPU 다시점 스테레오),
-  cuda(GPU 백엔드), cli.
-- 모델 파일 형식(cameras/images/points3D) 읽기·쓰기와 단계별 호환 하위 명령(`interop`).
-### 측정 (Tesla V100, 드론 3대 × 80위치 = 240장)
-- 전체 스트리밍 마지막 정밀본 648초, 조밀화 240장 61초, 1,347만 점.
+### Added
+- Single-process progressive reconstruction pipeline `skyrecon stream`: per-position arrival → feature extraction → pair matching → global SfM → image registration and triangulation →
+  per-zone preview (no BA) and refined (BA) → GPS (ENU) alignment → densification → per-step snapshots and re-anchoring.
+- Crates: core, features (SIFT), matching (two-view geometry), ba (bundle adjustment), sfm (global and incremental), align (GPS, Sim3), dense (undistortion, GPU multi-view stereo),
+  cuda (GPU backend), cli.
+- Model file format (cameras/images/points3D) read/write and per-stage compatible subcommands (`interop`).
+### Measurements (Tesla V100, 3 drones × 80 positions = 240 images)
+- Full streaming: last refined result at 648 s, densification of 240 images in 61 s, 13.47 million points.

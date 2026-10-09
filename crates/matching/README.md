@@ -1,144 +1,148 @@
+English | [한국어](https://github.com/AH100-1/cumulus3d/blob/main/crates/matching/README.ko.md)
+
 # cumulus3d-matching
 
-SIFT 기술자 매칭과 두 뷰 기하(E/F/H) 추정·검증, 그리고 상대 자세 분해를 맡는 크레이트.
+SIFT descriptor matching, two-view geometry (E/F/H) estimation and verification, and relative pose decomposition.
 
-**파이프라인 단계**: 특징 추출(`cumulus3d-features`) 다음 단계. 짝 목록의 영상 쌍마다 기술자를 매칭하고
-E/F/H LO-RANSAC 으로 기하를 검증해 원시 매칭과 `TwoViewGeometry` 를 `FeatureStore` 에 기록한다.
-SfM(`cumulus3d-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. 매칭 커널은 `MatcherBackend`
-트레이트 뒤에 있어 GPU 백엔드(`cumulus3d-cuda` 의 `CudaMatcher`)로 바꿀 수 있다.
+API doc comments are currently in Korean; English translation is planned.
 
-## 주요 진입점
+**Pipeline stage**: the step after feature extraction (`cumulus3d-features`). For each image pair in a pair list it matches
+descriptors, verifies the geometry with E/F/H LO-RANSAC, and writes the raw matches and the `TwoViewGeometry` to the `FeatureStore`.
+SfM (`cumulus3d-sfm`) consumes these results and the decomposition functions of the `pose` module. The matching kernel sits behind the
+`MatcherBackend` trait, so it can be swapped for a GPU backend (`CudaMatcher` in `cumulus3d-cuda`).
 
-| 함수/타입 | 역할 | 입력 → 출력 |
+## Main entry points
+
+| Function/type | Role | Input → output |
 |---|---|---|
-| `match_pairs` | 짝 목록을 매칭·검증해 저장소에 기록(이미 처리된 짝은 건너뜀) | `&FeatureStore`, `&[(ImageId, ImageId)]`, `&PairMatchingOptions`, `&dyn MatcherBackend` → `Result<MatchingStats>` |
-| `match_pair_list_file` | 짝 목록 파일을 읽어 `match_pairs` 수행 | `&FeatureStore`, 경로, 옵션, 백엔드 → `Result<(PairList, MatchingStats)>` |
-| `estimate_two_view` | 두 영상의 기하 추정(E/F/H LO-RANSAC + 구성 판정) | 카메라·키포인트 ×2, `&[FeatureMatch]`, `&TwoViewOptions` → `TwoViewGeometry` |
-| `verify_pair` | 저장소의 두 영상과 매칭으로 기하 검증(최소 인라이어 규칙 적용) | `&FeatureStore`, id1, id2, 매칭, `&TwoViewOptions` → `TwoViewGeometry` |
-| `CpuMatcher` + `MatcherBackend::match_descriptors` | 기술자 무차별 매칭(비율·거리·교차 검사) | `&Descriptors` ×2, `&DescriptorMatchOptions`, 최대 수 → `Vec<FeatureMatch>` |
-| `PairMatchingOptions` / `TwoViewOptions` / `DescriptorMatchOptions` | 매칭·기하·기술자 옵션 | `Default` 로 시작해 필드 수정 |
-| `read_pair_list` / `parse_pair_list` | 짝 목록 파일/텍스트 파싱 | 경로·텍스트, 이름 → id 조회 함수 → `PairList` |
-| `recover_two_view_pose` | 두 뷰 기하에서 상대 자세·삼각측량 각 채우기 | 카메라·키포인트, `&mut TwoViewGeometry` → `bool` |
-| `pose_from_essential` | E → 상대 자세 + 3D 점(cheirality) | `&Mat3`, 광선 ×2 → `Option<(Rigid3, Vec<Vec3>)>` |
-| `essential_five_point` / `fundamental_seven_point` / `homography_dlt` | 최소 해법 | 대응점 → 행렬 후보 |
+| `match_pairs` | Match and verify a pair list and write it to the store (already processed pairs are skipped) | `&FeatureStore`, `&[(ImageId, ImageId)]`, `&PairMatchingOptions`, `&dyn MatcherBackend` → `Result<MatchingStats>` |
+| `match_pair_list_file` | Read a pair list file and run `match_pairs` | `&FeatureStore`, path, options, backend → `Result<(PairList, MatchingStats)>` |
+| `estimate_two_view` | Estimate the geometry of two images (E/F/H LO-RANSAC + configuration decision) | camera·keypoints ×2, `&[FeatureMatch]`, `&TwoViewOptions` → `TwoViewGeometry` |
+| `verify_pair` | Verify geometry from two images in the store and their matches (applies the minimum-inlier rule) | `&FeatureStore`, id1, id2, matches, `&TwoViewOptions` → `TwoViewGeometry` |
+| `CpuMatcher` + `MatcherBackend::match_descriptors` | Brute-force descriptor matching (ratio, distance, cross check) | `&Descriptors` ×2, `&DescriptorMatchOptions`, max count → `Vec<FeatureMatch>` |
+| `PairMatchingOptions` / `TwoViewOptions` / `DescriptorMatchOptions` | Matching, geometry and descriptor options | Start from `Default` and modify fields |
+| `read_pair_list` / `parse_pair_list` | Parse a pair list file/text | path·text, name → id lookup function → `PairList` |
+| `recover_two_view_pose` | Fill in relative pose and triangulation angle from two-view geometry | camera·keypoints, `&mut TwoViewGeometry` → `bool` |
+| `pose_from_essential` | E → relative pose + 3D points (cheirality) | `&Mat3`, rays ×2 → `Option<(Rigid3, Vec<Vec3>)>` |
+| `essential_five_point` / `fundamental_seven_point` / `homography_dlt` | Minimal solvers | correspondences → matrix candidates |
 
-## 공개 항목
+## Public items
 
-"루트" 표시는 크레이트 루트에서 `cumulus3d_matching::이름` 으로 재노출된 항목이다.
+"root" marks items re-exported at the crate root as `cumulus3d_matching::name`.
 
 ### `pipeline`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `match_pairs` (루트) | fn | 짝 매칭 → 검증 → 기록. 블록 단위·짝 단위 병렬, 기록은 입력 순서. 매칭만 있으면 검증만, 기하만 있으면 다시 매칭 |
-| `verify_pair` (루트) | fn | 짝 하나 기하 검증(저장소에서 카메라·키포인트 읽음) |
-| `match_pair_list_file` (루트) | fn | 짝 목록 파일 읽기 + `match_pairs` |
-| `PairMatchingOptions` (루트) | struct | `sift`, `geometry`, `max_num_matches`(32768, 실제값은 저장소 최대 키포인트 수로 제한), `block_size`(1225), `skip_geometric_verification` |
-| `MatchingStats` (루트) | struct | 건너뜀·매칭·검증만·유효 기하 짝 수 |
+| `match_pairs` (root) | fn | Pair matching → verification → write. Parallel per block and per pair, written in input order. If only matches exist, verifies only; if only geometry exists, re-matches |
+| `verify_pair` (root) | fn | Verify geometry of one pair (reads camera and keypoints from the store) |
+| `match_pair_list_file` (root) | fn | Read a pair list file + `match_pairs` |
+| `PairMatchingOptions` (root) | struct | `sift`, `geometry`, `max_num_matches` (32768; the effective value is capped by the store's max keypoint count), `block_size` (1225), `skip_geometric_verification` |
+| `MatchingStats` (root) | struct | Counts of skipped, matched, verify-only, and valid-geometry pairs |
 
 ### `pairs`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `PairList` (루트) | struct | `pairs`(파일 순서, 무순서 중복·자기 짝 제외), `missing_names` |
-| `parse_pair_list` (루트) | fn | 텍스트 파싱: 공백 제거, 빈 줄·`#` 무시, 구분자는 공백 하나(탭 아님) |
-| `read_pair_list` (루트) | fn | 파일 읽기 + 파싱 |
+| `PairList` (root) | struct | `pairs` (file order, unordered duplicates and self pairs removed), `missing_names` |
+| `parse_pair_list` (root) | fn | Text parsing: trims whitespace, ignores empty lines and `#`, separator is a single space (not a tab) |
+| `read_pair_list` (root) | fn | Read file + parse |
 
 ### `descriptor`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `MatcherBackend` (루트) | trait | 매칭 커널: `top2`(필수, 행/열 top-2), `match_descriptors`(기본 구현) |
-| `CpuMatcher` (루트) | struct | CPU 백엔드: u8×u8→u32 정수 내적, 행 블록 rayon 병렬 + 열 타일(`row_block`, `col_tile`) |
-| `DescriptorMatchOptions` (루트) | struct | `max_ratio`(0.8), `max_distance`(0.7 rad), `cross_check`(참), `rule` |
-| `AcceptRule` (루트) | enum | 경계 처리: `Gpu`(기본, 엄격 <), `CpuBruteForce`(≤) |
-| `Top2` (루트) | struct | 행(열)별 최댓값·인덱스·두 번째 값. `push`, `merge` |
-| `DOT_NORM` | const | 정규화 기술자 노름의 제곱(512²) |
-| `dot_to_angle` | fn | 내적 → 각도(f32 `acos`) |
-| `apply_tests` | fn | top-2 결과에 비율·거리·교차 검사 적용 |
-| `top2_naive` | fn | 순차 기준 구현(테스트용, `CpuMatcher` 와 비트 일치) |
+| `MatcherBackend` (root) | trait | Matching kernel: `top2` (required, row/column top-2), `match_descriptors` (default implementation) |
+| `CpuMatcher` (root) | struct | CPU backend: u8×u8→u32 integer dot product, rayon-parallel row blocks + column tiles (`row_block`, `col_tile`) |
+| `DescriptorMatchOptions` (root) | struct | `max_ratio` (0.8), `max_distance` (0.7 rad), `cross_check` (true), `rule` |
+| `AcceptRule` (root) | enum | Boundary handling: `Gpu` (default, strict <), `CpuBruteForce` (≤) |
+| `Top2` (root) | struct | Per-row (column) maximum, index and second-best value. `push`, `merge` |
+| `DOT_NORM` | const | Squared norm of a normalized descriptor (512²) |
+| `dot_to_angle` | fn | Dot product → angle (f32 `acos`) |
+| `apply_tests` | fn | Apply ratio, distance and cross checks to top-2 results |
+| `top2_naive` | fn | Sequential reference implementation (for tests, bit-identical to `CpuMatcher`) |
 
 ### `two_view`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `estimate_two_view` (루트) | fn | 두 뷰 기하 추정. 두 카메라 모두 사전 초점이면 보정 경로(E/F/H), 아니면 비보정(F/H). 다중 모델·H 강제·정지 매칭 필터 지원 |
-| `finalize_geometry` (루트) | fn | 인라이어가 최소 수 미만이면 기본값(UNDEFINED) |
-| `TwoViewOptions` (루트) | struct | 최소 인라이어(15), 비율 임계, 워터마크, 다중 모델, 상대 자세 계산, RANSAC 매개변수 등 |
-| `decide_calibrated` (루트) | fn | 보정 경로 구성 판정(E/F/H 결과 → `Decision`) |
-| `decide_uncalibrated` (루트) | fn | 비보정 경로 구성 판정(F/H) |
-| `Decision` (루트) | struct | 판정 구성 + 사용할 마스크 |
-| `MaskChoice` (루트) | enum | `E`, `F`, `H` 인라이어 마스크 |
-| `ModelOutcome` (루트) | struct | RANSAC 하나의 성공 여부·인라이어 수 |
-| `is_watermark` (루트) | fn | 영상 가장자리 고정 매칭(워터마크) 검출 |
-| `derive_seed` | fn | 모델 종류별 RANSAC 시드 파생(재현용) |
+| `estimate_two_view` (root) | fn | Two-view geometry estimation. Calibrated path (E/F/H) when both cameras have prior focal lengths, otherwise uncalibrated (F/H). Supports multiple models, forced H, and stationary-match filtering |
+| `finalize_geometry` (root) | fn | Default (UNDEFINED) if inliers are below the minimum count |
+| `TwoViewOptions` (root) | struct | Minimum inliers (15), ratio thresholds, watermark, multiple models, relative pose computation, RANSAC parameters, etc. |
+| `decide_calibrated` (root) | fn | Configuration decision for the calibrated path (E/F/H results → `Decision`) |
+| `decide_uncalibrated` (root) | fn | Configuration decision for the uncalibrated path (F/H) |
+| `Decision` (root) | struct | Decided configuration + mask to use |
+| `MaskChoice` (root) | enum | `E`, `F`, `H` inlier mask |
+| `ModelOutcome` (root) | struct | Success and inlier count of one RANSAC run |
+| `is_watermark` (root) | fn | Detect matches fixed at the image border (watermark) |
+| `derive_seed` | fn | Derive a RANSAC seed per model kind (for reproducibility) |
 
 ### `pose`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `decompose_essential` (루트) | fn | E → 4개 (R, t) 후보 |
-| `pose_from_essential` (루트) | fn | E → 상대 자세 + 카메라1 좌표 3D 점 |
-| `decompose_homography` (루트) | fn | H → (R, t, n) 후보 |
-| `pose_from_homography` (루트) | fn | H → 상대 자세, 평면 법선, 3D 점 |
-| `triangulate_midpoint` (루트) | fn | 중점 삼각측량(깊이 ≤ ε 이면 None) |
-| `recover_two_view_pose` (루트) | fn | 기하 → `cam1_to_cam2`·`tri_angle`·평면/회전 구성 확정 |
-| `refit_and_estimate_relative_pose` (루트) | fn | 전역 SfM 준비용: 행렬이 없으면 인라이어로 다시 맞춘 뒤 분해, t 단위화 |
-| `median_triangulation_angle` | fn | 삼각측량 각 중앙값 |
-| `inlier_rays` | fn | 인라이어 매칭의 단위 광선 |
+| `decompose_essential` (root) | fn | E → 4 (R, t) candidates |
+| `pose_from_essential` (root) | fn | E → relative pose + 3D points in camera-1 coordinates |
+| `decompose_homography` (root) | fn | H → (R, t, n) candidates |
+| `pose_from_homography` (root) | fn | H → relative pose, plane normal, 3D points |
+| `triangulate_midpoint` (root) | fn | Midpoint triangulation (None if depth ≤ ε) |
+| `recover_two_view_pose` (root) | fn | Geometry → finalize `cam1_to_cam2`, `tri_angle`, planar/rotation configuration |
+| `refit_and_estimate_relative_pose` (root) | fn | Preparation for global SfM: if no matrix exists, refit from inliers, then decompose and normalize t |
+| `median_triangulation_angle` | fn | Median triangulation angle |
+| `inlier_rays` | fn | Unit rays of inlier matches |
 
 ### `essential`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `essential_five_point` (루트) | fn | 5점(N ≥ 5) E 해들(최대 10개, 노름 1) |
-| `essential_eight_point` (루트) | fn | 8점 이상 E(단위 광선, rank-2 강제) |
-| `epipolar_row` | fn | 에피폴라 제약 한 행 |
+| `essential_five_point` (root) | fn | Five-point (N ≥ 5) E solutions (up to 10, norm 1) |
+| `essential_eight_point` (root) | fn | Eight-or-more-point E (unit rays, rank 2 enforced) |
+| `epipolar_row` | fn | One row of the epipolar constraint |
 
-### `estimators` — `cumulus3d_core::ransac::Estimator` 구현
+### `estimators` — implementations of `cumulus3d_core::ransac::Estimator`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `fundamental_seven_point` (루트) | fn | 7점 F(최대 3개) |
-| `fundamental_eight_point` (루트) | fn | 정규화 8점 F(rank-2) |
-| `homography_dlt` (루트) | fn | DLT H(4점 LU / N점 SVD, 선택적 하틀리 정규화) |
-| `sampson_error_sq` (루트) | fn | Sampson 제곱 오차(분모 0 → ∞) |
-| `homography_transfer_error_sq` (루트) | fn | H 단방향 전이 제곱 오차 |
-| `EssentialFivePointEstimator` (루트) | struct | 5점 E 추정기(단위 광선 입력) |
-| `Fundamental7PtEstimator` (루트) | struct | 7점 F 추정기 |
-| `FundamentalEightPointEstimator` (루트) | struct | 정규화 8점 F 국소 추정기 |
-| `HomographyEstimator` (루트) | struct | DLT H 추정기(`normalize` 옵션) |
-| `TranslationEstimator` (루트) | struct | 2D 평행이동 추정기(워터마크 검출용) |
+| `fundamental_seven_point` (root) | fn | Seven-point F (up to 3) |
+| `fundamental_eight_point` (root) | fn | Normalized eight-point F (rank 2) |
+| `homography_dlt` (root) | fn | DLT H (4-point LU / N-point SVD, optional Hartley normalization) |
+| `sampson_error_sq` (root) | fn | Squared Sampson error (zero denominator → ∞) |
+| `homography_transfer_error_sq` (root) | fn | Squared one-way H transfer error |
+| `EssentialFivePointEstimator` (root) | struct | Five-point E estimator (unit-ray input) |
+| `Fundamental7PtEstimator` (root) | struct | Seven-point F estimator |
+| `FundamentalEightPointEstimator` (root) | struct | Normalized eight-point F local estimator |
+| `HomographyEstimator` (root) | struct | DLT H estimator (`normalize` option) |
+| `TranslationEstimator` (root) | struct | 2D translation estimator (for watermark detection) |
 
 ### `linalg`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `null_space_9` | fn | N×9 제약 행렬의 영공간 기저 |
-| `singular_values_9` | fn | 9열 행렬의 특이값과 최소 우특이벡터 |
-| `mat3_from_row_major` | fn | 행 우선 9-벡터 → 3×3 |
-| `svd3` | fn | `cumulus3d_core::linalg::svd3` 재노출 |
-| `null_vector3` | fn | 3×3 의 근사 영벡터 |
-| `hartley_normalize` | fn | 하틀리 정규화(점, 변환 T) |
-| `solve8` | fn | 8×8 부분 피벗 LU |
+| `null_space_9` | fn | Null-space basis of an N×9 constraint matrix |
+| `singular_values_9` | fn | Singular values and smallest right singular vector of a 9-column matrix |
+| `mat3_from_row_major` | fn | Row-major 9-vector → 3×3 |
+| `svd3` | fn | Re-export of `cumulus3d_core::linalg::svd3` |
+| `null_vector3` | fn | Approximate null vector of a 3×3 |
+| `hartley_normalize` | fn | Hartley normalization (points, transform T) |
+| `solve8` | fn | 8×8 LU with partial pivoting |
 
 ### `poly`
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `roots_companion` | fn | 동반행렬 고유값으로 다항식 복소 근 |
-| `solve_cubic_monic` | fn | 모닉 3차식 실근(해석적) |
-| `poly_mul` / `poly_add` / `poly_eval` | fn | 다항식 곱 / 합·차 / 값 |
+| `roots_companion` | fn | Complex polynomial roots via companion-matrix eigenvalues |
+| `solve_cubic_monic` | fn | Real roots of a monic cubic (analytic) |
+| `poly_mul` / `poly_add` / `poly_eval` | fn | Polynomial product / sum·difference / evaluation |
 
-## 사용 예
+## Example
 
-기술자 매칭과 두 뷰 기하를 합성 데이터로 실행한다(크레이트 문서의 doc-test 와 같은 코드).
+Runs descriptor matching and two-view geometry on synthetic data (same code as the doc-test in the crate docs).
 
 ```rust
 use cumulus3d_core::{Camera, CameraModelKind, Descriptors, FeatureMatch, Keypoint, TwoViewGeometryConfig};
 use cumulus3d_matching::{estimate_two_view, CpuMatcher, DescriptorMatchOptions, MatcherBackend, TwoViewOptions};
 
-// 1) 기술자 매칭: 기술자 i 는 성분 4i..4i+4 만 255 인 서로 직교하는 벡터.
+// 1) Descriptor matching: descriptor i is an orthogonal vector whose only nonzero components 4i..4i+4 are 255.
 let make = |order: &[usize]| {
     let mut d = Descriptors::new();
     for &i in order {
@@ -154,9 +158,9 @@ let m = CpuMatcher::default().match_descriptors(&d1, &d2, &DescriptorMatchOption
 assert_eq!(m.len(), 32);
 assert!(m.iter().all(|x| x.idx2 == 31 - x.idx1));
 
-// 2) 두 뷰 기하: 같은 핀홀 카메라가 x 축으로 1 만큼 이동한 두 영상.
+// 2) Two-view geometry: two images from the same pinhole camera translated by 1 along the x axis.
 let mut cam = Camera::from_focal(CameraModelKind::Pinhole, 500.0, 640, 480);
-cam.focal_from_prior = true; // 초점을 알면 보정(E) 경로를 쓴다.
+cam.focal_from_prior = true; // A known focal length selects the calibrated (E) path.
 let (mut kps1, mut kps2, mut matches) = (Vec::new(), Vec::new(), Vec::new());
 for i in 0..60u32 {
     let (x, y, z) = (((i * 37) % 23) as f64 * 0.2 - 2.2, ((i * 17) % 19) as f64 * 0.2 - 1.8, 4.0 + ((i * 7) % 11) as f64 * 0.3);
@@ -170,20 +174,20 @@ assert_eq!(tvg.config, TwoViewGeometryConfig::Calibrated);
 assert!(tvg.inlier_matches.len() >= 50);
 ```
 
-저장소 단위로는 `match_pairs(&store, &pairs, &PairMatchingOptions::default(), &CpuMatcher::default())` 한 번이면
-매칭·검증·기록이 끝난다. 벤치마크: `cargo run --release -p cumulus3d-matching --example bench_match`(8192² 매칭).
+At the store level, a single call to `match_pairs(&store, &pairs, &PairMatchingOptions::default(), &CpuMatcher::default())`
+does matching, verification and writing. Benchmark: `cargo run --release -p cumulus3d-matching --example bench_match` (8192² matching).
 
-## 기능 플래그·하드웨어
+## Feature flags and hardware
 
-- 기능 플래그 없음. 순수 CPU(rayon) 구현.
-- `MatcherBackend` 를 `cumulus3d-cuda` 의 `CudaMatcher` 로 바꾸면 기술자 매칭(정수 내적 GEMM + top-2)을 GPU 에서 한다
-  (CUDA 12.x 드라이버 필요). GPU 백엔드는 `top2` 만 구현하고 검사 규칙은 이 크레이트의 기본 구현을 공유한다.
+- No feature flags. Pure CPU (rayon) implementation.
+- Swapping `MatcherBackend` for `CudaMatcher` from `cumulus3d-cuda` runs descriptor matching (integer dot-product GEMM + top-2) on the GPU
+  (requires a CUDA 12.x driver). The GPU backend implements only `top2`; the check rules share this crate's default implementation.
 
-## 동작 메모
+## Behavior notes
 
-- 재현성: `TwoViewOptions::ransac.random_seed = Some(s)` 이면 (s, 짝 id, 모델 종류)로 파생한 시드를 쓴다.
-- 원시 매칭 또는 인라이어가 `min_num_inliers`(기본 15) 미만이면 빈 매칭·기본 기하(UNDEFINED)로 기록한다. 처리한 짝은 항상 두 행(매칭·기하)을 기록한다.
-- 실패한 RANSAC 의 모델은 기록하지 않는다(성공한 E/F/H 만).
-- 하틀리 정규화 H(`normalize_homography`)는 결과가 미세하게 달라지므로 기본 꺼짐.
-- `skip_geometric_verification` 이면 원시 매칭만 기록한다(기하 행 없음).
-- 영상 자료(카메라·키포인트·기술자) 누락은 처리 전에 `Error::NotFound`.
+- Reproducibility: with `TwoViewOptions::ransac.random_seed = Some(s)`, a seed derived from (s, pair id, model kind) is used.
+- If raw matches or inliers are below `min_num_inliers` (default 15), empty matches and default geometry (UNDEFINED) are written. A processed pair always writes two rows (matches and geometry).
+- Models from failed RANSAC runs are not written (only successful E/F/H).
+- Hartley-normalized H (`normalize_homography`) is off by default because it changes results slightly.
+- With `skip_geometric_verification`, only raw matches are written (no geometry row).
+- Missing image data (camera, keypoints, descriptors) yields `Error::NotFound` before processing.

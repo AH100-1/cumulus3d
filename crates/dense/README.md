@@ -1,195 +1,199 @@
+English | [한국어](https://github.com/AH100-1/cumulus3d/blob/main/crates/dense/README.ko.md)
+
 # cumulus3d-dense
 
-왜곡 보정과 다시점 조밀화: 등록된 희소 모델과 영상에서 깊이맵을 추정·필터·융합해 조밀 점군(PLY)을 만든다.
+Undistortion and multi-view densification: estimates, filters, and fuses depth maps from a registered sparse model and its images to produce a dense point cloud (PLY).
 
-**파이프라인 단계**: SfM(`cumulus3d-sfm`)·GPS 정렬(`cumulus3d-align`) 뒤의 마지막 단계.
-희소 모델 → 왜곡 보정(PINHOLE) → 조밀화 장면 → 이웃 뷰·깊이 범위 → 다중 스케일 PatchMatch 깊이맵 →
-필터·후처리 → 융합 → 조밀 점군.
+> API doc comments are currently in Korean; English translation is planned.
 
-PatchMatch 실행 자체(한 스케일의 적·흑 전파, 뷰 선택, 정제, 판독)는 [`PatchMatchBackend`](src/kernel.rs) 를 구현한
-백엔드가 맡고, 이 크레이트는 그 바깥(장면, 이웃 선택, 깊이 범위, 다중 스케일 진행, 상향 표본, 세부 복원 판정,
-필터 문턱, 후처리, 융합, 통계)을 맡는다.
+**Pipeline stage**: the last stage, after SfM (`cumulus3d-sfm`) and GPS alignment (`cumulus3d-align`).
+Sparse model → undistortion (PINHOLE) → densification scene → neighbor views and depth ranges → multi-scale PatchMatch depth maps →
+filtering and post-processing → fusion → dense point cloud.
 
-## 주요 진입점
+PatchMatch execution itself (red–black propagation at one scale, view selection, refinement, readout) is handled by a
+backend implementing [`PatchMatchBackend`](https://github.com/AH100-1/cumulus3d/blob/main/crates/dense/src/kernel.rs); this crate handles everything around it (scene, neighbor selection, depth ranges, multi-scale progression, upsampling, detail-restoration decisions,
+filter thresholds, post-processing, fusion, statistics).
 
-| 함수/타입 | 역할 | 입력 → 출력 |
+## Main entry points
+
+| Function/type | Role | Input → output |
 |---|---|---|
-| `undistort` | 등록 영상 전부 왜곡 보정(영상 읽기는 호출자 클로저) | `&Reconstruction`, `&UndistortOptions`, `&UndistortCache`, `Fn(&Image) -> Option<Arc<ImageBuffer>>` → `Result<UndistortResult>` |
-| `undistort_from_dir` | 영상 폴더에서 읽어 왜곡 보정 | `&Reconstruction`, 영상 폴더, 옵션, 캐시 → `Result<UndistortResult>` |
-| `write_undistorted_workspace` | 보정 결과를 작업 폴더(`images/`, `sparse/`, `stereo/`)로 쓰기 | `&UndistortResult`, 출력 폴더, 옵션 → `Result<()>` |
-| `DenseScene::from_reconstruction` | 메모리 내 보정 모델·영상으로 장면 구성 | `&Reconstruction`, `&BTreeMap<ImageId, Arc<ImageBuffer>>`, `&SceneOptions` → `Result<DenseScene>` |
-| `DenseScene::from_workspace_dir` | 보정 작업 폴더에서 장면 구성 | 폴더, `&SceneOptions` → `Result<DenseScene>` |
-| `DensifyOptions::with_profile` | 프로파일(`Fast`/`Quality`) 기본 설정 | `MvsProfile` → `DensifyOptions` |
-| `densify` | 조밀화 전체(깊이맵 → 필터 → 융합) | `&DenseScene`, `&DensifyOptions`, `&dyn PatchMatchBackend`, `Option<&DepthMapCache>` → `Result<DenseOutput>` |
-| `densify::densify_with` | `densify` + 선택적 점수 융합 | 위 + `Option<&ScoreFusionOptions>` → `Result<DenseOutput>` |
-| `compute_depth_maps` | 깊이맵만 계산(융합 없음) | `&DenseScene`, `&DensifyOptions`, 백엔드, 캐시 → `Result<DepthMapSet>` |
-| `fuse_depth_maps` | 계산된 깊이맵 융합 | `&DenseScene`, `&DepthMapSet`, `&DensifyOptions`, 스레드 수 → `FusionOutput` |
-| `densify::fuse_output` | 보관한 깊이맵으로 융합만 다시 실행 | `&DenseScene`, `&DepthMapSet`, `&DensifyOptions`, `Option<&ScoreFusionOptions>` → `DenseOutput` |
-| `fuse` | 깊이맵 배열 융합(저수준) | `&DenseScene`, `&[Option<FusionInput>]`, 겹침 목록, `&FusionParams`, 스레드 수 → `FusionOutput` |
-| `DenseOutput::write_ply` | 점군 PLY 쓰기(x y z nx ny nz red green blue) | 경로 → `Result<()>` |
-| `cloud_stats` | 점군 품질 통계(간격, GSD, 이상점·중복률) | 장면, 깊이맵, 점군, 가시성, 표본 수, 허용치 → `CloudStats` |
-| `PatchMatchBackend` | 백엔드 경계 trait(GPU 구현은 `cumulus3d-cuda::CudaPatchMatch`) | `&KernelInput` → `Box<dyn PatchMatchSession>` |
+| `undistort` | Undistort all registered images (image loading is a caller closure) | `&Reconstruction`, `&UndistortOptions`, `&UndistortCache`, `Fn(&Image) -> Option<Arc<ImageBuffer>>` → `Result<UndistortResult>` |
+| `undistort_from_dir` | Read from an image folder and undistort | `&Reconstruction`, image folder, options, cache → `Result<UndistortResult>` |
+| `write_undistorted_workspace` | Write the undistorted result to a workspace folder (`images/`, `sparse/`, `stereo/`) | `&UndistortResult`, output folder, options → `Result<()>` |
+| `DenseScene::from_reconstruction` | Build a scene from an in-memory undistorted model and images | `&Reconstruction`, `&BTreeMap<ImageId, Arc<ImageBuffer>>`, `&SceneOptions` → `Result<DenseScene>` |
+| `DenseScene::from_workspace_dir` | Build a scene from an undistorted workspace folder | folder, `&SceneOptions` → `Result<DenseScene>` |
+| `DensifyOptions::with_profile` | Default settings for a profile (`Fast`/`Quality`) | `MvsProfile` → `DensifyOptions` |
+| `densify` | Full densification (depth maps → filtering → fusion) | `&DenseScene`, `&DensifyOptions`, `&dyn PatchMatchBackend`, `Option<&DepthMapCache>` → `Result<DenseOutput>` |
+| `densify::densify_with` | `densify` + optional score fusion | the above + `Option<&ScoreFusionOptions>` → `Result<DenseOutput>` |
+| `compute_depth_maps` | Compute depth maps only (no fusion) | `&DenseScene`, `&DensifyOptions`, backend, cache → `Result<DepthMapSet>` |
+| `fuse_depth_maps` | Fuse computed depth maps | `&DenseScene`, `&DepthMapSet`, `&DensifyOptions`, thread count → `FusionOutput` |
+| `densify::fuse_output` | Re-run only fusion from stored depth maps | `&DenseScene`, `&DepthMapSet`, `&DensifyOptions`, `Option<&ScoreFusionOptions>` → `DenseOutput` |
+| `fuse` | Fuse an array of depth maps (low level) | `&DenseScene`, `&[Option<FusionInput>]`, overlap lists, `&FusionParams`, thread count → `FusionOutput` |
+| `DenseOutput::write_ply` | Write the point cloud as PLY (x y z nx ny nz red green blue) | path → `Result<()>` |
+| `cloud_stats` | Point cloud quality statistics (spacing, GSD, outlier and duplicate rates) | scene, depth maps, point cloud, visibility, sample count, tolerance → `CloudStats` |
+| `PatchMatchBackend` | Backend boundary trait (GPU implementation is `cumulus3d-cuda::CudaPatchMatch`) | `&KernelInput` → `Box<dyn PatchMatchSession>` |
 
-## 공개 항목
+## Public items
 
-"루트"는 크레이트 루트에서 `cumulus3d_dense::이름` 으로 재노출된 항목이다.
+"Root" marks items re-exported at the crate root as `cumulus3d_dense::name`.
 
-### `undistort` — 왜곡 보정
+### `undistort` — undistortion
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `UndistortOptions` (루트) | struct | 빈 픽셀 비율, 배율 범위, `max_image_size`, 관심 영역, 원천 영상 수, JPEG 품질. `pipeline()`: `max_image_size = 960` |
-| `undistorted_camera` (루트) | fn | 왜곡 없는 PINHOLE 카메라 계산(카메라 id 유지) |
-| `CameraUndistortion` (루트) | struct | 카메라 하나의 보정 결과(`source`, `pinhole`, 재표본 맵). `new`, `undistort_image` |
-| `UndistortCache` (루트) | struct | 카메라 매개변수 해시 → `CameraUndistortion` 캐시(구역 사이 공유). `new`, `get`, `len`, `is_empty` |
-| `undistort_reconstruction` (루트) | fn | 희소 모델 변환: 카메라 PINHOLE 로, 2D 관측 새 좌표로 |
-| `UndistortResult` (루트) | struct | `reconstruction`, `images`(영상 id → 보정 영상), `failed` |
-| `undistort` (루트) | fn | 등록 영상 전부 보정(영상 로더 클로저) |
-| `undistort_from_dir` (루트) | fn | 영상 폴더에서 읽어 보정 |
-| `write_undistorted_workspace` (루트) | fn | 보정 결과를 조밀 복원 작업 폴더로 쓰기 |
+| `UndistortOptions` (root) | struct | Blank-pixel ratio, scale range, `max_image_size`, region of interest, number of source images, JPEG quality. `pipeline()`: `max_image_size = 960` |
+| `undistorted_camera` (root) | fn | Compute the distortion-free PINHOLE camera (keeps the camera id) |
+| `CameraUndistortion` (root) | struct | Undistortion result for one camera (`source`, `pinhole`, resampling map). `new`, `undistort_image` |
+| `UndistortCache` (root) | struct | Cache of camera-parameter hash → `CameraUndistortion` (shared across zones). `new`, `get`, `len`, `is_empty` |
+| `undistort_reconstruction` (root) | fn | Transform the sparse model: cameras to PINHOLE, 2D observations to new coordinates |
+| `UndistortResult` (root) | struct | `reconstruction`, `images` (image id → undistorted image), `failed` |
+| `undistort` (root) | fn | Undistort all registered images (image loader closure) |
+| `undistort_from_dir` (root) | fn | Read from an image folder and undistort |
+| `write_undistorted_workspace` (root) | fn | Write the undistorted result to a dense reconstruction workspace folder |
 
-### `image` — 영상 버퍼
+### `image` — image buffers
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `ImageBuffer` (루트) | struct | 8비트 1/3채널 영상. `new`, `load`, `save`, `get`, `rgb`, `to_gray`, `resize_area` |
-| `GrayImage` (루트) | struct | f32 회색 영상. `new`, `at`, `at_clamped`, `bilinear_clamped`, `resize_area`, `resize_cubic`, `rescale` |
-| `Integral` | struct | 적분영상(f64). `new`, `box_mean`, `resample`(면적 평균 재표본) |
-| `bilinear_clamped` | fn | 정수 중심 규약 쌍선형 보간(가장자리 고정) |
+| `ImageBuffer` (root) | struct | 8-bit 1/3-channel image. `new`, `load`, `save`, `get`, `rgb`, `to_gray`, `resize_area` |
+| `GrayImage` (root) | struct | f32 grayscale image. `new`, `at`, `at_clamped`, `bilinear_clamped`, `resize_area`, `resize_cubic`, `rescale` |
+| `Integral` | struct | Integral image (f64). `new`, `box_mean`, `resample` (area-average resampling) |
+| `bilinear_clamped` | fn | Bilinear interpolation with integer-center convention (edge-clamped) |
 
-### `scene` — 조밀화 장면
+### `scene` — densification scene
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `SceneOptions` (루트) | struct | `max_image_size`(긴 변 상한, 줄이기만) |
-| `DenseView` (루트) | struct | 뷰 하나(`image_id`, `name`, 크기, `k`, `r`, `t`, `gray`, `color`). `center`, `to_cam`, `to_world`, `dir_to_world`, `dir_to_cam`, `project_cam`, `ray`, `geometry_hash` |
-| `ScenePoint` (루트) | struct | 희소점(`xyz`, 관측 뷰 색인) |
-| `DenseScene` (루트) | struct | `views`, `points`. `from_reconstruction`, `from_workspace_dir` |
-| `gray_of` | fn | RGB → 회색 8비트 |
+| `SceneOptions` (root) | struct | `max_image_size` (upper bound on the long side, downscale only) |
+| `DenseView` (root) | struct | One view (`image_id`, `name`, size, `k`, `r`, `t`, `gray`, `color`). `center`, `to_cam`, `to_world`, `dir_to_world`, `dir_to_cam`, `project_cam`, `ray`, `geometry_hash` |
+| `ScenePoint` (root) | struct | Sparse point (`xyz`, indices of observing views) |
+| `DenseScene` (root) | struct | `views`, `points`. `from_reconstruction`, `from_workspace_dir` |
+| `gray_of` | fn | RGB → 8-bit gray |
 
-### `params` — 설정
+### `params` — settings
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `DensifyOptions` (루트) | struct | 조밀화 전체 설정. `with_profile`, `schedule`, `fingerprint`(캐시 열쇠용 해시) |
-| `MvsProfile` (루트) | enum | `Fast`(기본) / `Quality`. `parse`, `name` |
-| `LevelSchedule` (루트) | struct | 스케일별 반복 일정(광도 반복, 세부 복원 초기화, 기하 회차·반복) |
-| `PmParams` (루트) | struct | PatchMatch 상수(창, 양방향 σ, 투표 τ0/α/τ1/β/n1/n2, 사전, 기하 λ/δ, 정제 섭동). `sigma_s`, `window_offsets` |
-| `FilterParams` (루트) | struct | 깊이맵 필터 허용치(min_ncc, 최소 삼각측량각, 최소 일치 뷰, 재투영 허용, 중앙값 필터) |
-| `FusionMode` (루트) | enum | `Traversal`(확장 중앙값) / `Consistency`(일치 평균, 기본). `parse` |
-| `FusionResidual` (루트) | enum | 남은 픽셀 처리 `None` / `Release` / `SecondPass`. `parse`, `name` |
-| `ResidualParams` (루트) | struct | 2차 융합 허용치 |
-| `FusionParams` (루트) | struct | 융합 허용치(방식, 최소 일치 뷰, 역분산 가중, 깊이·법선·재투영 허용치 등) |
-| `NeighborParams` (루트) | struct | 이웃 뷰 수(≤ 32), 최소 삼각측량각, 방향 다양성 |
+| `DensifyOptions` (root) | struct | Full densification settings. `with_profile`, `schedule`, `fingerprint` (hash for cache keys) |
+| `MvsProfile` (root) | enum | `Fast` (default) / `Quality`. `parse`, `name` |
+| `LevelSchedule` (root) | struct | Per-scale iteration schedule (photometric iterations, detail-restoration initialization, geometric rounds and iterations) |
+| `PmParams` (root) | struct | PatchMatch constants (window, bilateral σ, voting τ0/α/τ1/β/n1/n2, priors, geometric λ/δ, refinement perturbation). `sigma_s`, `window_offsets` |
+| `FilterParams` (root) | struct | Depth map filter tolerances (min_ncc, minimum triangulation angle, minimum consistent views, reprojection tolerance, median filter) |
+| `FusionMode` (root) | enum | `Traversal` (expansion median) / `Consistency` (consistent average, default). `parse` |
+| `FusionResidual` (root) | enum | Handling of leftover pixels: `None` / `Release` / `SecondPass`. `parse`, `name` |
+| `ResidualParams` (root) | struct | Second-pass fusion tolerances |
+| `FusionParams` (root) | struct | Fusion tolerances (mode, minimum consistent views, inverse-variance weighting, depth/normal/reprojection tolerances, etc.) |
+| `NeighborParams` (root) | struct | Number of neighbor views (≤ 32), minimum triangulation angle, directional diversity |
 
-### `kernel` — 백엔드 경계
+### `kernel` — backend boundary
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `PatchMatchBackend` (루트) | trait | 백엔드: `name`, `begin(&KernelInput) -> Box<dyn PatchMatchSession>` |
-| `PatchMatchSession` (루트) | trait | 호출 하나 동안의 백엔드 상태: `run`, `evaluate`, `filter`, `upsample`·`median_filter`(기본 구현 = 호스트 계산) |
-| `KernelInput` (루트) | struct | 커널 입력 전체(뷰, 스케일 수, `PmParams`, `FilterParams`, 시드) |
-| `KernelView` (루트) | struct | 뷰 하나(난수 열쇠, 스케일별 영상, 원천 뷰, 상대 기하, 깊이 범위) |
-| `LevelImage` (루트) | struct | 한 스케일의 회색 영상과 K |
-| `PairGeometry` (루트) | struct | 기준 → 원천 상대 기하(`r`, `t`, `center`) |
-| `ViewState` (루트) | struct | 픽셀 상태(깊이, 법선, 비용, 거친 스케일 가설). `new` |
-| `DepthSnapshot` (루트) | struct | 기하 실행이 읽는 깊이 스냅숏 |
-| `RunParams` (루트) | struct | 실행 하나의 매개변수(스케일, 기하 여부, 초기화, 반복 수, 실행 번호, 사전 사용) |
-| `rng_state`, `rng_next` | fn | 커널과 같은 픽셀 난수 정의 |
+| `PatchMatchBackend` (root) | trait | Backend: `name`, `begin(&KernelInput) -> Box<dyn PatchMatchSession>` |
+| `PatchMatchSession` (root) | trait | Backend state for the duration of one call: `run`, `evaluate`, `filter`, `upsample`/`median_filter` (default implementation = host computation) |
+| `KernelInput` (root) | struct | Full kernel input (views, number of scales, `PmParams`, `FilterParams`, seed) |
+| `KernelView` (root) | struct | One view (random key, per-scale images, source views, relative geometry, depth range) |
+| `LevelImage` (root) | struct | Grayscale image and K at one scale |
+| `PairGeometry` (root) | struct | Reference → source relative geometry (`r`, `t`, `center`) |
+| `ViewState` (root) | struct | Pixel state (depth, normal, cost, coarse-scale hypothesis). `new` |
+| `DepthSnapshot` (root) | struct | Depth snapshot read by geometric runs |
+| `RunParams` (root) | struct | Parameters for one run (scale, geometric or not, initialization, iteration count, run number, prior usage) |
+| `rng_state`, `rng_next` | fn | Per-pixel random number definition identical to the kernel |
 
-### `densify` — 진행
+### `densify` — progression
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `densify` (루트) | fn | 조밀화 전체: 깊이맵 → 필터 → 융합 |
-| `densify_with` | fn | `densify` + 선택적 점수 융합 |
-| `compute_depth_maps` (루트) | fn | 모든 뷰의 최종 깊이맵 계산 |
-| `fuse_depth_maps` (루트) | fn | 깊이맵 융합(`opts.fusion.mode`) |
-| `fuse_depth_maps_with` | fn | 깊이맵 융합 + 선택적 점수 융합 |
-| `fuse_output` | fn | 보관한 깊이맵으로 융합만 다시 실행해 `DenseOutput` 구성 |
-| `pair_geometry` (루트) | fn | 기준 → 원천 상대 기하 |
-| `DenseOutput` (루트) | struct | `cloud`, `visibility`, `timings`, `cache_hits`, `depth_views`, `depth_maps`, `residual`. `write_ply`, `num_residual`, `write_residual_ply` |
-| `DepthMapSet` (루트) | struct | 뷰별 깊이맵, 원천 뷰, 기준선, 캐시 적중, 스케일 수, 시간 |
-| `DepthMapResult` (루트) | struct | 깊이맵 한 장(필터 전·후 깊이, 법선, 비용, 캐시 여부) |
-| `DenseTimings` (루트) | struct | 단계별 시간. `depth`, `total` |
+| `densify` (root) | fn | Full densification: depth maps → filtering → fusion |
+| `densify_with` | fn | `densify` + optional score fusion |
+| `compute_depth_maps` (root) | fn | Compute final depth maps for all views |
+| `fuse_depth_maps` (root) | fn | Fuse depth maps (`opts.fusion.mode`) |
+| `fuse_depth_maps_with` | fn | Fuse depth maps + optional score fusion |
+| `fuse_output` | fn | Re-run only fusion from stored depth maps and build a `DenseOutput` |
+| `pair_geometry` (root) | fn | Reference → source relative geometry |
+| `DenseOutput` (root) | struct | `cloud`, `visibility`, `timings`, `cache_hits`, `depth_views`, `depth_maps`, `residual`. `write_ply`, `num_residual`, `write_residual_ply` |
+| `DepthMapSet` (root) | struct | Per-view depth maps, source views, baselines, cache hits, number of scales, timings |
+| `DepthMapResult` (root) | struct | One depth map (pre-/post-filter depth, normal, cost, whether cached) |
+| `DenseTimings` (root) | struct | Per-stage timings. `depth`, `total` |
 
-### `fusion`, `fusion_score` — 융합
+### `fusion`, `fusion_score` — fusion
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `fuse` (루트) | fn | `FusionParams::mode` 에 따라 일치 또는 확장 융합 |
-| `fuse_consistency` | fn | 일치 융합(기준 픽셀 + 겹침 뷰 일치 점 평균, 결정적) |
-| `fuse_traversal` | fn | 이웃의 이웃 확장 + 성분별 중앙값 융합 |
-| `FusionInput` (루트) | struct | 뷰 하나의 깊이·법선·비용·기준선. `plain` |
-| `FusionOutput` (루트) | struct | 점군, 가시성, 2차 융합 표시, 시간. `num_residual`, `residual_cloud` |
-| `fusion_score::ScoreFusionOptions` | struct | 점수 융합 옵션. `from_fusion` |
-| `fusion_score::fuse_scored` | fn | 점수 융합(일치 기여 − 자유공간 위반 벌점) |
+| `fuse` (root) | fn | Consistency or traversal fusion depending on `FusionParams::mode` |
+| `fuse_consistency` | fn | Consistency fusion (average of the reference pixel and consistent points in overlapping views; deterministic) |
+| `fuse_traversal` | fn | Neighbor-of-neighbor expansion + per-component median fusion |
+| `FusionInput` (root) | struct | Depth, normal, cost, and baseline of one view. `plain` |
+| `FusionOutput` (root) | struct | Point cloud, visibility, second-pass fusion flags, timings. `num_residual`, `residual_cloud` |
+| `fusion_score::ScoreFusionOptions` | struct | Score fusion options. `from_fusion` |
+| `fusion_score::fuse_scored` | fn | Score fusion (consistency contribution − free-space violation penalty) |
 
-### `neighbors` — 이웃 뷰·깊이 범위
+### `neighbors` — neighbor views and depth ranges
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `PairStats` | struct | 뷰 쌍 공유 점 수·삼각측량각. `new`, `select`, `select_diverse`, `select_all` |
-| `depth_ranges` | fn | 뷰별 깊이 범위(희소점 깊이 1%/99% × 0.75/1.25) |
-| `depth_range_of` | fn | 깊이 목록 하나의 범위 |
+| `PairStats` | struct | Shared point count and triangulation angle per view pair. `new`, `select`, `select_diverse`, `select_all` |
+| `depth_ranges` | fn | Per-view depth range (sparse point depth 1%/99% × 0.75/1.25) |
+| `depth_range_of` | fn | Range of a single depth list |
 
-### `upsample` — 피라미드·상향 표본
+### `upsample` — pyramid and upsampling
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `num_levels` | fn | 스케일 수 계산 |
-| `build_pyramid` | fn | 회색 피라미드(0 = 최저)와 스케일별 K |
-| `joint_bilateral_upsample` | fn | 결합 양방향 상향 표본 |
-| `median_plane_filter` | fn | 5×5 중앙값 평면 필터 |
-| `downsample_depth` | fn | 깊이맵 2배 축소 |
+| `num_levels` | fn | Compute the number of scales |
+| `build_pyramid` | fn | Grayscale pyramid (0 = coarsest) and per-scale K |
+| `joint_bilateral_upsample` | fn | Joint bilateral upsampling |
+| `median_plane_filter` | fn | 5×5 median plane filter |
+| `downsample_depth` | fn | Downsample a depth map by 2× |
 
-### `postproc` — 후처리
+### `postproc` — post-processing
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `PostParams` (루트) | struct | 작은 조각 제거·틈 메우기 설정 |
-| `remove_speckles` | fn | 작은 조각 제거(지운 픽셀 수) |
-| `fill_holes` | fn | 경계 인식 틈 메우기(채운 픽셀 수) |
+| `PostParams` (root) | struct | Speckle removal and hole filling settings |
+| `remove_speckles` | fn | Remove small speckles (number of pixels removed) |
+| `fill_holes` | fn | Edge-aware hole filling (number of pixels filled) |
 
-### `stats` — 품질 통계
+### `stats` — quality statistics
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `cloud_stats` (루트) | fn | 점 간격 중앙값, GSD, 이상점 비율, 중복률, 국소 평면 이탈 |
-| `CloudStats` (루트) | struct | 위 통계 값 |
+| `cloud_stats` (root) | fn | Median point spacing, GSD, outlier ratio, duplicate rate, local plane deviation |
+| `CloudStats` (root) | struct | The statistics above |
 
-### `cache` — 깊이맵 캐시
+### `cache` — depth map cache
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `DepthMapCache` (루트) | struct | (영상 기하 해시, 설정 해시) → 깊이맵, 스레드 안전·용량 제한. `new`, `with_capacity`, `get`, `insert`, `len`, `is_empty` |
-| `CachedDepth` (루트) | struct | 캐시된 뷰 하나(필터 전·후 깊이, 법선, 비용) |
+| `DepthMapCache` (root) | struct | (image geometry hash, settings hash) → depth map; thread-safe, capacity-limited. `new`, `with_capacity`, `get`, `insert`, `len`, `is_empty` |
+| `CachedDepth` (root) | struct | One cached view (pre-/post-filter depth, normal, cost) |
 
-### `math` — 수치 도구
+### `math` — numerical tools
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `hash_bytes`, `mix64` | fn | 결정적 해시(FNV-1a), splitmix64 섞기 |
-| `erf` | fn | 오차 함수 |
-| `emission_norm`, `emission`, `visibility_probability` | fn | 비용의 방출 밀도와 가시 확률 |
-| `triangulation_prior`, `incident_prior`, `resolution_prior` | fn | 뷰 선택 사전확률 |
-| `apply_h` | fn | 3×3 호모그래피로 점 옮기기 |
-| `quantile_sorted`, `median_in_place` | fn | 분위수, 중앙값 |
-| `plane_transfer` | fn | 이웃 평면을 다른 광선으로 옮긴 깊이 |
+| `hash_bytes`, `mix64` | fn | Deterministic hash (FNV-1a), splitmix64 mixing |
+| `erf` | fn | Error function |
+| `emission_norm`, `emission`, `visibility_probability` | fn | Emission density of a cost and visibility probability |
+| `triangulation_prior`, `incident_prior`, `resolution_prior` | fn | View selection priors |
+| `apply_h` | fn | Transfer a point with a 3×3 homography |
+| `quantile_sorted`, `median_in_place` | fn | Quantile, median |
+| `plane_transfer` | fn | Depth of a neighbor plane transferred to another ray |
 
-### `synthetic` — 시험용 합성 장면
+### `synthetic` — synthetic scenes for testing
 
-| 항목 | 종류 | 역할 |
+| Item | Kind | Role |
 |---|---|---|
-| `make_scene` | fn | 무늬 바닥 + 상자 장면, 격자 카메라, 참 깊이·법선, 희소점 |
-| `SynthConfig` | struct | 영상 크기, 초점, 카메라 격자, 상자, 시드, 희소점 수 |
-| `SynthScene` | struct | `scene`, 참 `depth`·`normal`, `config`. `surface_distance` |
-| `SynthBox` | struct | 축 정렬 상자 |
-| `texture` | fn | 결정적 무늬 함수 |
+| `make_scene` | fn | Textured floor + box scene, grid of cameras, ground-truth depth and normals, sparse points |
+| `SynthConfig` | struct | Image size, focal length, camera grid, boxes, seed, number of sparse points |
+| `SynthScene` | struct | `scene`, ground-truth `depth`/`normal`, `config`. `surface_distance` |
+| `SynthBox` | struct | Axis-aligned box |
+| `texture` | fn | Deterministic texture function |
 
-## 사용 예
+## Examples
 
-합성 장면의 참 깊이맵을 CPU 에서 융합(백엔드 불필요, `src/lib.rs` 의 doc-test 와 같다):
+Fuse the ground-truth depth maps of a synthetic scene on the CPU (no backend needed; same as the doc-test in `src/lib.rs`):
 
 ```rust
 use cumulus3d_dense::neighbors::PairStats;
@@ -206,7 +210,7 @@ let out = fuse(&s.scene, &inputs, &overlap, &FusionParams::default(), 1);
 assert!(out.cloud.len() > 0);
 ```
 
-실제 조밀화(GPU 백엔드와 실데이터 필요, doc-test 는 `no_run`):
+Real densification (requires a GPU backend and real data; the doc-test is `no_run`):
 
 ```rust,no_run
 use cumulus3d_dense::{densify, undistort_from_dir, DenseScene, DensifyOptions, PatchMatchBackend, SceneOptions, UndistortCache, UndistortOptions};
@@ -221,53 +225,53 @@ fn run(backend: &dyn PatchMatchBackend) -> cumulus3d_core::Result<()> {
 }
 ```
 
-`backend` 에는 `cumulus3d_cuda::CudaPatchMatch` 를 넘긴다(`cumulus3d-cuda` 크레이트 참조).
+Pass `cumulus3d_cuda::CudaPatchMatch` as `backend` (see the `cumulus3d-cuda` crate).
 
-## 기능 플래그·하드웨어
+## Feature flags and hardware
 
-- 기능 플래그 없음. 순수 Rust 이고 어느 기계에서나 빌드된다.
-- **조밀화(`densify`, `compute_depth_maps`)는 `PatchMatchBackend` 구현이 필요하다.** 이 크레이트에는 CPU 백엔드가 없고,
-  현재 구현은 `cumulus3d-cuda` 의 `CudaPatchMatch`(NVIDIA GPU, CUDA 12.x 드라이버) 하나뿐이다.
-- 백엔드 없이 CPU 에서 되는 것: 왜곡 보정, 장면 구성, 이웃 선택·깊이 범위, 상향 표본·중앙값 필터, 후처리,
-  융합(`fuse`, `fuse_depth_maps`, `fuse_output`), 통계, 합성 장면. 병렬화는 rayon.
+- No feature flags. Pure Rust; builds on any machine.
+- **Densification (`densify`, `compute_depth_maps`) requires a `PatchMatchBackend` implementation.** This crate has no CPU backend;
+  the only current implementation is `CudaPatchMatch` in `cumulus3d-cuda` (NVIDIA GPU, CUDA 12.x driver).
+- What works on the CPU without a backend: undistortion, scene construction, neighbor selection and depth ranges, upsampling and median filtering, post-processing,
+  fusion (`fuse`, `fuse_depth_maps`, `fuse_output`), statistics, synthetic scenes. Parallelism via rayon.
 
-## 처리 흐름
+## Processing flow
 
-1. **장면**: 왜곡 보정된 모델(핀홀) + 영상 → 뷰(K·자세·회색/컬러). 장면 안 픽셀 좌표는 정수 = 픽셀 중심(주점 −0.5).
-2. **이웃 뷰**: 희소점 트랙으로 뷰 쌍의 공유 점 수와 삼각측량각 75 분위를 구해, 각이 1° 이상인 뷰를 공유 수 순으로 최대 10개.
-   선택적으로 기준선 방위각 구간별 감쇠로 방향이 고르게 퍼지게 고른다(`NeighborParams::diversity_decay` < 1).
-3. **깊이 범위**: 관측 희소점 깊이의 1%/99% 값에 0.75/1.25 배. 무작위 초기화에만 쓴다.
-4. **다중 스케일**(축소율 0.5, 최대 3단): 최저 스케일은 무작위 초기화 광도 실행, 위 스케일은 결합 양방향 상향 표본 →
-   세부 복원(상향 가설 비용 − 광도 실행 비용 > 0.1 인 픽셀은 광도 실행 결과로 교체) → 기하 일관성 실행 2회
-   (모든 기준 뷰가 직전 회차 깊이 스냅숏을 읽는 이중 버퍼라 실행 순서와 무관).
-5. **판독·필터**: 5×5 중앙값 평면 필터 뒤, 원천 뷰마다 삼각측량각 ≥ 3°, 입사 cos > 0, 방출 가시 확률 ≥ E(0.9),
-   순·역 재투영 ≤ 1 px 를 모두 만족한 뷰가 2개(원천 수가 적으면 그 수) 이상인 픽셀만 남긴다.
-6. **후처리**: 상대 깊이 연속 성분 중 작고 비용이 큰 조각 제거, 선택적으로 밝기 경계에서 멈추는 틈 메우기.
-7. **융합**: 기본은 일치 융합 — 기준 픽셀의 점을 겹침 뷰에 투영해 깊이(상대 1%)·재투영(2 px)·법선(10°)이 맞는 뷰가
-   5개 이상이면 기준과 일치 점들의 역분산 가중 평균(`σ_d = d²·σ_px/(f·b)`, `σ_px = 0.25 + 비용`).
-   그 밖에 확장 중앙값 융합(`FusionMode::Traversal`)과 점수 융합(`ScoreFusionOptions`)이 있다.
-8. **출력**: PLY(x y z nx ny nz red green blue, 27 바이트/점).
+1. **Scene**: undistorted model (pinhole) + images → views (K, pose, gray/color). Pixel coordinates inside the scene are integer = pixel center (principal point −0.5).
+2. **Neighbor views**: from sparse point tracks, compute the shared point count and the 75th-percentile triangulation angle for each view pair, and pick up to 10 views with an angle of at least 1°, ordered by shared count.
+   Optionally, per-bin attenuation over baseline azimuth spreads the chosen directions evenly (`NeighborParams::diversity_decay` < 1).
+3. **Depth range**: the 1%/99% values of observed sparse point depths times 0.75/1.25. Used only for random initialization.
+4. **Multi-scale** (downscale factor 0.5, up to 3 levels): the coarsest scale runs a photometric pass from random initialization; higher scales do joint bilateral upsampling →
+   detail restoration (pixels where upsampled-hypothesis cost − photometric-pass cost > 0.1 are replaced with the photometric result) → 2 geometric-consistency runs
+   (double-buffered: every reference view reads the previous round's depth snapshot, so the result is independent of execution order).
+5. **Readout and filtering**: after a 5×5 median plane filter, keep only pixels for which at least 2 source views (or the number of source views, if fewer) satisfy all of: triangulation angle ≥ 3°, incidence cos > 0, emission visibility probability ≥ E (0.9),
+   forward–backward reprojection ≤ 1 px.
+6. **Post-processing**: remove small, high-cost components among relative-depth-connected regions; optionally fill holes, stopping at intensity edges.
+7. **Fusion**: the default is consistency fusion — project the reference pixel's point into overlapping views; if at least 5 views agree in depth (1% relative), reprojection (2 px), and normal (10°),
+   output the inverse-variance-weighted average of the reference and the consistent points (`σ_d = d²·σ_px/(f·b)`, `σ_px = 0.25 + cost`).
+   Traversal median fusion (`FusionMode::Traversal`) and score fusion (`ScoreFusionOptions`) are also available.
+8. **Output**: PLY (x y z nx ny nz red green blue, 27 bytes/point).
 
-## 프로파일
+## Profiles
 
-| | `Fast`(기본) | `Quality` |
+| | `Fast` (default) | `Quality` |
 |---|---|---|
-| 창 | 반경 5, 간격 2 (36 표본) | 반경 5, 간격 1 (121 표본) |
-| 최저 스케일 | 광도 6 + 기하 2×2 | 광도 7 + 기하 2×6 |
-| 위 스케일 | 세부 복원 3(상향 가설에서 시작) + 기하 2×2 | 세부 복원 6(무작위 시작) + 기하 2×6 |
+| Window | radius 5, step 2 (36 samples) | radius 5, step 1 (121 samples) |
+| Coarsest scale | photometric 6 + geometric 2×2 | photometric 7 + geometric 2×6 |
+| Higher scales | detail restoration 3 (starting from upsampled hypothesis) + geometric 2×2 | detail restoration 6 (random start) + geometric 2×6 |
 
-## 결정성
+## Determinism
 
-픽셀 난수는 (시드, 영상 이름 해시, 스케일, 실행, 반복, 반쪽 단계, 픽셀) 로 정해지는 카운터 기반 수열이라 스레드 배치와
-무관하다. 기하 실행은 스냅숏 이중 버퍼라 뷰 처리 순서와 무관하다. 일치 융합·점수 융합도 결정적이다(확장 융합은 병렬일 때 아님).
+Per-pixel random numbers come from a counter-based sequence determined by (seed, image name hash, scale, run, iteration, half-step, pixel), so they are independent
+of thread scheduling. Geometric runs use a double-buffered snapshot, so they are independent of view processing order. Consistency fusion and score fusion are also deterministic (traversal fusion is not when run in parallel).
 
-## 시험
+## Tests
 
-- `cargo test -p cumulus3d-dense`: 수치 기준값, 이웃 선택, 상대 기하, 상향 표본·중앙값 필터, 합성 장면 참 깊이맵 융합,
-  2차 융합, 후처리, 왜곡 보정.
-- GPU 정확도는 `cumulus3d-cuda` 의 `tests/patchmatch_gpu.rs`(합성 장면 참값과 비교).
+- `cargo test -p cumulus3d-dense`: numerical reference values, neighbor selection, relative geometry, upsampling and median filtering, fusion of synthetic-scene ground-truth depth maps,
+  second-pass fusion, post-processing, undistortion.
+- GPU accuracy: `tests/patchmatch_gpu.rs` in `cumulus3d-cuda` (compared against synthetic-scene ground truth).
 
-## 참고문헌
+## References
 
 - M. Bleyer, C. Rhemann, C. Rother. PatchMatch Stereo – Stereo Matching with Slanted Support Windows. BMVC 2011.
 - S. Galliani, K. Lasinger, K. Schindler. Massively Parallel Multiview Stereopsis by Surface Normal Diffusion. ICCV 2015.
@@ -275,6 +279,6 @@ fn run(backend: &dyn PatchMatchBackend) -> cumulus3d_core::Result<()> {
 - Q. Xu, W. Tao. Multi-Scale Geometric Consistency Guided Multi-View Stereo. CVPR 2019.
 - J. Kopf, M. F. Cohen, D. Lischinski, M. Uyttendaele. Joint Bilateral Upsampling. SIGGRAPH 2007.
 
-## 라이선스
+## License
 
-MIT 또는 Apache-2.0.
+MIT or Apache-2.0.

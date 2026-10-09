@@ -3,6 +3,7 @@ name = "cumulus3d-sfm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "Global and incremental structure-from-motion: rotation averaging, positioning, registration, triangulation"
 repository.workspace = true
 keywords = ["sfm","multi-view","photogrammetry","computer-vision"]

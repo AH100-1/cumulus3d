@@ -3,6 +3,7 @@ name = "cumulus3d-cuda"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "CUDA backends (multi-view stereo, descriptor matching, SIFT scale space) for cumulus3d via NVRTC"
 repository.workspace = true
 keywords = ["cuda","gpu","mvs","sift","computer-vision"]

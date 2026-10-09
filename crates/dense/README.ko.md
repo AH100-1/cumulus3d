@@ -279,4 +279,4 @@ fn run(backend: &dyn PatchMatchBackend) -> cumulus3d_core::Result<()> {
 
 ## 라이선스
 
-MIT 또는 Apache-2.0.
+Apache-2.0(`LICENSE`, `NOTICE`).

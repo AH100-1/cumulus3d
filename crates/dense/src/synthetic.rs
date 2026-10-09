@@ -1,3 +1,30 @@
+/*
+ * synthetic.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 시험용 합성 장면: 레이 캐스팅으로 그린 무늬 바닥(z = 0) + 상자들, 격자 배치 카메라, 참 깊이·법선, 희소점.
 //! 정확도 시험(이 크레이트와 GPU 백엔드)이 함께 쓴다.
 

@@ -8,6 +8,11 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## [0.4.0] — planned (in progress)
+### Changed
+- License: Apache-2.0 only (was MIT OR Apache-2.0). Copyright holder ParkSangWoo; `LICENSE`, `NOTICE` (root and every crate),
+  `authors` in Cargo metadata, and a license header in every source file (`SPDX-License-Identifier: Apache-2.0`; files whose algorithms
+  follow other projects point to `THIRD_PARTY_NOTICES.md`). CI checks that every source file carries the header.
+
 ### Added
 - Live composition layer `compose` (declare the current input state, the retained node reconciles it): `CompositionHost`,
   `ReconNode::declare()…build(&host)`, `compose(FrameState)`, `reconstruct(&host, id, state)`, `close()`. Frame identity

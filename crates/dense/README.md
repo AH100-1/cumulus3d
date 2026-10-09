@@ -281,4 +281,4 @@ of thread scheduling. Geometric runs use a double-buffered snapshot, so they are
 
 ## License
 
-MIT or Apache-2.0.
+Apache-2.0 (`LICENSE`, `NOTICE`).

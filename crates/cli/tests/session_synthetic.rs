@@ -1,3 +1,30 @@
+/*
+ * session_synthetic.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 상태 값 리듀서(`Session`, `step`/`poll`/`command`/`finish`)를 합성 장면(드론 3대 × 8위치)으로 시험한다.
 //! 조밀화는 끈다(장치 없이 돌도록). 이벤트 순서·개수, 되감기(ResetFrom), 구역 무효화, 즉시 수신기, Pipeline 연결.
 

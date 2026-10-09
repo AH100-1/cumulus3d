@@ -1,3 +1,30 @@
+/*
+ * ba_bench.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 규모 벤치마크: 80 위치 × 3 대 = 240 장, 3D 점 20만, OPENCV, 잡음 0.5 px, 초기 섭동.
 //! 실행: cargo run --release -p cumulus3d-ba --example ba_bench [-- 위치수 점수 풀이기(auto|dense|sparse|iterative)]
 

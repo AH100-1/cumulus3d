@@ -3,6 +3,7 @@ name = "cumulus3d-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "cumulus3d command-line tool: progressive drone-image 3D reconstruction in one process"
 repository.workspace = true
 keywords = ["sfm","photogrammetry","drone","point-cloud","cli"]

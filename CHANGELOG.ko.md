@@ -8,6 +8,11 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## [0.4.0] — 계획(작업 중)
+### 변경
+- 라이선스: Apache-2.0 단독(이전 MIT OR Apache-2.0). 저작권자 ParkSangWoo. `LICENSE`, `NOTICE`(루트와 모든 크레이트),
+  Cargo `authors`, 모든 소스 파일 머리 주석(`SPDX-License-Identifier: Apache-2.0`, 다른 프로젝트를 따른 파일은 `THIRD_PARTY_NOTICES.md` 안내).
+  CI 가 모든 소스 파일의 머리 주석을 검사.
+
 ### 추가
 - 실시간 합성 층 `compose`(지금의 입력 상태를 선언하면 유지되는 노드가 조정): `CompositionHost`,
   `ReconNode::declare()…build(&host)`, `compose(FrameState)`, `reconstruct(&host, id, state)`, `close()`. 프레임 식별자

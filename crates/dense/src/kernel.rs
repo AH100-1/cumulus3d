@@ -1,3 +1,34 @@
+/*
+ * kernel.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Third-party notices: parts of the algorithms, default parameters and data
+ * formats in this file follow other open-source projects. Their copyright
+ * notices and licenses are reproduced in THIRD_PARTY_NOTICES.md.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! PatchMatch 커널 경계. 한 스케일의 전파·뷰 선택·정제(적·흑 반복 실행), 단일 가설 비용 평가, 최종 판독을
 //! 백엔드가 맡고, 다중 스케일 진행·상향 표본·세부 복원 판정·필터 문턱·융합은 이 크레이트가 맡는다.
 //!

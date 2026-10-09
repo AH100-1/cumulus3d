@@ -1,3 +1,30 @@
+/*
+ * reanchor.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 재고정(reanchor): 새 정밀 모델이 나올 때마다 이전 구역들을 최신 좌표계로 다시 잇는 연쇄 Sim3.
 //!
 //! 구역 k 의 정밀 모델이 도착하면, 직전 최신 좌표계 → 새 좌표계 Sim3 `T_k` 를(공유 3D 점 정렬로) 구하고

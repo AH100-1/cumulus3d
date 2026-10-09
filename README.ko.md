@@ -241,4 +241,4 @@ let (_session, summary) = p.finish(); // 남은 정밀 작업을 기다리고 �
 
 ## 라이선스
 
-MIT 또는 Apache-2.0 중 선택(`LICENSE-MIT`, `LICENSE-APACHE`).
+Copyright (c) 2026 ParkSangWoo. Apache License 2.0(`LICENSE`, `NOTICE`). 제3자 고지: `THIRD_PARTY_NOTICES.md`.

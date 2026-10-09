@@ -1,3 +1,34 @@
+/*
+ * reconstruction.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Third-party notices: parts of the algorithms, default parameters and data
+ * formats in this file follow other open-source projects. Their copyright
+ * notices and licenses are reproduced in THIRD_PARTY_NOTICES.md.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 희소 재구성 자료 구조.
 //!
 //! 사본 비용: 영상과 3D 점은 `Arc` 로 보관하고 수정 시 `Arc::make_mut`(copy-on-write)로 복제한다.

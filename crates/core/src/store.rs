@@ -1,3 +1,34 @@
+/*
+ * store.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Third-party notices: parts of the algorithms, default parameters and data
+ * formats in this file follow other open-source projects. Their copyright
+ * notices and licenses are reproduced in THIRD_PARTY_NOTICES.md.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 메모리 특징 저장소(영상·카메라·키포인트·기술자·매칭·두 뷰 기하). 이진 파일로 저장·적재 가능.
 //!
 //! 스레드 안전(RwLock). 큰 자료(키포인트·기술자·매칭·기하)는 `Arc` 로 공유해 조회 시 복사가 없다.

@@ -1,3 +1,34 @@
+/*
+ * patchmatch.cu
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Third-party notices: parts of the algorithms, default parameters and data
+ * formats in this file follow other open-source projects. Their copyright
+ * notices and licenses are reproduced in THIRD_PARTY_NOTICES.md.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // 다중 가설 뷰 선택 PatchMatch 커널(적·흑 반쪽 단계, 단일 가설 평가, 최종 판독).
 // 규칙은 cumulus3d-dense 의 kernel 모듈 문서와 같다. 컴파일 상수:
 //   WR (창 반경), WSTEP (표본 간격), HW_INTERP (1 = 텍스처 하드웨어 쌍선형, 0 = 소프트웨어 쌍선형)

@@ -1,3 +1,30 @@
+/*
+ * mod.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! 기존 `cumulus3d stream` 출력 폴더(timeline.txt + work/models + 구역 점군)에서 이벤트 열을 다시 만든다.
 //! timeline 한 줄 = 이벤트 하나(시각 = 그 줄의 epoch 초.나노). 문구가 없는 이벤트(`FrameIngested`, `ZoneAdjusted`)는
 //! 입력 배치·저장된 모델로 채운다.

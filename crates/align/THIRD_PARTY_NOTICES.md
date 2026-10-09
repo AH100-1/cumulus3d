@@ -3,7 +3,7 @@
 cumulus3d is written in Rust from scratch and does not contain source files copied from other projects.
 Parts of its algorithms, default parameters and data formats follow the open-source projects listed below.
 Their copyright notices and license terms are reproduced here as required by those licenses.
-cumulus3d itself is licensed under MIT OR Apache-2.0 (see `LICENSE-MIT`, `LICENSE-APACHE`).
+cumulus3d itself is licensed under Apache-2.0 (see `LICENSE` and `NOTICE`).
 
 | Project | License | Where it is followed in cumulus3d |
 |---|---|---|

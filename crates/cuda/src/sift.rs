@@ -1,3 +1,34 @@
+/*
+ * sift.rs
+ *
+ * Copyright (c) 2026 ParkSangWoo
+ *
+ * Author(s):
+ *
+ *      ParkSangWoo <dev.parksangwoo@gmail.com>
+ *
+ *
+ * This file is part of cumulus3d.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Third-party notices: parts of the algorithms, default parameters and data
+ * formats in this file follow other open-source projects. Their copyright
+ * notices and licenses are reproduced in THIRD_PARTY_NOTICES.md.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 //! `SiftEngine` 의 CUDA 구현(혼합형): 가우시안 스케일 공간(정규화·2배 업샘플·분리형 블러·축소)을 GPU 에서
 //! CPU 와 비트 단위로 같게 만들고, 옥타브를 필요할 때만(거친 쪽부터) 내려받아 DoG·검출·방향·기술자는
 //! cumulus3d-features 의 CPU 함수로 계산한다. 따라서 결과는 `CpuSift` 와 같다.

@@ -40,6 +40,10 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: License headers
+        run: |
+          missing=$(find crates \( -name '*.rs' -o -name '*.cu' \) -not -path '*/target/*' -print0 | xargs -0 grep -L 'SPDX-License-Identifier: Apache-2.0' || true)
+          if [ -n "$missing" ]; then echo "missing license header:"; echo "$missing"; exit 1; fi
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Docs

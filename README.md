@@ -245,4 +245,4 @@ Their copyright notices and license terms are in [THIRD_PARTY_NOTICES.md](THIRD_
 
 ## License
 
-Licensed under either of MIT or Apache-2.0, at your option (`LICENSE-MIT`, `LICENSE-APACHE`).
+Copyright (c) 2026 ParkSangWoo. Licensed under the Apache License, Version 2.0 (`LICENSE`, `NOTICE`). Third-party notices: `THIRD_PARTY_NOTICES.md`.

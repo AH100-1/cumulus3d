@@ -1,6 +1,6 @@
 //! WGS84 측지 변환. 각도 입력·출력은 도(degree).
 
-use skyrecon_core::{Mat3, Vec3};
+use cumulus3d_core::{Mat3, Vec3};
 
 /// 장반경 a (m).
 pub const WGS84_A: f64 = 6378137.0;
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn ecef_lla_roundtrip() {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(7));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(7));
         for _ in 0..1000 {
             let lat = rng.random_range(-89.9..89.9);
             let lon = rng.random_range(-180.0..180.0);

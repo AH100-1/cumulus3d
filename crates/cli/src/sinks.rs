@@ -1,4 +1,4 @@
-//! 기본 출력 훅: 이벤트를 받아 `skyrecon stream` 의 파일 출력을 만든다.
+//! 기본 출력 훅: 이벤트를 받아 `cumulus3d stream` 의 파일 출력을 만든다.
 //!
 //! | 훅 | 받는 이벤트 | 출력 |
 //! |---|---|---|
@@ -32,9 +32,9 @@ use crate::events::{Event, EventKind, ZoneRange};
 use crate::pipeline::{Pipeline, Reducer};
 use crate::post::{self, PostZones, ZoneCloud, ZoneTimes};
 use crate::util::Logger;
-use skyrecon_core::interop::{write_model_binary, ImageOrder};
-use skyrecon_core::io::{write_ply, PlyLayout, PointCloud};
-use skyrecon_core::Reconstruction;
+use cumulus3d_core::interop::{write_model_binary, ImageOrder};
+use cumulus3d_core::io::{write_ply, PlyLayout, PointCloud};
+use cumulus3d_core::Reconstruction;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::Write;

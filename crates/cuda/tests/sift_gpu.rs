@@ -1,7 +1,7 @@
 //! CUDA SIFT 가 CPU SIFT 와 같은 결과(특징·기술자 비트 단위)를 내는지. 장치가 없으면 건너뛴다.
 
-use skyrecon_cuda::{is_available, CudaSift};
-use skyrecon_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftOptions};
+use cumulus3d_cuda::{is_available, CudaSift};
+use cumulus3d_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftOptions};
 
 /// 여러 크기의 얼룩 무늬(결정적).
 fn image(w: usize, h: usize, seed: u64) -> GrayImage {

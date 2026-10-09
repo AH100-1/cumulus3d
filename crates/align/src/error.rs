@@ -5,7 +5,7 @@
 pub enum AlignError {
     /// core 크레이트 오류(입출력·자료 구조).
     #[error("core 오류: {0}")]
-    Core(#[from] skyrecon_core::Error),
+    Core(#[from] cumulus3d_core::Error),
     /// 인라이어 임계가 양수가 아님.
     #[error("alignment_max_error 는 양수여야 함: {0}")]
     BadMaxError(f64),

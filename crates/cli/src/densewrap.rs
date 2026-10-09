@@ -1,8 +1,8 @@
 //! 조밀화 공용 경로: 구역 밖 영상 제외 → 왜곡 보정 → 장면 변환 → densify.
 //! 스트림과 `densify` 하위 명령이 함께 쓴다.
 
-use skyrecon_core::{ImageId, Reconstruction};
-use skyrecon_dense::{
+use cumulus3d_core::{ImageId, Reconstruction};
+use cumulus3d_dense::{
     undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions, UndistortCache,
     UndistortOptions,
 };
@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 /// PatchMatch 백엔드 선택. 지금은 `cuda` 만 있다. 장치가 없으면 오류 문자열.
 pub fn make_pm_backend(name: &str) -> Result<Arc<dyn PatchMatchBackend>, String> {
     match name {
-        "cuda" => skyrecon_cuda::CudaPatchMatch::try_default()
+        "cuda" => cumulus3d_cuda::CudaPatchMatch::try_default()
             .map(|b| Arc::new(b) as Arc<dyn PatchMatchBackend>)
             .map_err(|e| format!("--pm-backend cuda: {e} (조밀화에는 CUDA 장치가 필요)")),
         other => Err(format!("알 수 없는 --pm-backend {other} (cuda)")),
@@ -27,22 +27,22 @@ pub fn parse_profile(s: &str) -> Result<MvsProfile, String> {
 }
 
 /// SIFT 백엔드 선택(cpu|cuda).
-pub fn make_sift_backend(name: &str) -> Result<Arc<dyn skyrecon_features::SiftEngine>, String> {
+pub fn make_sift_backend(name: &str) -> Result<Arc<dyn cumulus3d_features::SiftEngine>, String> {
     match name {
-        "cpu" => Ok(Arc::new(skyrecon_features::CpuSift::default())),
-        "cuda" => skyrecon_cuda::CudaSift::try_default()
-            .map(|b| Arc::new(b) as Arc<dyn skyrecon_features::SiftEngine>)
+        "cpu" => Ok(Arc::new(cumulus3d_features::CpuSift::default())),
+        "cuda" => cumulus3d_cuda::CudaSift::try_default()
+            .map(|b| Arc::new(b) as Arc<dyn cumulus3d_features::SiftEngine>)
             .map_err(|e| format!("--sift-backend cuda: {e}")),
         other => Err(format!("알 수 없는 --sift-backend {other} (cpu|cuda)")),
     }
 }
 
 /// 기술자 매칭 백엔드 선택(cpu|cuda).
-pub fn make_match_backend(name: &str) -> Result<Box<dyn skyrecon_matching::MatcherBackend>, String> {
+pub fn make_match_backend(name: &str) -> Result<Box<dyn cumulus3d_matching::MatcherBackend>, String> {
     match name {
-        "cpu" => Ok(Box::new(skyrecon_matching::CpuMatcher::default())),
-        "cuda" => skyrecon_cuda::CudaMatcher::try_default()
-            .map(|b| Box::new(b) as Box<dyn skyrecon_matching::MatcherBackend>)
+        "cpu" => Ok(Box::new(cumulus3d_matching::CpuMatcher::default())),
+        "cuda" => cumulus3d_cuda::CudaMatcher::try_default()
+            .map(|b| Box::new(b) as Box<dyn cumulus3d_matching::MatcherBackend>)
             .map_err(|e| format!("--match-backend cuda: {e}")),
         other => Err(format!("알 수 없는 --match-backend {other} (cpu|cuda)")),
     }
@@ -58,7 +58,7 @@ pub struct DenseConfig {
     /// 조밀화(PatchMatch·필터·융합) 옵션.
     pub densify: DensifyOptions,
     /// 점수 융합 설정(있으면 `densify.fusion.mode` 대신 점수 융합).
-    pub score: Option<skyrecon_dense::fusion_score::ScoreFusionOptions>,
+    pub score: Option<cumulus3d_dense::fusion_score::ScoreFusionOptions>,
     /// 백엔드(만들지 못했으면 그 오류; 조밀화 단계에서 보고).
     pub backend: Result<Arc<dyn PatchMatchBackend>, String>,
     /// `--serialize-dense`: 백엔드 호출을 한 번에 하나로.
@@ -126,7 +126,7 @@ pub fn dense_model(model: &Reconstruction, keep: impl Fn(&str) -> bool, image_ro
     let guard = cfg.lock.as_ref().map(|l| l.lock().unwrap_or_else(|p| p.into_inner()));
     let lock_wait = tw.elapsed();
     let t1 = Instant::now();
-    let output = skyrecon_dense::densify::densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), cfg.depth_cache.as_deref()).map_err(|e| format!("조밀화 실패: {e}"));
+    let output = cumulus3d_dense::densify::densify_with(&scene, &cfg.densify, cfg.score.as_ref(), backend.as_ref(), cfg.depth_cache.as_deref()).map_err(|e| format!("조밀화 실패: {e}"));
     drop(guard);
     let output = output?;
     Ok(DenseRun { frames, scene, output, undistort_time, densify_time: t1.elapsed(), lock_wait })

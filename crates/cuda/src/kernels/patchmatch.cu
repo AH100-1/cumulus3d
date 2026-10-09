@@ -1,5 +1,5 @@
 // 다중 가설 뷰 선택 PatchMatch 커널(적·흑 반쪽 단계, 단일 가설 평가, 최종 판독).
-// 규칙은 skyrecon-dense 의 kernel 모듈 문서와 같다. 컴파일 상수:
+// 규칙은 cumulus3d-dense 의 kernel 모듈 문서와 같다. 컴파일 상수:
 //   WR (창 반경), WSTEP (표본 간격), HW_INTERP (1 = 텍스처 하드웨어 쌍선형, 0 = 소프트웨어 쌍선형)
 
 typedef unsigned long long u64;

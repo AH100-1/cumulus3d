@@ -1,16 +1,16 @@
 [package]
-name = "skyrecon-features"
+name = "cumulus3d-features"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Image loading, EXIF-based camera initialisation and SIFT keypoints/descriptors for skyrecon"
+description = "Image loading, EXIF-based camera initialisation and SIFT keypoints/descriptors for cumulus3d"
 repository.workspace = true
 keywords = ["computer-vision","sift","features","photogrammetry"]
 categories = ["computer-vision"]
 readme = "README.md"
 
 [dependencies]
-skyrecon-core.workspace = true
+cumulus3d-core.workspace = true
 nalgebra.workspace = true
 rayon.workspace = true
 thiserror.workspace = true

@@ -13,21 +13,21 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.3.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/AH100-1/skyrecon"
+repository = "https://github.com/AH100-1/cumulus3d"
 rust-version = "1.87"
 
 [workspace.dependencies]
-skyrecon-core = { path = "crates/core", version = "0.1.0" }
-skyrecon-features = { path = "crates/features", version = "0.1.0" }
-skyrecon-matching = { path = "crates/matching", version = "0.1.0" }
-skyrecon-ba = { path = "crates/ba", version = "0.1.0" }
-skyrecon-sfm = { path = "crates/sfm", version = "0.1.0" }
-skyrecon-align = { path = "crates/align", version = "0.1.0" }
-skyrecon-dense = { path = "crates/dense", version = "0.1.0" }
-skyrecon-cuda = { path = "crates/cuda", version = "0.1.0" }
+cumulus3d-core = { path = "crates/core", version = "0.3.1" }
+cumulus3d-features = { path = "crates/features", version = "0.3.1" }
+cumulus3d-matching = { path = "crates/matching", version = "0.3.1" }
+cumulus3d-ba = { path = "crates/ba", version = "0.3.1" }
+cumulus3d-sfm = { path = "crates/sfm", version = "0.3.1" }
+cumulus3d-align = { path = "crates/align", version = "0.3.1" }
+cumulus3d-dense = { path = "crates/dense", version = "0.3.1" }
+cumulus3d-cuda = { path = "crates/cuda", version = "0.3.1" }
 cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-12040"] }
 nalgebra = "0.35"
 rayon = "1"

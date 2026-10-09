@@ -3,7 +3,7 @@
 use crate::linalg::{mat3_from_row_major, null_space_9, null_vector3, singular_values_9, svd3};
 use crate::poly::{poly_add, poly_mul, roots_companion};
 use nalgebra::SMatrix;
-use skyrecon_core::{Mat3, Vec3};
+use cumulus3d_core::{Mat3, Vec3};
 
 /// 에피폴라 제약 행 bᵀ M a = 0 (행 우선 9-벡터).
 #[inline]

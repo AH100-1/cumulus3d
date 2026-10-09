@@ -7,7 +7,7 @@
 use nalgebra::{DMatrix, DVector};
 use rand::{RngExt, SeedableRng};
 use rayon::prelude::*;
-use skyrecon_core::{Error, ImageId, Mat3, Point3DId, Reconstruction, Result, Rigid3, Vec3};
+use cumulus3d_core::{Error, ImageId, Mat3, Point3DId, Reconstruction, Result, Rigid3, Vec3};
 use std::collections::BTreeMap;
 
 /// 위치 추정 옵션.
@@ -412,7 +412,7 @@ fn solve(prob: &mut Problem, opts: &PositionSolverOptions) -> PositioningSummary
 mod tests {
     use super::*;
     use crate::math::umeyama;
-    use skyrecon_core::{Camera, CameraModelKind, Image, Point3D, TrackEntry, Vec2};
+    use cumulus3d_core::{Camera, CameraModelKind, Image, Point3D, TrackEntry, Vec2};
 
     /// 참 회전 + 참 트랙으로 무작위 초기화 → 상사 정렬 후 중심 오차.
     fn run(noise_px: f64, seed: u64) -> (f64, f64, Reconstruction) {

@@ -27,15 +27,15 @@
 use crate::densewrap::{dense_model, DenseConfig};
 use crate::events::{Command, Event, Meta, ZoneRange};
 use crate::util::StageTimes;
-use skyrecon_align::{align_to_gps, EnuOrigin, ModelAlignerOptions};
-use skyrecon_ba::{bundle_adjust, BaConfig};
-use skyrecon_core::analyzer::ModelStats;
-use skyrecon_core::io::ply::PointCloud;
-use skyrecon_core::io::GpsRecord;
-use skyrecon_core::{CameraId, FeatureStore, ImageId, MatchGraph, MatchGraphOptions, Reconstruction};
-use skyrecon_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
-use skyrecon_matching::{match_pairs, MatcherBackend, PairMatchingOptions};
-use skyrecon_sfm::{
+use cumulus3d_align::{align_to_gps, EnuOrigin, ModelAlignerOptions};
+use cumulus3d_ba::{bundle_adjust, BaConfig};
+use cumulus3d_core::analyzer::ModelStats;
+use cumulus3d_core::io::ply::PointCloud;
+use cumulus3d_core::io::GpsRecord;
+use cumulus3d_core::{CameraId, FeatureStore, ImageId, MatchGraph, MatchGraphOptions, Reconstruction};
+use cumulus3d_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
+use cumulus3d_matching::{match_pairs, MatcherBackend, PairMatchingOptions};
+use cumulus3d_sfm::{
     global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions,
     TriangulationScope,
 };
@@ -117,8 +117,8 @@ impl SessionConfig {
             fixed_enu_origin: false,
             seed: None,
             extraction,
-            sift: Arc::new(skyrecon_features::CpuSift::default()),
-            matcher: Arc::new(skyrecon_matching::CpuMatcher::default()),
+            sift: Arc::new(cumulus3d_features::CpuSift::default()),
+            matcher: Arc::new(cumulus3d_matching::CpuMatcher::default()),
             dense: None,
             history: 8,
         }

@@ -4,7 +4,7 @@ use crate::descriptor::{MatcherBackend, DescriptorMatchOptions};
 use crate::pairs::{read_pair_list, PairList};
 use crate::two_view::{derive_seed, estimate_two_view, finalize_geometry, TwoViewOptions};
 use rayon::prelude::*;
-use skyrecon_core::{pair_id_of, Error, FeatureMatch, FeatureStore, ImageId, Result, TwoViewGeometry};
+use cumulus3d_core::{pair_id_of, Error, FeatureMatch, FeatureStore, ImageId, Result, TwoViewGeometry};
 use std::collections::HashSet;
 use std::path::Path;
 

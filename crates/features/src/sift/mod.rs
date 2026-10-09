@@ -10,7 +10,7 @@ pub use orient::DescriptorNormalization;
 use orient::{Gradient, OrientParams};
 use pyramid::{BufferPool, ScaleSpace};
 use rayon::prelude::*;
-use skyrecon_core::{Descriptors, Error, Keypoint, Result};
+use cumulus3d_core::{Descriptors, Error, Keypoint, Result};
 
 /// 최대 특징 수 제한 방식.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]

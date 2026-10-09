@@ -1,7 +1,7 @@
 //! 작은 선형대수 도우미(영공간, 3×3 SVD, 하틀리 정규화).
 
 use nalgebra::{DMatrix, SMatrix};
-use skyrecon_core::{Mat3, Vec2, Vec3};
+use cumulus3d_core::{Mat3, Vec2, Vec3};
 
 /// 행 우선 N×9 제약 행렬의 영공간 기저(가장 작은 특이값 순서대로 `k` 개).
 ///
@@ -68,7 +68,7 @@ pub fn mat3_from_row_major(e: &[f64; 9]) -> Mat3 {
     Mat3::new(e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8])
 }
 
-pub use skyrecon_core::linalg::svd3;
+pub use cumulus3d_core::linalg::svd3;
 
 /// 3×3 의 (근사) 영벡터: 행 쌍 외적 중 가장 큰 것.
 pub fn null_vector3(m: &Mat3) -> Vec3 {

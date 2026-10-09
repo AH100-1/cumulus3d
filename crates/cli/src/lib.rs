@@ -1,24 +1,24 @@
-//! skyrecon 실행 파일의 라이브러리 부분: 점진 스트림 파이프라인과 단계별 호환 하위 명령([`interop`]).
+//! cumulus3d 실행 파일의 라이브러리 부분: 점진 스트림 파이프라인과 단계별 호환 하위 명령([`interop`]).
 //!
 //! - [`session`]: 상태 값 [`session::Session`] 과 리듀서 함수 [`session::step`] / [`session::poll`] /
 //!   [`session::command`] / [`session::finish`].
 //! - [`pipeline`]: 리듀서를 감싸 훅·큐 정책·패닉 격리·구독 채널을 제공하는 [`pipeline::Pipeline`].
 //! - [`events`]: 단계별 결과 [`events::Event`] 와 명령 [`events::Command`].
-//! - [`sinks`]: `skyrecon stream` 의 파일 출력(timeline.txt, run.log, PLY, 스냅샷)을 만드는 기본 훅.
+//! - [`sinks`]: `cumulus3d stream` 의 파일 출력(timeline.txt, run.log, PLY, 스냅샷)을 만드는 기본 훅.
 //! - [`stream`]: 입력 폴더 → 세션 → 파이프라인 조립([`stream::run_stream`]).
 //!
 //! # 사용 예
 //!
 //! 영상 폴더(`images/camF|camR|camL/*.jpg`, `gps_ref.txt`)를 위치 단위로 넣어 점진 재구성하고,
-//! 기본 출력 훅으로 `skyrecon stream` 과 같은 파일을 만든다.
+//! 기본 출력 훅으로 `cumulus3d stream` 과 같은 파일을 만든다.
 //!
 //! ```no_run
-//! use skyrecon_cli::events::{Event, EventKind};
-//! use skyrecon_cli::pipeline::Pipeline;
-//! use skyrecon_cli::session::{Input, Session, SessionConfig};
-//! use skyrecon_cli::sinks::{self, SinkOptions};
-//! use skyrecon_cli::stream::{frame_set, Layout};
-//! use skyrecon_core::io::read_gps_file;
+//! use cumulus3d_cli::events::{Event, EventKind};
+//! use cumulus3d_cli::pipeline::Pipeline;
+//! use cumulus3d_cli::session::{Input, Session, SessionConfig};
+//! use cumulus3d_cli::sinks::{self, SinkOptions};
+//! use cumulus3d_cli::stream::{frame_set, Layout};
+//! use cumulus3d_core::io::read_gps_file;
 //! use std::path::Path;
 //!
 //! fn main() -> Result<(), String> {
@@ -46,7 +46,7 @@
 //! 훅 없이 상태 값만 주고받는 함수형 사용:
 //!
 //! ```no_run
-//! use skyrecon_cli::session::{finish, step, FrameSet, Session, SessionConfig};
+//! use cumulus3d_cli::session::{finish, step, FrameSet, Session, SessionConfig};
 //!
 //! let s0 = Session::new(SessionConfig::new("data/images"));
 //! let frames = FrameSet::new([("camF", "camF/camF_0000.jpg"), ("camR", "camR/camR_0000.jpg")]);

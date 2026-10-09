@@ -1,4 +1,4 @@
-// SIFT 가우시안 스케일 공간. skyrecon-features 의 CPU 피라미드와 같은 식·같은 연산 순서.
+// SIFT 가우시안 스케일 공간. cumulus3d-features 의 CPU 피라미드와 같은 식·같은 연산 순서.
 // 곱셈-덧셈 융합을 끈 채(--fmad=false) 컴파일해 CPU 결과와 비트 단위로 맞춘다.
 
 typedef unsigned char u8;

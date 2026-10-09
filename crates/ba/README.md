@@ -1,10 +1,10 @@
-# skyrecon-ba
+# cumulus3d-ba
 
 번들 조정(BA)과 단일 자세 정제. 신뢰 영역 Levenberg–Marquardt 위에 점 Schur 소거와 밀집/희소 촐레스키·PCG
 축소 계통 풀이기를 얹었다. 결과는 스레드 수와 무관하게 결정적이다.
 
-**파이프라인 단계**: SfM(`skyrecon-sfm`)이 영상 등록 직후 절대 자세 정제(`refine_abs_pose`)와
-구역 정밀본의 국소·전역 번들 조정(`bundle_adjust`)에 쓴다. 단독 명령 `skyrecon bundle_adjuster` 도 이 함수를 부른다.
+**파이프라인 단계**: SfM(`cumulus3d-sfm`)이 영상 등록 직후 절대 자세 정제(`refine_abs_pose`)와
+구역 정밀본의 국소·전역 번들 조정(`bundle_adjust`)에 쓴다. 단독 명령 `cumulus3d bundle_adjuster` 도 이 함수를 부른다.
 
 ## 주요 진입점
 
@@ -21,7 +21,7 @@
 
 ## 공개 항목
 
-모든 항목은 크레이트 루트(`skyrecon_ba::`)에 있다(하위 모듈은 비공개).
+모든 항목은 크레이트 루트(`cumulus3d_ba::`)에 있다(하위 모듈은 비공개).
 
 | 항목 | 종류 | 역할 |
 |---|---|---|
@@ -63,8 +63,8 @@
 합성 대응으로 절대 자세를 정제한다(크레이트 문서의 doc-test 와 같은 코드).
 
 ```rust
-use skyrecon_ba::{refine_abs_pose, Loss};
-use skyrecon_core::{Camera, CameraModelKind, Quat, Rigid3, Vec2, Vec3};
+use cumulus3d_ba::{refine_abs_pose, Loss};
+use cumulus3d_core::{Camera, CameraModelKind, Quat, Rigid3, Vec2, Vec3};
 
 // 합성 장면: 참 자세로 3D 점을 투영해 2D 관측을 만든다.
 let cam = Camera::from_focal(CameraModelKind::Pinhole, 1000.0, 1920, 1080);
@@ -88,8 +88,8 @@ assert!((pose.translation - truth.translation).norm() < 1e-6);
 재구성 전체 번들 조정:
 
 ```rust,no_run
-use skyrecon_ba::{bundle_adjust, BaConfig};
-let mut rec = skyrecon_core::interop::read_model("model/0").unwrap();
+use cumulus3d_ba::{bundle_adjust, BaConfig};
+let mut rec = cumulus3d_core::interop::read_model("model/0").unwrap();
 let summary = bundle_adjust(&mut rec, &BaConfig::default()).unwrap();
 println!("RMS {:.3} px, 반복 {}", summary.rms_reprojection_error(), summary.num_iterations);
 ```
@@ -98,5 +98,5 @@ println!("RMS {:.3} px, 반복 {}", summary.rms_reprojection_error(), summary.nu
 
 - 기능 플래그 없음. CPU 전용(rayon 병렬, 희소 촐레스키는 faer).
 - 비자명 rig 는 프레임 자세를 변수로, rig_to_sensor 를 상수로 둔다(센서 상대 자세 정제는 하지 않음).
-- 성능 측정: `cargo run --release -p skyrecon-ba --example ba_bench [위치수 점수 풀이기]`
+- 성능 측정: `cargo run --release -p cumulus3d-ba --example ba_bench [위치수 점수 풀이기]`
   (240장·점 20만·관측 177만, 희소 풀이기에서 BA 1회 약 5.6 s, M 계열 10코어).

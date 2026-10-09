@@ -1,12 +1,12 @@
 //! 개발용: 모델에 BA 를 여러 설정으로 돌려 스케일·뒤쪽 관측 수를 본다.
-use skyrecon_ba::{bundle_adjust, BaConfig};
-use skyrecon_core::interop::read_model;
-use skyrecon_core::Reconstruction;
+use cumulus3d_ba::{bundle_adjust, BaConfig};
+use cumulus3d_core::interop::read_model;
+use cumulus3d_core::Reconstruction;
 
 fn stats(rec: &Reconstruction) -> (f64, usize, usize) {
     let ids = rec.registered_images();
     let cs: Vec<_> = ids.iter().filter_map(|i| rec.projection_center(*i)).collect();
-    let m = cs.iter().fold(skyrecon_core::Vec3::zeros(), |a, c| a + c) / cs.len() as f64;
+    let m = cs.iter().fold(cumulus3d_core::Vec3::zeros(), |a, c| a + c) / cs.len() as f64;
     let spread = (cs.iter().map(|c| (c - m).norm_squared()).sum::<f64>() / cs.len() as f64).sqrt();
     let mut behind = 0;
     let mut total = 0;

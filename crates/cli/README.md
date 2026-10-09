@@ -1,19 +1,19 @@
-# skyrecon-cli
+# cumulus3d-cli
 
-드론 편대 영상으로 3D 점군을 점진적으로 만드는 `skyrecon` 실행 파일과, 그 조립 부분을 담은 라이브러리(`skyrecon_cli`).
+드론 편대 영상으로 3D 점군을 점진적으로 만드는 `cumulus3d` 실행 파일과, 그 조립 부분을 담은 라이브러리(`cumulus3d_cli`).
 
 **파이프라인에서 맡는 단계**: 전체 조립. 다른 크레이트(특징 추출 → 매칭 → SfM → BA → GPS 정렬 → 조밀화)를
 한 프로세스 안에서 잇고, 영상이 위치 단위로 도착하는 동안 구역별 초벌(BA 없음)·정밀본(BA 있음)을 이벤트로 내보내는
 **점진 스트리밍**을 맡는다. 단계 사이 데이터는 메모리 자료 구조로 넘긴다(중간 데이터베이스·모델 폴더 없음).
 
-빌드: `cargo build --release -p skyrecon-cli` → `target/release/skyrecon`.
+빌드: `cargo build --release -p cumulus3d-cli` → `target/release/cumulus3d`.
 
 ## 실행 파일 사용법
 
-### `skyrecon stream`
+### `cumulus3d stream`
 
 ```text
-skyrecon stream --src <입력 폴더> --out <출력 폴더> [--span 12 --overlap 2 --stride 3] [옵션]
+cumulus3d stream --src <입력 폴더> --out <출력 폴더> [--span 12 --overlap 2 --stride 3] [옵션]
 ```
 
 입력 폴더: `images/camF|camR|camL/<cam>_NNNN.jpg`, `gps_ref.txt`(줄: `camF/camF_0000.jpg 위도 경도 고도`).
@@ -46,8 +46,8 @@ skyrecon stream --src <입력 폴더> --out <출력 폴더> [--span 12 --overlap
 훅별 출력 표는 `sinks` 모듈 문서에 있다.
 
 ```bash
-skyrecon stream --src <input-dir> --out <output-dir> --stride 1
-skyrecon stream --src <input-dir> --out <output-dir-quick> --stride 1 --max-positions 15 --dense-max-image-size 320
+cumulus3d stream --src <input-dir> --out <output-dir> --stride 1
+cumulus3d stream --src <input-dir> --out <output-dir-quick> --stride 1 --max-positions 15 --dense-max-image-size 320
 ```
 
 ### 단계별 하위 명령
@@ -55,22 +55,22 @@ skyrecon stream --src <input-dir> --out <output-dir-quick> --stride 1 --max-posi
 `feature_extractor`, `matches_importer`, `global_mapper`, `image_registrator`, `point_triangulator`, `bundle_adjuster`,
 `model_aligner`, `model_analyzer`, `model_converter`, `image_deleter`, `image_undistorter`, `densify`.
 기존 스크립트가 쓰던 명령 이름·옵션 문자열(`--database_path`, `--ImageReader.camera_model` 등)을 받는다.
-단계 사이 상태는 `--database_path`(skyrecon 특징 저장소 이진 파일, `SKYFS` 형식)와 모델 폴더(`skyrecon_core::interop` 형식)로 잇는다.
+단계 사이 상태는 `--database_path`(cumulus3d 특징 저장소 이진 파일, `C3DFS` 형식, 0.3.0 이전의 옛 표지 파일도 읽음)와 모델 폴더(`cumulus3d_core::interop` 형식)로 잇는다.
 불린 옵션은 `1/0/true/false` 를 받고, GPU 관련 옵션(`--FeatureExtraction.use_gpu` 등)은 받기만 하고 무시한다.
 
 ```bash
-skyrecon feature_extractor --database_path db.skyfs --image_path images --ImageReader.single_camera_per_folder 1 --ImageReader.camera_model OPENCV
-skyrecon matches_importer --database_path db.skyfs --match_list_path pairs.txt --match_type pairs
-skyrecon global_mapper --database_path db.skyfs --image_path images --output_path sg0   # 모델은 sg0/0
-skyrecon model_aligner --input_path in --output_path out --ref_images_path gps.txt --ref_is_gps 1 --alignment_type enu --alignment_max_error 3
-skyrecon model_converter --input_path model --output_path out --output_type BIN|TXT|PLY
-skyrecon image_undistorter --image_path images --input_path in --output_path dense --max_image_size 960
-skyrecon densify -i dense -o dense.ply [--mvs-profile fast|quality --number-views 10 --fusion-mode consistency|traversal|score --stats]
-skyrecon densify -i model --image_path images -o dense.ply      # 왜곡 보정까지 메모리에서
-skyrecon densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊이맵 한 번, 융합 설정 여러 개
+cumulus3d feature_extractor --database_path db.c3dfs --image_path images --ImageReader.single_camera_per_folder 1 --ImageReader.camera_model OPENCV
+cumulus3d matches_importer --database_path db.c3dfs --match_list_path pairs.txt --match_type pairs
+cumulus3d global_mapper --database_path db.c3dfs --image_path images --output_path sg0   # 모델은 sg0/0
+cumulus3d model_aligner --input_path in --output_path out --ref_images_path gps.txt --ref_is_gps 1 --alignment_type enu --alignment_max_error 3
+cumulus3d model_converter --input_path model --output_path out --output_type BIN|TXT|PLY
+cumulus3d image_undistorter --image_path images --input_path in --output_path dense --max_image_size 960
+cumulus3d densify -i dense -o dense.ply [--mvs-profile fast|quality --number-views 10 --fusion-mode consistency|traversal|score --stats]
+cumulus3d densify -i model --image_path images -o dense.ply      # 왜곡 보정까지 메모리에서
+cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊이맵 한 번, 융합 설정 여러 개
 ```
 
-`model_aligner` 는 `--ref_is_gps 1 --alignment_type enu` 만 지원한다. 특징 저장소는 SQLite 가 아니라 skyrecon 자체 이진 형식이다.
+`model_aligner` 는 `--ref_is_gps 1 --alignment_type enu` 만 지원한다. 특징 저장소는 SQLite 가 아니라 cumulus3d 자체 이진 형식이다.
 
 ## 주요 진입점
 
@@ -87,8 +87,8 @@ skyrecon densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊이
 | `Pipeline::push` / `finish` | 입력 넣기 / 끝내고 요약 받기 | `Input` → 낸 이벤트 수 / → `(R, Summary)` |
 | `Pipeline::subscribe` | 모든 이벤트를 받는 채널 | → `Receiver<Event>` |
 | `events::Event` | 단계별 결과(`ZonePreview`, `ZoneRefined`, `FrameRegistered` …) | — |
-| `sinks::attach` | `skyrecon stream` 과 같은 파일 출력 훅을 붙임 | `(Pipeline, 출력 폴더, &SinkOptions)` → `Pipeline` |
-| `stream::run_stream` | `skyrecon stream` 전체 실행 | `StreamConfig` → `Result<(), String>` |
+| `sinks::attach` | `cumulus3d stream` 과 같은 파일 출력 훅을 붙임 | `(Pipeline, 출력 폴더, &SinkOptions)` → `Pipeline` |
+| `stream::run_stream` | `cumulus3d stream` 전체 실행 | `StreamConfig` → `Result<(), String>` |
 | `stream::Layout::discover` / `stream::frame_set` | 입력 폴더 → 위치별 프레임 묶음 | `(폴더, stride)` → `Layout`; `(&Layout, 위치)` → `FrameSet` |
 | `densewrap::dense_model` | 모델 하나를 조밀화(영상 제외 → 왜곡 보정 → densify) | `(&Reconstruction, keep, 영상 폴더, &DenseConfig)` → `DenseRun` |
 | `interop::run` | 단계별 하위 명령 실행 | `InteropCmd` → `Result<(), String>` |
@@ -159,7 +159,7 @@ skyrecon densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊이
 | `default_sinks` | fn | 기본 훅을 종류별 목록으로 |
 | `attach` | fn | 파이프라인에 기본 훅을 `on_any` 하나로 붙임 |
 
-### `stream` — `skyrecon stream` 조립
+### `stream` — `cumulus3d stream` 조립
 
 | 항목 | 종류 | 역할 |
 |---|---|---|
@@ -225,15 +225,15 @@ skyrecon densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊이
 
 ## 사용 예
 
-영상 폴더를 위치 단위로 넣어 점진 재구성하고, `skyrecon stream` 과 같은 파일을 출력한다(실제 영상이 필요하다).
+영상 폴더를 위치 단위로 넣어 점진 재구성하고, `cumulus3d stream` 과 같은 파일을 출력한다(실제 영상이 필요하다).
 
 ```rust,no_run
-use skyrecon_cli::events::{Event, EventKind};
-use skyrecon_cli::pipeline::Pipeline;
-use skyrecon_cli::session::{Input, Session, SessionConfig};
-use skyrecon_cli::sinks::{self, SinkOptions};
-use skyrecon_cli::stream::{frame_set, Layout};
-use skyrecon_core::io::read_gps_file;
+use cumulus3d_cli::events::{Event, EventKind};
+use cumulus3d_cli::pipeline::Pipeline;
+use cumulus3d_cli::session::{Input, Session, SessionConfig};
+use cumulus3d_cli::sinks::{self, SinkOptions};
+use cumulus3d_cli::stream::{frame_set, Layout};
+use cumulus3d_core::io::read_gps_file;
 use std::path::Path;
 
 fn main() -> Result<(), String> {
@@ -261,7 +261,7 @@ fn main() -> Result<(), String> {
 훅 없이 상태 값만 주고받는 함수형 사용:
 
 ```rust,no_run
-use skyrecon_cli::session::{finish, step, FrameSet, Session, SessionConfig};
+use cumulus3d_cli::session::{finish, step, FrameSet, Session, SessionConfig};
 
 let s0 = Session::new(SessionConfig::new("data/images"));
 let frames = FrameSet::new([("camF", "camF/camF_0000.jpg"), ("camR", "camR/camR_0000.jpg")]);
@@ -274,12 +274,12 @@ for e in &events {
 let (_done, _summary_events) = finish(&s1);
 ```
 
-두 예는 `src/lib.rs` 의 doc-test 로도 들어 있다. 합성 장면으로 끝까지 도는 예제는 `cargo run --release -p skyrecon-cli --example hooks`.
+두 예는 `src/lib.rs` 의 doc-test 로도 들어 있다. 합성 장면으로 끝까지 도는 예제는 `cargo run --release -p cumulus3d-cli --example hooks`.
 
 ## 기능 플래그·하드웨어
 
-- cargo 기능 플래그는 없다. `skyrecon-cuda` 는 항상 링크되지만 CUDA 라이브러리를 **동적 로딩**하므로 CUDA 가 없는 기계에서도 빌드·실행된다.
+- cargo 기능 플래그는 없다. `cumulus3d-cuda` 는 항상 링크되지만 CUDA 라이브러리를 **동적 로딩**하므로 CUDA 가 없는 기계에서도 빌드·실행된다.
 - 조밀화(`stream` 기본, `densify` 하위 명령)는 GPU PatchMatch 백엔드가 필요하다(CUDA 12.x 드라이버). 장치가 없으면
   `stream` 은 조밀화 단계에서 오류를 기록하고, `--no-dense` 로 조밀화 없이 돌릴 수 있다. `SessionConfig::new` 기본값은 조밀화 없음.
 - `--gpu` 또는 `--sift-backend cuda` / `--match-backend cuda` 는 CUDA 12.x 드라이버가 필요하다. 결과는 CPU 백엔드와 같다.
-- 시험: `cargo test --release -p skyrecon-cli`(합성 장면으로 stream 끝까지, 하위 명령 연쇄, 기본 훅 출력 동등성).
+- 시험: `cargo test --release -p cumulus3d-cli`(합성 장면으로 stream 끝까지, 하위 명령 연쇄, 기본 훅 출력 동등성).

@@ -1,11 +1,11 @@
 //! 합성 장면 통합 테스트: 전역 매퍼(BA 0회) → 위치별 등록 + 삼각측량.
 
-use skyrecon_core::{MatchGraph, MatchGraphOptions, ImageId, Reconstruction, Vec3};
-use skyrecon_sfm::global_mapper::{global_mapper, GlobalSfmOptions};
-use skyrecon_sfm::math::umeyama;
-use skyrecon_sfm::registration::{register_images, RegistrationOptions};
-use skyrecon_sfm::synthetic::{generate, Scene, SceneConfig};
-use skyrecon_sfm::triangulator::{triangulate_points, PointRefiner, PointTriangulatorOptions, TriangulationScope};
+use cumulus3d_core::{MatchGraph, MatchGraphOptions, ImageId, Reconstruction, Vec3};
+use cumulus3d_sfm::global_mapper::{global_mapper, GlobalSfmOptions};
+use cumulus3d_sfm::math::umeyama;
+use cumulus3d_sfm::registration::{register_images, RegistrationOptions};
+use cumulus3d_sfm::synthetic::{generate, Scene, SceneConfig};
+use cumulus3d_sfm::triangulator::{triangulate_points, PointRefiner, PointTriangulatorOptions, TriangulationScope};
 
 fn graph_up_to(scene: &Scene, n: usize) -> MatchGraph {
     let opts = MatchGraphOptions { image_names: scene.names_up_to(n), ..Default::default() };
@@ -29,7 +29,7 @@ fn pose_errors(rec: &Reconstruction, scene: &Scene) -> (f64, f64) {
         (hi - lo).norm()
     };
     // 회전은 전역 회전 하나(R_est ≈ R_true·G)로 따로 정렬.
-    let mut sum = skyrecon_core::Mat3::zeros();
+    let mut sum = cumulus3d_core::Mat3::zeros();
     for i in &ids {
         sum += scene.truth[i].rotation_matrix().transpose() * rec.world_to_cam(*i).unwrap().rotation_matrix();
     }
@@ -121,7 +121,7 @@ fn register_with_ba_pose_refinement() {
 fn triangulation_accuracy_with_true_poses() {
     let scene = generate(&SceneConfig { num_positions: 8, ..Default::default() });
     let graph = graph_up_to(&scene, 8);
-    let mut rec = skyrecon_sfm::global_mapper::init_reconstruction(&scene.store, &graph).unwrap();
+    let mut rec = cumulus3d_sfm::global_mapper::init_reconstruction(&scene.store, &graph).unwrap();
     for (id, pose) in &scene.truth {
         rec.set_world_to_cam(*id, *pose).unwrap();
         rec.register_image(*id).unwrap();

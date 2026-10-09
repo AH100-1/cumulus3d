@@ -1,9 +1,9 @@
 //! 일치 융합의 남은 픽셀 처리(none / release / second-pass): 합성 장면의 참 깊이맵 입력.
 
-use skyrecon_dense::fusion::{fuse, FusionInput, FusionOutput};
-use skyrecon_dense::neighbors::PairStats;
-use skyrecon_dense::synthetic::{make_scene, SynthConfig, SynthScene};
-use skyrecon_dense::{DenseScene, FusionParams, FusionResidual};
+use cumulus3d_dense::fusion::{fuse, FusionInput, FusionOutput};
+use cumulus3d_dense::neighbors::PairStats;
+use cumulus3d_dense::synthetic::{make_scene, SynthConfig, SynthScene};
+use cumulus3d_dense::{DenseScene, FusionParams, FusionResidual};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 

@@ -2,8 +2,8 @@
 
 use crate::math::{adjugate3, kabsch, solve_cubic_real, solve_quadratic_real};
 use nalgebra::{Matrix3, SMatrix, SVector, SymmetricEigen, SVD};
-use skyrecon_core::ransac::{lo_ransac, Estimator, RansacParams};
-use skyrecon_core::{Camera, Mat3, Rigid3, Vec2, Vec3};
+use cumulus3d_core::ransac::{lo_ransac, Estimator, RansacParams};
+use cumulus3d_core::{Camera, Mat3, Rigid3, Vec2, Vec3};
 
 /// P3P. 단위 광선 3개와 월드점 3개 → 최대 4개 world_to_cam.
 ///
@@ -160,7 +160,7 @@ fn split_degenerate_conic(c: &Matrix3<f64>) -> Vec<Vec3> {
     } else {
         return Vec::new();
     };
-    let a = c + skyrecon_core::geometry::skew(&p);
+    let a = c + cumulus3d_core::geometry::skew(&p);
     let (mut r, mut cc) = (0, 0);
     let mut best = 0.0;
     for rr in 0..3 {
@@ -218,7 +218,7 @@ pub fn epnp(rays: &[Vec3], points: &[Vec3], camera: Option<&Camera>, points2d: O
         if b.norm_squared() < 0.5 {
             continue;
         }
-        let s = skyrecon_core::geometry::skew(b);
+        let s = cumulus3d_core::geometry::skew(b);
         let mut blk = SMatrix::<f64, 3, 12>::zeros();
         for (j, a) in al.iter().enumerate() {
             blk.fixed_view_mut::<3, 3>(0, 3 * j).copy_from(&(s * *a));
@@ -538,7 +538,7 @@ mod tests {
     use super::*;
     use crate::math::so3_exp;
     use rand::{RngExt, SeedableRng};
-    use skyrecon_core::CameraModelKind;
+    use cumulus3d_core::CameraModelKind;
 
     fn random_pose(rng: &mut rand_pcg::Pcg64) -> Rigid3 {
         let w = Vec3::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));

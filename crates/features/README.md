@@ -1,10 +1,10 @@
-# skyrecon-features
+# cumulus3d-features
 
 영상 읽기(디코딩·EXIF·회색 변환·축소·방향 회전), 카메라 초기 파라미터 결정, 결정적 SIFT 특징 추출을 맡는 크레이트.
 
 **파이프라인 단계**: 첫 단계(특징 추출). 영상 묶음을 받아 카메라를 배정하고 키포인트·기술자를
-`skyrecon_core::FeatureStore` 에 증분 기록한다. 이 저장소를 `skyrecon-matching` 이 읽는다.
-SIFT 계산은 `SiftEngine` 트레이트 뒤에 있어 GPU 백엔드(`skyrecon-cuda` 의 `CudaSift`)로 바꿔 끼울 수 있다.
+`cumulus3d_core::FeatureStore` 에 증분 기록한다. 이 저장소를 `cumulus3d-matching` 이 읽는다.
+SIFT 계산은 `SiftEngine` 트레이트 뒤에 있어 GPU 백엔드(`cumulus3d-cuda` 의 `CudaSift`)로 바꿔 끼울 수 있다.
 
 ## 주요 진입점
 
@@ -23,7 +23,7 @@ SIFT 계산은 `SiftEngine` 트레이트 뒤에 있어 GPU 백엔드(`skyrecon-c
 
 ## 공개 항목
 
-표의 "루트" 표시는 크레이트 루트에서 `skyrecon_features::이름` 으로 재노출된 항목이다.
+표의 "루트" 표시는 크레이트 루트에서 `cumulus3d_features::이름` 으로 재노출된 항목이다.
 
 ### `extract`
 
@@ -124,8 +124,8 @@ SIFT 계산은 `SiftEngine` 트레이트 뒤에 있어 GPU 백엔드(`skyrecon-c
 합성 영상으로 SIFT 를 돌리고 저장소에 기록한다(크레이트 문서의 doc-test 와 같은 코드).
 
 ```rust
-use skyrecon_core::FeatureStore;
-use skyrecon_features::{
+use cumulus3d_core::FeatureStore;
+use cumulus3d_features::{
     CpuSift, ExifInfo, ExtractionOptions, FeatureExtractor, GrayImage, ImageSource, ImageStatus, SiftEngine,
     SiftOptions,
 };
@@ -153,12 +153,12 @@ assert_eq!(store.num_images(), 1);
 ```
 
 파일에서 읽을 때는 `FeatureExtractor::extract_files(&store, root, &names, &opts)` 를 쓴다.
-벤치마크: `cargo run --release -p skyrecon-features --example bench_sift -- <영상|synthetic> 2048 1152`.
+벤치마크: `cargo run --release -p cumulus3d-features --example bench_sift -- <영상|synthetic> 2048 1152`.
 
 ## 기능 플래그·하드웨어
 
 - 기능 플래그 없음. 순수 CPU(rayon) 구현이라 특별한 하드웨어가 필요 없다.
-- GPU 로 SIFT 를 돌리려면 `skyrecon-cuda` 의 `CudaSift` 를 `FeatureExtractor::with_backend` 에 넘긴다(CUDA 12.x 드라이버 필요).
+- GPU 로 SIFT 를 돌리려면 `cumulus3d-cuda` 의 `CudaSift` 를 `FeatureExtractor::with_backend` 에 넘긴다(CUDA 12.x 드라이버 필요).
 
 ## 동작 메모
 

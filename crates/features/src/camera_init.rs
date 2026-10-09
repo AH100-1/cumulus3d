@@ -1,7 +1,7 @@
 //! 카메라 초기 파라미터.
 
 use crate::exif_info::ExifInfo;
-use skyrecon_core::{Camera, CameraModelKind, Error, Result};
+use cumulus3d_core::{Camera, CameraModelKind, Error, Result};
 
 /// 초점거리 결정 결과.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -89,7 +89,7 @@ pub fn init_camera(
     default_focal_length_factor: f64,
 ) -> Result<Camera> {
     if let Some(p) = params {
-        let mut cam = Camera::new(skyrecon_core::INVALID_CAMERA_ID, model, width, height, p.to_vec())?;
+        let mut cam = Camera::new(cumulus3d_core::INVALID_CAMERA_ID, model, width, height, p.to_vec())?;
         cam.focal_from_prior = true;
         return Ok(cam);
     }

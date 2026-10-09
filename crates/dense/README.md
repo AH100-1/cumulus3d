@@ -1,8 +1,8 @@
-# skyrecon-dense
+# cumulus3d-dense
 
 왜곡 보정과 다시점 조밀화: 등록된 희소 모델과 영상에서 깊이맵을 추정·필터·융합해 조밀 점군(PLY)을 만든다.
 
-**파이프라인 단계**: SfM(`skyrecon-sfm`)·GPS 정렬(`skyrecon-align`) 뒤의 마지막 단계.
+**파이프라인 단계**: SfM(`cumulus3d-sfm`)·GPS 정렬(`cumulus3d-align`) 뒤의 마지막 단계.
 희소 모델 → 왜곡 보정(PINHOLE) → 조밀화 장면 → 이웃 뷰·깊이 범위 → 다중 스케일 PatchMatch 깊이맵 →
 필터·후처리 → 융합 → 조밀 점군.
 
@@ -28,11 +28,11 @@ PatchMatch 실행 자체(한 스케일의 적·흑 전파, 뷰 선택, 정제, �
 | `fuse` | 깊이맵 배열 융합(저수준) | `&DenseScene`, `&[Option<FusionInput>]`, 겹침 목록, `&FusionParams`, 스레드 수 → `FusionOutput` |
 | `DenseOutput::write_ply` | 점군 PLY 쓰기(x y z nx ny nz red green blue) | 경로 → `Result<()>` |
 | `cloud_stats` | 점군 품질 통계(간격, GSD, 이상점·중복률) | 장면, 깊이맵, 점군, 가시성, 표본 수, 허용치 → `CloudStats` |
-| `PatchMatchBackend` | 백엔드 경계 trait(GPU 구현은 `skyrecon-cuda::CudaPatchMatch`) | `&KernelInput` → `Box<dyn PatchMatchSession>` |
+| `PatchMatchBackend` | 백엔드 경계 trait(GPU 구현은 `cumulus3d-cuda::CudaPatchMatch`) | `&KernelInput` → `Box<dyn PatchMatchSession>` |
 
 ## 공개 항목
 
-"루트"는 크레이트 루트에서 `skyrecon_dense::이름` 으로 재노출된 항목이다.
+"루트"는 크레이트 루트에서 `cumulus3d_dense::이름` 으로 재노출된 항목이다.
 
 ### `undistort` — 왜곡 보정
 
@@ -192,9 +192,9 @@ PatchMatch 실행 자체(한 스케일의 적·흑 전파, 뷰 선택, 정제, �
 합성 장면의 참 깊이맵을 CPU 에서 융합(백엔드 불필요, `src/lib.rs` 의 doc-test 와 같다):
 
 ```rust
-use skyrecon_dense::neighbors::PairStats;
-use skyrecon_dense::synthetic::{make_scene, SynthConfig};
-use skyrecon_dense::{fuse, FusionInput, FusionParams};
+use cumulus3d_dense::neighbors::PairStats;
+use cumulus3d_dense::synthetic::{make_scene, SynthConfig};
+use cumulus3d_dense::{fuse, FusionInput, FusionParams};
 
 let cfg = SynthConfig { width: 96, height: 72, focal: 75.0, num_points: 500, ..SynthConfig::default() };
 let s = make_scene(&cfg);
@@ -209,10 +209,10 @@ assert!(out.cloud.len() > 0);
 실제 조밀화(GPU 백엔드와 실데이터 필요, doc-test 는 `no_run`):
 
 ```rust,no_run
-use skyrecon_dense::{densify, undistort_from_dir, DenseScene, DensifyOptions, PatchMatchBackend, SceneOptions, UndistortCache, UndistortOptions};
+use cumulus3d_dense::{densify, undistort_from_dir, DenseScene, DensifyOptions, PatchMatchBackend, SceneOptions, UndistortCache, UndistortOptions};
 
-fn run(backend: &dyn PatchMatchBackend) -> skyrecon_core::Result<()> {
-    let rec = skyrecon_core::interop::read_model("sparse/0")?;
+fn run(backend: &dyn PatchMatchBackend) -> cumulus3d_core::Result<()> {
+    let rec = cumulus3d_core::interop::read_model("sparse/0")?;
     let und = undistort_from_dir(&rec, "images", &UndistortOptions::pipeline(), &UndistortCache::new())?;
     let scene = DenseScene::from_reconstruction(&und.reconstruction, &und.images, &SceneOptions::default())?;
     let out = densify(&scene, &DensifyOptions::default(), backend, None)?;
@@ -221,13 +221,13 @@ fn run(backend: &dyn PatchMatchBackend) -> skyrecon_core::Result<()> {
 }
 ```
 
-`backend` 에는 `skyrecon_cuda::CudaPatchMatch` 를 넘긴다(`skyrecon-cuda` 크레이트 참조).
+`backend` 에는 `cumulus3d_cuda::CudaPatchMatch` 를 넘긴다(`cumulus3d-cuda` 크레이트 참조).
 
 ## 기능 플래그·하드웨어
 
 - 기능 플래그 없음. 순수 Rust 이고 어느 기계에서나 빌드된다.
 - **조밀화(`densify`, `compute_depth_maps`)는 `PatchMatchBackend` 구현이 필요하다.** 이 크레이트에는 CPU 백엔드가 없고,
-  현재 구현은 `skyrecon-cuda` 의 `CudaPatchMatch`(NVIDIA GPU, CUDA 12.x 드라이버) 하나뿐이다.
+  현재 구현은 `cumulus3d-cuda` 의 `CudaPatchMatch`(NVIDIA GPU, CUDA 12.x 드라이버) 하나뿐이다.
 - 백엔드 없이 CPU 에서 되는 것: 왜곡 보정, 장면 구성, 이웃 선택·깊이 범위, 상향 표본·중앙값 필터, 후처리,
   융합(`fuse`, `fuse_depth_maps`, `fuse_output`), 통계, 합성 장면. 병렬화는 rayon.
 
@@ -263,9 +263,9 @@ fn run(backend: &dyn PatchMatchBackend) -> skyrecon_core::Result<()> {
 
 ## 시험
 
-- `cargo test -p skyrecon-dense`: 수치 기준값, 이웃 선택, 상대 기하, 상향 표본·중앙값 필터, 합성 장면 참 깊이맵 융합,
+- `cargo test -p cumulus3d-dense`: 수치 기준값, 이웃 선택, 상대 기하, 상향 표본·중앙값 필터, 합성 장면 참 깊이맵 융합,
   2차 융합, 후처리, 왜곡 보정.
-- GPU 정확도는 `skyrecon-cuda` 의 `tests/patchmatch_gpu.rs`(합성 장면 참값과 비교).
+- GPU 정확도는 `cumulus3d-cuda` 의 `tests/patchmatch_gpu.rs`(합성 장면 참값과 비교).
 
 ## 참고문헌
 

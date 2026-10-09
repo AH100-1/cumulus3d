@@ -2,12 +2,12 @@
 
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use skyrecon_core::{
+use cumulus3d_core::{
     pair_id_of, images_of_pair, Camera, CameraModelKind, Descriptors, FeatureMatch, FeatureStore, Keypoint,
     TwoViewGeometryConfig as C, Vec2, Vec3, DESCRIPTOR_DIM,
 };
-use skyrecon_matching::descriptor::{apply_tests, dot_to_angle, top2_naive};
-use skyrecon_matching::*;
+use cumulus3d_matching::descriptor::{apply_tests, dot_to_angle, top2_naive};
+use cumulus3d_matching::*;
 
 fn quantize(v: &[f64]) -> [u8; 128] {
     let n = v.iter().map(|x| x * x).sum::<f64>().sqrt();
@@ -103,7 +103,7 @@ fn descriptor_matching() {
 
 #[test]
 fn ratio_boundary_rules() {
-    use skyrecon_matching::Top2;
+    use cumulus3d_matching::Top2;
     let opts = DescriptorMatchOptions { cross_check: false, ..Default::default() };
     let cpu_rule = DescriptorMatchOptions { rule: AcceptRule::CpuBruteForce, ..opts.clone() };
     // θ1 = 0.7 정확히 근처: GPU (<) 와 CPU (≤) 가 다를 수 있는 경계는 내적 정수라 정확히 맞추기 어려움 →
@@ -131,7 +131,7 @@ fn build_store() -> FeatureStore {
     let store = FeatureStore::new();
     let mut cam = Camera::new(0, CameraModelKind::OpenCv, 2000, 1500, vec![1000.0, 1000.0, 1000.0, 750.0, 0.0, 0.0, 0.0, 0.0]).unwrap();
     cam.focal_from_prior = true;
-    cam.camera_id = skyrecon_core::INVALID_CAMERA_ID;
+    cam.camera_id = cumulus3d_core::INVALID_CAMERA_ID;
     let cid = store.add_camera(cam.clone()).unwrap();
     let mut r = Pcg64::seed_from_u64(42);
     let pts: Vec<Vec3> =
@@ -210,7 +210,7 @@ fn store_pipeline_incremental() {
 #[test]
 fn pair_list_file_roundtrip() {
     let store = build_store();
-    let dir = std::env::temp_dir().join(format!("skyrecon_matching_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cumulus3d_matching_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("pairs.txt");
     std::fs::write(&path, "cam/0.jpg cam/1.jpg\ncam/2.jpg cam/1.jpg\nnone.jpg cam/1.jpg\n").unwrap();
@@ -228,7 +228,7 @@ fn few_matches_store_empty() {
     // 매칭 15 미만이면 원시 매칭은 빈 목록, 기하는 UNDEFINED 로 "항상 한 줄" 기록.
     let store = FeatureStore::new();
     let mut cam = Camera::new(0, CameraModelKind::Pinhole, 100, 100, vec![100.0, 100.0, 50.0, 50.0]).unwrap();
-    cam.camera_id = skyrecon_core::INVALID_CAMERA_ID;
+    cam.camera_id = cumulus3d_core::INVALID_CAMERA_ID;
     let cid = store.add_camera(cam).unwrap();
     let mut r = Pcg64::seed_from_u64(5);
     let shared: Vec<Vec<f64>> = (0..10).map(|_| rand_desc(&mut r)).collect();

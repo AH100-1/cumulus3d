@@ -4,8 +4,8 @@ use crate::problem::quat_plus;
 use crate::tr::{StepInfo, TrProblem};
 use crate::Loss;
 use nalgebra::{Matrix6, Vector6};
-use skyrecon_core::geometry::skew;
-use skyrecon_core::{Camera, Rigid3, Vec2, Vec3};
+use cumulus3d_core::geometry::skew;
+use cumulus3d_core::{Camera, Rigid3, Vec2, Vec3};
 
 pub(crate) struct AbsPoseProblem<'a> {
     pub camera: &'a Camera,

@@ -2,7 +2,7 @@
 
 use crate::math::{so3_exp, so3_log, CsrMatrix};
 use nalgebra::{Cholesky, DMatrix, DVector, Dyn};
-use skyrecon_core::{Error, ImageId, Mat3, Result, Rigid3};
+use cumulus3d_core::{Error, ImageId, Mat3, Result, Rigid3};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// 뷰 그래프 간선(상대 자세가 있는 영상 짝). `image_id1 < image_id2`.
@@ -95,7 +95,7 @@ impl ViewGraph {
         for e in self.edges.iter_mut().filter(|e| e.valid) {
             let (Some(r1), Some(r2)) = (rotations.get(&e.image_id1), rotations.get(&e.image_id2)) else { continue };
             let est = r2 * r1.transpose();
-            let ang = skyrecon_core::Quat::from_rotation_matrix(&est)
+            let ang = cumulus3d_core::Quat::from_rotation_matrix(&est)
                 .angular_distance(&e.cam1_to_cam2.rotation.normalized());
             if ang > max_rad {
                 e.valid = false;
@@ -404,7 +404,7 @@ mod tests {
     use super::*;
     use crate::math::gaussian;
     use rand::{RngExt, SeedableRng};
-    use skyrecon_core::{Quat, Vec3};
+    use cumulus3d_core::{Quat, Vec3};
 
     fn random_rot(rng: &mut rand_pcg::Pcg64, scale: f64) -> Mat3 {
         so3_exp(&(Vec3::new(gaussian(rng), gaussian(rng), gaussian(rng)) * scale))

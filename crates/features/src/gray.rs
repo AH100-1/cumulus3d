@@ -1,6 +1,6 @@
 //! 8비트 회색 영상, 디코딩·회색 변환·축소·90° 회전.
 
-use skyrecon_core::{Error, Keypoint, Result};
+use cumulus3d_core::{Error, Keypoint, Result};
 use std::path::Path;
 
 /// 행 우선 8비트 회색 영상.

@@ -1,7 +1,7 @@
 //! SIFT 검증 + 실제 사진(있을 때만).
 
-use skyrecon_features::sift::pyramid::{self, ScaleSpace};
-use skyrecon_features::*;
+use cumulus3d_features::sift::pyramid::{self, ScaleSpace};
+use cumulus3d_features::*;
 use std::f32::consts::PI;
 
 fn noise_field(w: usize, h: usize, seed: u64, sigma: f32, contrast: f32) -> GrayImage {
@@ -265,9 +265,9 @@ fn deterministic() {
 
 #[test]
 fn real_photo_if_available() {
-    // SKYRECON_TEST_PHOTO=<jpg/png 경로> 가 있을 때만 실행.
-    let Some(path) = std::env::var_os("SKYRECON_TEST_PHOTO").map(std::path::PathBuf::from).filter(|p| p.exists()) else {
-        eprintln!("SKYRECON_TEST_PHOTO 없음 → 건너뜀");
+    // CUMULUS3D_TEST_PHOTO=<jpg/png 경로> 가 있을 때만 실행.
+    let Some(path) = std::env::var_os("CUMULUS3D_TEST_PHOTO").map(std::path::PathBuf::from).filter(|p| p.exists()) else {
+        eprintln!("CUMULUS3D_TEST_PHOTO 없음 → 건너뜀");
         return;
     };
     let path = path.as_path();

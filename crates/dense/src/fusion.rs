@@ -7,7 +7,7 @@
 use crate::params::{FusionMode, FusionParams, FusionResidual};
 use crate::scene::DenseScene;
 use rayon::prelude::*;
-use skyrecon_core::io::PointCloud;
+use cumulus3d_core::io::PointCloud;
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 

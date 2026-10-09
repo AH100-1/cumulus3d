@@ -6,9 +6,9 @@
 
 use crate::interop::{apply_densify_args, score_options, DensifyArgs};
 use clap::Parser;
-use skyrecon_dense::densify::fuse_output;
-use skyrecon_dense::fusion_score::ScoreFusionOptions;
-use skyrecon_dense::{DenseScene, DensifyOptions, DepthMapSet};
+use cumulus3d_dense::densify::fuse_output;
+use cumulus3d_dense::fusion_score::ScoreFusionOptions;
+use cumulus3d_dense::{DenseScene, DensifyOptions, DepthMapSet};
 use std::path::Path;
 use std::time::Instant;
 
@@ -110,7 +110,7 @@ pub fn run_variants(scene: &DenseScene, maps: &DepthMapSet, variants: &[FusionVa
         println!("변형 {}: 점 {} 융합 {fusion_s:.2}s (1차 {p1:.2}s 2차 {p2:.2}s) 쓰기 {write_s:.2}s → {}{extra}", v.name, out.cloud.len(), path.display());
         if stats {
             let ts = Instant::now();
-            let st = skyrecon_dense::cloud_stats(scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
+            let st = cumulus3d_dense::cloud_stats(scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
             println!(
                 "통계[{}]: 점 {} 융합 {fusion_s:.2}s (1차 {p1:.2}s 2차 {p2:.2}s) 이웃 간격 중앙 {:.4} GSD {:.4} 이상점(2px) {:.2}% 평면 이탈(>GSD·고립) {:.2}% 평면 거리 중앙 {:.4} 중복(<GSD/2) {:.2}% ({:.1}s)",
                 v.name,
@@ -135,7 +135,7 @@ mod tests {
     use super::*;
 
     fn write_tmp(name: &str, body: &str) -> std::path::PathBuf {
-        let p = std::env::temp_dir().join(format!("skyrecon_fv_{}_{name}", std::process::id()));
+        let p = std::env::temp_dir().join(format!("cumulus3d_fv_{}_{name}", std::process::id()));
         std::fs::write(&p, body).unwrap();
         p
     }

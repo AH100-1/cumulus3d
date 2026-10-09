@@ -1,9 +1,9 @@
 //! 삼각측량 수식: 두 뷰 DLT, 다중 뷰, 중점법, 각도·깊이 검사, RANSAC 삼각측량.
 
 use nalgebra::{Matrix4, SymmetricEigen, SVD};
-use skyrecon_core::geometry::triangulation_angle;
-use skyrecon_core::ransac::{n_choose_k, ransac_with_sampler, ExhaustiveSampler, Estimator, RansacParams};
-use skyrecon_core::{Mat3x4, Rigid3, Vec2, Vec3};
+use cumulus3d_core::geometry::triangulation_angle;
+use cumulus3d_core::ransac::{n_choose_k, ransac_with_sampler, ExhaustiveSampler, Estimator, RansacParams};
+use cumulus3d_core::{Mat3x4, Rigid3, Vec2, Vec3};
 
 /// 두 뷰 DLT. `x1`, `x2` 는 정규화 평면 좌표, `p1`, `p2` 는 [R|t].
 pub fn triangulate_dlt(p1: &Mat3x4, p2: &Mat3x4, x1: &Vec2, x2: &Vec2) -> Option<Vec3> {
@@ -54,7 +54,7 @@ pub fn triangulate_midpoint(cam1_to_cam2: &Rigid3, ray1: &Vec3, ray2: &Vec3) -> 
     let rt = cam1_to_cam2.rotation_matrix().transpose();
     let r2 = rt * ray2;
     let c2 = -(rt * cam1_to_cam2.translation);
-    let a = skyrecon_core::Mat3::from_columns(&[*ray1, -r2, -c2]);
+    let a = cumulus3d_core::Mat3::from_columns(&[*ray1, -r2, -c2]);
     let (_, _, vm) = crate::math::svd3(&a)?;
     let v = vm.column(2);
     if v[2] == 0.0 {
@@ -220,7 +220,7 @@ mod tests {
         let x = Vec3::new(1.0, 0.0, 0.0).cross(&z).normalize();
         let x = if x.norm() > 0.5 { x } else { Vec3::y().cross(&z).normalize() };
         let y = z.cross(&x);
-        let r = skyrecon_core::Mat3::from_rows(&[x.transpose(), y.transpose(), z.transpose()]);
+        let r = cumulus3d_core::Mat3::from_rows(&[x.transpose(), y.transpose(), z.transpose()]);
         Rigid3::from_rotation_matrix(&r, -(r * c))
     }
 
@@ -280,7 +280,7 @@ mod tests {
         assert!(!has_positive_depth(&p, &Vec3::new(0.0, 0.0, -1.0)));
         // RANSAC 모델 검증: 두 카메라 뒤의 점은 거부.
         let p1 = Rigid3::identity();
-        let p2 = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0));
+        let p2 = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0));
         let x = Vec3::new(0.3, 0.1, -5.0);
         let o = [TriObservation::new(&p1, -(p1 * x).normalize()), TriObservation::new(&p2, -(p2 * x).normalize())];
         // 광선을 뒤집어 주면 DLT 해가 카메라 뒤로 나온다.
@@ -300,11 +300,11 @@ mod tests {
         // RANSAC: 정답 뷰 5개 + 1.9° 틀어진 뷰(인라이어) + 10° 틀어진 뷰(아웃라이어).
         let mut o = Vec::new();
         for k in 0..5 {
-            let pk = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-4.0 + 2.0 * k as f64, 0.5 * k as f64, 0.0));
+            let pk = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-4.0 + 2.0 * k as f64, 0.5 * k as f64, 0.0));
             o.push(TriObservation::new(&pk, (pk * x).normalize()));
         }
         for deg in [1.9f64, 10.0] {
-            let pk = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(0.0, -3.0, 0.0));
+            let pk = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(0.0, -3.0, 0.0));
             let r = so3_exp(&Vec3::new(0.0, deg.to_radians(), 0.0)) * (pk * x).normalize();
             o.push(TriObservation::new(&pk, r));
         }
@@ -320,8 +320,8 @@ mod tests {
             let half = (deg / 2.0).to_radians();
             let z = 1.0 / half.tan();
             let x = Vec3::new(0.0, 0.0, z);
-            let p1 = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0));
-            let p2 = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0));
+            let p1 = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0));
+            let p2 = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0));
             let o = vec![TriObservation::new(&p1, (p1 * x).normalize()), TriObservation::new(&p2, (p2 * x).normalize())];
             assert_eq!(estimate_triangulation(&o, &TriangulationRansacParams::default()).is_some(), ok);
         }

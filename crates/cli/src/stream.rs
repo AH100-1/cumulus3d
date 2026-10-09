@@ -1,4 +1,4 @@
-//! `skyrecon stream`: 입력 폴더의 위치를 하나씩 [`Session`] 리듀서에 넣고([`Pipeline`]),
+//! `cumulus3d stream`: 입력 폴더의 위치를 하나씩 [`Session`] 리듀서에 넣고([`Pipeline`]),
 //! 기본 출력 훅([`crate::sinks`])이 timeline.txt·run.log·점군·스냅샷 파일을 만든다.
 //! 계산(특징 → 짝 매칭 → 첫 모델/이어 등록 → 구역별 초벌·정밀)은 [`crate::session`] 에 있다.
 
@@ -6,8 +6,8 @@ use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, p
 use crate::pipeline::Pipeline;
 use crate::session::{pairs_for, zones_upto, FrameImage, FrameSet, Input, Session, SessionConfig};
 use crate::sinks::{DefaultSinks, SinkOptions};
-use skyrecon_core::io::{read_gps_file, GpsRecord};
-use skyrecon_dense::DepthMapCache;
+use cumulus3d_core::io::{read_gps_file, GpsRecord};
+use cumulus3d_dense::DepthMapCache;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

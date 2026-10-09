@@ -1,4 +1,4 @@
-//! `skyrecon_dense::PatchMatchBackend` 의 CUDA 구현.
+//! `cumulus3d_dense::PatchMatchBackend` 의 CUDA 구현.
 //!
 //! - 세션 시작 때 모든 뷰·스케일의 회색 영상을 피치 정렬 버퍼 하나(기준 패치 읽기)와 뷰·스케일별 블록 선형 배열 +
 //!   텍스처 객체(원천 표본, 하드웨어 쌍선형)로 올린다(상주).
@@ -9,9 +9,9 @@
 use crate::device::{CudaDevice, GpuError};
 use cudarc::driver::sys;
 use cudarc::driver::{CudaFunction, CudaSlice, DevicePtr, DeviceRepr, LaunchConfig, PinnedHostSlice, PushKernelArg};
-use skyrecon_core::{Error, Result};
-use skyrecon_dense::kernel::{DepthSnapshot, KernelInput, PatchMatchBackend, PatchMatchSession, RunParams, ViewState};
-use skyrecon_dense::math::emission;
+use cumulus3d_core::{Error, Result};
+use cumulus3d_dense::kernel::{DepthSnapshot, KernelInput, PatchMatchBackend, PatchMatchSession, RunParams, ViewState};
+use cumulus3d_dense::math::emission;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -37,7 +37,7 @@ pub struct CudaPatchMatchOptions {
 
 impl Default for CudaPatchMatchOptions {
     fn default() -> Self {
-        Self { hw_interp: true, batch_pixels: 2_200_000, max_batch: 64, min_blocks: std::env::var("SKYRECON_PM_MIN_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(2), fast_math: std::env::var("SKYRECON_PM_FAST_MATH").map(|v| v != "0").unwrap_or(true) }
+        Self { hw_interp: true, batch_pixels: 2_200_000, max_batch: 64, min_blocks: std::env::var("CUMULUS3D_PM_MIN_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(2), fast_math: std::env::var("CUMULUS3D_PM_FAST_MATH").map(|v| v != "0").unwrap_or(true) }
     }
 }
 
@@ -189,7 +189,7 @@ fn bytes_of<T: Copy>(v: &[T]) -> Vec<u8> {
 }
 
 fn trace() -> bool {
-    std::env::var("SKYRECON_CUDA_TRACE").is_ok_and(|v| v != "0")
+    std::env::var("CUMULUS3D_CUDA_TRACE").is_ok_and(|v| v != "0")
 }
 
 fn gerr(e: impl std::fmt::Display) -> Error {
@@ -463,7 +463,7 @@ impl<'a> Session<'a> {
             gmax: p.geom_max_cost,
             cos_filter_tri: fl.min_triangulation_angle_deg.to_radians().cos(),
             q_min: emission(1.0 - fl.min_ncc as f64, fl.ncc_sigma as f64) as f32,
-            ncc_norm: skyrecon_dense::math::emission_norm(fl.ncc_sigma as f64) as f32,
+            ncc_norm: cumulus3d_dense::math::emission_norm(fl.ncc_sigma as f64) as f32,
             inv2ncc: 1.0 / (2.0 * fl.ncc_sigma * fl.ncc_sigma),
             filter_gmax: fl.geom_max_cost,
             weak_var: p.weak_texture_var,

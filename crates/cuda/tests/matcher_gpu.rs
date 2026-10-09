@@ -1,7 +1,7 @@
 //! CUDA 매칭 top-2 가 CPU 와 비트 단위로 같은지. 장치가 없으면 건너뛴다.
 
-use skyrecon_cuda::{is_available, CudaMatcher};
-use skyrecon_matching::{CpuMatcher, MatcherBackend};
+use cumulus3d_cuda::{is_available, CudaMatcher};
+use cumulus3d_matching::{CpuMatcher, MatcherBackend};
 use std::time::Instant;
 
 fn descriptors(n: usize, seed: u64) -> Vec<u8> {

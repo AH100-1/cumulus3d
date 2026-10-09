@@ -1,25 +1,25 @@
 //! 람다 훅 예: 합성 장면(드론 3대 × 8위치)을 위치 단위로 밀어 넣고, 이벤트·초벌/정밀 점 수를 출력하며
-//! 기본 출력 훅으로 `skyrecon stream` 과 같은 파일(timeline.txt, run.log, snapshots/ …)을 만든다.
+//! 기본 출력 훅으로 `cumulus3d stream` 과 같은 파일(timeline.txt, run.log, snapshots/ …)을 만든다.
 //!
 //! ```bash
-//! cargo run --release -p skyrecon-cli --example hooks -- [출력 폴더]
+//! cargo run --release -p cumulus3d-cli --example hooks -- [출력 폴더]
 //! ```
 //! CUDA 장치가 있으면 조밀화까지 하고, 없으면 조밀화 없이(점군 0, 희소 점 수만) 돈다.
 
 #[path = "../tests/common/mod.rs"]
 mod common;
 
-use skyrecon_cli::densewrap::{make_pm_backend, parse_profile, DenseConfig};
-use skyrecon_cli::events::{Event, EventKind};
-use skyrecon_cli::pipeline::Pipeline;
-use skyrecon_cli::session::{FrameSet, Input, Session, SessionConfig};
-use skyrecon_cli::sinks::{self, SinkOptions};
-use skyrecon_cli::stream::{Layout, CAMS};
-use skyrecon_core::io::read_gps_file;
+use cumulus3d_cli::densewrap::{make_pm_backend, parse_profile, DenseConfig};
+use cumulus3d_cli::events::{Event, EventKind};
+use cumulus3d_cli::pipeline::Pipeline;
+use cumulus3d_cli::session::{FrameSet, Input, Session, SessionConfig};
+use cumulus3d_cli::sinks::{self, SinkOptions};
+use cumulus3d_cli::stream::{Layout, CAMS};
+use cumulus3d_core::io::read_gps_file;
 use std::path::PathBuf;
 
 fn main() -> Result<(), String> {
-    let out = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join("skyrecon_hooks"));
+    let out = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join("cumulus3d_hooks"));
     let src = out.with_extension("src");
     if !src.join("gps_ref.txt").exists() {
         common::make_dataset(&src);
@@ -33,7 +33,7 @@ fn main() -> Result<(), String> {
     let mut cfg = SessionConfig::new(src.join("images"));
     cfg.gps = read_gps_file(src.join("gps_ref.txt")).map_err(|e| e.to_string())?;
     (cfg.span, cfg.overlap, cfg.total_positions, cfg.seed) = (4, 1, Some(npos), Some(7));
-    if skyrecon_cuda::is_available() {
+    if cumulus3d_cuda::is_available() {
         let mut d = DenseConfig::new(make_pm_backend("cuda"), parse_profile("fast")?);
         d.undistort.max_image_size = 160;
         cfg.dense = Some(d);

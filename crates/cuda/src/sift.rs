@@ -1,16 +1,16 @@
 //! `SiftEngine` 의 CUDA 구현(혼합형): 가우시안 스케일 공간(정규화·2배 업샘플·분리형 블러·축소)을 GPU 에서
 //! CPU 와 비트 단위로 같게 만들고, 옥타브를 필요할 때만(거친 쪽부터) 내려받아 DoG·검출·방향·기술자는
-//! skyrecon-features 의 CPU 함수로 계산한다. 따라서 결과는 `CpuSift` 와 같다.
+//! cumulus3d-features 의 CPU 함수로 계산한다. 따라서 결과는 `CpuSift` 와 같다.
 //! 최대 특징 수에 먼저 닿으면 미세 옥타브(2배 업샘플 해상도)는 내려받지도 않는다.
 
 use crate::device::{CudaDevice, GpuError};
 use cudarc::driver::{CudaFunction, CudaSlice, CudaStream, LaunchConfig, PinnedHostSlice, PushKernelArg};
 use rayon::prelude::*;
-use skyrecon_core::{Descriptors, Error, Result};
-use skyrecon_features::sift::detect::{self, Candidate, DetectParams};
-use skyrecon_features::sift::orient::{self, Gradient, OrientParams};
-use skyrecon_features::sift::pyramid::{self, ScaleSpace};
-use skyrecon_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftFeature, SiftOptions, SiftOutput};
+use cumulus3d_core::{Descriptors, Error, Result};
+use cumulus3d_features::sift::detect::{self, Candidate, DetectParams};
+use cumulus3d_features::sift::orient::{self, Gradient, OrientParams};
+use cumulus3d_features::sift::pyramid::{self, ScaleSpace};
+use cumulus3d_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftFeature, SiftOptions, SiftOutput};
 use std::sync::{Arc, Mutex};
 
 const SRC: &str = include_str!("kernels/sift.cu");
@@ -341,7 +341,7 @@ impl CudaSift {
                 desc.push(d);
             }
         }
-        if std::env::var_os("SKYRECON_CUDA_TRACE").is_some() {
+        if std::env::var_os("CUMULUS3D_CUDA_TRACE").is_some() {
             let fetched: Vec<i32> = pyr.iter().filter(|o| o.fetched).map(|o| o.o).collect();
             eprintln!(
                 "cuda sift: 피라미드 {t_build:.2?}, 내림 {t_fetch:.2?} (옥타브 {fetched:?}), 검출·방향 {:.2?}, 기술자 {:.2?}",

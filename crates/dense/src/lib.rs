@@ -13,16 +13,16 @@
 //! - [`synthetic`]: 시험용 합성 장면.
 //!
 //! 이 크레이트에는 PatchMatch 백엔드 구현이 없다. [`densify()`] 에는 [`PatchMatchBackend`] 구현
-//! (예: `skyrecon-cuda` 의 GPU 백엔드 `CudaPatchMatch`)을 넘겨야 한다.
+//! (예: `cumulus3d-cuda` 의 GPU 백엔드 `CudaPatchMatch`)을 넘겨야 한다.
 //!
 //! # 사용 예
 //!
 //! 합성 장면의 참 깊이맵을 CPU 에서 융합한다(백엔드 불필요).
 //!
 //! ```
-//! use skyrecon_dense::neighbors::PairStats;
-//! use skyrecon_dense::synthetic::{make_scene, SynthConfig};
-//! use skyrecon_dense::{fuse, FusionInput, FusionParams};
+//! use cumulus3d_dense::neighbors::PairStats;
+//! use cumulus3d_dense::synthetic::{make_scene, SynthConfig};
+//! use cumulus3d_dense::{fuse, FusionInput, FusionParams};
 //!
 //! let cfg = SynthConfig { width: 96, height: 72, focal: 75.0, num_points: 500, ..SynthConfig::default() };
 //! let s = make_scene(&cfg);
@@ -37,10 +37,10 @@
 //! 실제 조밀화(왜곡 보정 → 장면 → 깊이맵 → 융합 → PLY). 백엔드는 GPU 구현을 넘긴다.
 //!
 //! ```no_run
-//! use skyrecon_dense::{densify, undistort_from_dir, DenseScene, DensifyOptions, PatchMatchBackend, SceneOptions, UndistortCache, UndistortOptions};
+//! use cumulus3d_dense::{densify, undistort_from_dir, DenseScene, DensifyOptions, PatchMatchBackend, SceneOptions, UndistortCache, UndistortOptions};
 //!
-//! fn run(backend: &dyn PatchMatchBackend) -> skyrecon_core::Result<()> {
-//!     let rec = skyrecon_core::interop::read_model("sparse/0")?;
+//! fn run(backend: &dyn PatchMatchBackend) -> cumulus3d_core::Result<()> {
+//!     let rec = cumulus3d_core::interop::read_model("sparse/0")?;
 //!     let und = undistort_from_dir(&rec, "images", &UndistortOptions::pipeline(), &UndistortCache::new())?;
 //!     let scene = DenseScene::from_reconstruction(&und.reconstruction, &und.images, &SceneOptions::default())?;
 //!     let out = densify(&scene, &DensifyOptions::default(), backend, None)?;

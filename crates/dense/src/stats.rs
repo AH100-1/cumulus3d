@@ -4,7 +4,7 @@ use crate::densify::DepthMapSet;
 use crate::neighbors::PairStats;
 use crate::scene::DenseScene;
 use rayon::prelude::*;
-use skyrecon_core::io::PointCloud;
+use cumulus3d_core::io::PointCloud;
 use std::collections::HashMap;
 
 /// 점군 통계.

@@ -3,9 +3,9 @@
 
 mod common;
 use common::{make_dataset, NPOS};
-use skyrecon_cli::events::{Command, Event, EventKind};
-use skyrecon_cli::pipeline::Pipeline;
-use skyrecon_cli::session::{self, FrameSet, Input, Session, SessionConfig};
+use cumulus3d_cli::events::{Command, Event, EventKind};
+use cumulus3d_cli::pipeline::Pipeline;
+use cumulus3d_cli::session::{self, FrameSet, Input, Session, SessionConfig};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -25,7 +25,7 @@ fn dataset() -> &'static Path {
 fn config(total: Option<usize>) -> SessionConfig {
     let src = dataset();
     let mut c = SessionConfig::new(src.join("images"));
-    c.gps = skyrecon_core::io::read_gps_file(src.join("gps_ref.txt")).unwrap();
+    c.gps = cumulus3d_core::io::read_gps_file(src.join("gps_ref.txt")).unwrap();
     c.span = 4;
     c.overlap = 1;
     c.total_positions = total;

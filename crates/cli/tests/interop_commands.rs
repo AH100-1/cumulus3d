@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn run(args: &[&str]) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_skyrecon")).args(args).output().expect("실행");
+    let out = Command::new(env!("CARGO_BIN_EXE_cumulus3d")).args(args).output().expect("실행");
     let so = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(out.status.success(), "{args:?} 실패:\n{so}\n{}", String::from_utf8_lossy(&out.stderr));
     so
@@ -23,7 +23,7 @@ fn interop_chain() {
     let src = base.join("src");
     make_dataset(&src);
     let imgs = src.join("images");
-    let db = base.join("db.skyfs");
+    let db = base.join("db.c3dfs");
     let list = base.join("list.txt");
     // 위치 0–4: 첫 위치는 폴더당 카메라, 이후 기존 카메라 id(스크립트와 같은 호출 방식).
     std::fs::write(&list, "camF/camF_0000.jpg\ncamR/camR_0000.jpg\ncamL/camL_0000.jpg\n").unwrap();
@@ -91,12 +91,12 @@ fn interop_chain() {
     run(&["image_undistorter", "--image_path", s(&imgs), "--input_path", s(&dl), "--output_path", s(&ud), "--max_image_size", "160"]);
     assert!(ud.join("sparse/cameras.bin").exists() && ud.join("images/camL/camL_0006.jpg").exists());
     let ply = base.join("dense.ply");
-    if skyrecon_cuda::is_available() {
+    if cumulus3d_cuda::is_available() {
         run(&["densify", "-i", s(&ud), "-o", s(&ply), "--number-views", "8"]);
-        assert!(skyrecon_core::io::read_ply(&ply).unwrap().len() > 1000);
+        assert!(cumulus3d_core::io::read_ply(&ply).unwrap().len() > 1000);
     } else {
         // 장치가 없으면 조밀화는 명확한 오류로 끝나야 한다.
-        let out = Command::new(env!("CARGO_BIN_EXE_skyrecon")).args(["densify", "-i", s(&ud), "-o", s(&ply)]).output().unwrap();
+        let out = Command::new(env!("CARGO_BIN_EXE_cumulus3d")).args(["densify", "-i", s(&ud), "-o", s(&ply)]).output().unwrap();
         assert!(!out.status.success());
         assert!(String::from_utf8_lossy(&out.stderr).contains("CUDA"));
     }

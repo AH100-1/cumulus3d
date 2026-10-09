@@ -2,8 +2,8 @@
 
 use crate::image::{GrayImage, ImageBuffer, Integral};
 use rayon::prelude::*;
-use skyrecon_core::interop;
-use skyrecon_core::{Camera, CameraId, CameraModelKind, Error, Image, ImageId, Point3D, Reconstruction, Result, Vec2};
+use cumulus3d_core::interop;
+use cumulus3d_core::{Camera, CameraId, CameraModelKind, Error, Image, ImageId, Point3D, Reconstruction, Result, Vec2};
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -418,7 +418,7 @@ pub fn undistort_from_dir(rec: &Reconstruction, image_dir: impl AsRef<Path>, opt
 
 /// 보정 결과를 조밀 복원 작업 폴더로 쓴다: images/(하위 폴더 포함), sparse/(이진 모델),
 /// stereo/{depth_maps,normal_maps,consistency_graphs}/ 빈 폴더와 설정 파일.
-/// 폴더 구성·파일 형식은 [`skyrecon_core::interop`] 가 정한다.
+/// 폴더 구성·파일 형식은 [`cumulus3d_core::interop`] 가 정한다.
 pub fn write_undistorted_workspace(result: &UndistortResult, out_dir: impl AsRef<Path>, opts: &UndistortOptions) -> Result<()> {
     let out = out_dir.as_ref();
     let rec = &result.reconstruction;

@@ -4,7 +4,7 @@
 //! 타일 안에서 바로 축약한다(내적 행렬 전체를 저장하지 않음). 거리 = arccos(min(d/512², 1)).
 
 use rayon::prelude::*;
-use skyrecon_core::{Descriptors, FeatureMatch, DESCRIPTOR_DIM};
+use cumulus3d_core::{Descriptors, FeatureMatch, DESCRIPTOR_DIM};
 
 /// 512² — 정규화 기술자 노름의 제곱.
 pub const DOT_NORM: f32 = 262144.0;

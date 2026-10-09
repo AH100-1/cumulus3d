@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn nearest_matches_brute_force() {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(21));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(21));
         let pts: Vec<[f64; 3]> = (0..10_000)
             .map(|_| [rng.random_range(-50.0..50.0), rng.random_range(-50.0..50.0), rng.random_range(-5.0..5.0)])
             .collect();

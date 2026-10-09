@@ -1,11 +1,11 @@
-# skyrecon-matching
+# cumulus3d-matching
 
 SIFT 기술자 매칭과 두 뷰 기하(E/F/H) 추정·검증, 그리고 상대 자세 분해를 맡는 크레이트.
 
-**파이프라인 단계**: 특징 추출(`skyrecon-features`) 다음 단계. 짝 목록의 영상 쌍마다 기술자를 매칭하고
+**파이프라인 단계**: 특징 추출(`cumulus3d-features`) 다음 단계. 짝 목록의 영상 쌍마다 기술자를 매칭하고
 E/F/H LO-RANSAC 으로 기하를 검증해 원시 매칭과 `TwoViewGeometry` 를 `FeatureStore` 에 기록한다.
-SfM(`skyrecon-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. 매칭 커널은 `MatcherBackend`
-트레이트 뒤에 있어 GPU 백엔드(`skyrecon-cuda` 의 `CudaMatcher`)로 바꿀 수 있다.
+SfM(`cumulus3d-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. 매칭 커널은 `MatcherBackend`
+트레이트 뒤에 있어 GPU 백엔드(`cumulus3d-cuda` 의 `CudaMatcher`)로 바꿀 수 있다.
 
 ## 주요 진입점
 
@@ -24,7 +24,7 @@ SfM(`skyrecon-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. �
 
 ## 공개 항목
 
-"루트" 표시는 크레이트 루트에서 `skyrecon_matching::이름` 으로 재노출된 항목이다.
+"루트" 표시는 크레이트 루트에서 `cumulus3d_matching::이름` 으로 재노출된 항목이다.
 
 ### `pipeline`
 
@@ -95,7 +95,7 @@ SfM(`skyrecon-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. �
 | `essential_eight_point` (루트) | fn | 8점 이상 E(단위 광선, rank-2 강제) |
 | `epipolar_row` | fn | 에피폴라 제약 한 행 |
 
-### `estimators` — `skyrecon_core::ransac::Estimator` 구현
+### `estimators` — `cumulus3d_core::ransac::Estimator` 구현
 
 | 항목 | 종류 | 역할 |
 |---|---|---|
@@ -117,7 +117,7 @@ SfM(`skyrecon-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. �
 | `null_space_9` | fn | N×9 제약 행렬의 영공간 기저 |
 | `singular_values_9` | fn | 9열 행렬의 특이값과 최소 우특이벡터 |
 | `mat3_from_row_major` | fn | 행 우선 9-벡터 → 3×3 |
-| `svd3` | fn | `skyrecon_core::linalg::svd3` 재노출 |
+| `svd3` | fn | `cumulus3d_core::linalg::svd3` 재노출 |
 | `null_vector3` | fn | 3×3 의 근사 영벡터 |
 | `hartley_normalize` | fn | 하틀리 정규화(점, 변환 T) |
 | `solve8` | fn | 8×8 부분 피벗 LU |
@@ -135,8 +135,8 @@ SfM(`skyrecon-sfm`)은 이 결과와 `pose` 모듈의 분해 함수를 쓴다. �
 기술자 매칭과 두 뷰 기하를 합성 데이터로 실행한다(크레이트 문서의 doc-test 와 같은 코드).
 
 ```rust
-use skyrecon_core::{Camera, CameraModelKind, Descriptors, FeatureMatch, Keypoint, TwoViewGeometryConfig};
-use skyrecon_matching::{estimate_two_view, CpuMatcher, DescriptorMatchOptions, MatcherBackend, TwoViewOptions};
+use cumulus3d_core::{Camera, CameraModelKind, Descriptors, FeatureMatch, Keypoint, TwoViewGeometryConfig};
+use cumulus3d_matching::{estimate_two_view, CpuMatcher, DescriptorMatchOptions, MatcherBackend, TwoViewOptions};
 
 // 1) 기술자 매칭: 기술자 i 는 성분 4i..4i+4 만 255 인 서로 직교하는 벡터.
 let make = |order: &[usize]| {
@@ -171,12 +171,12 @@ assert!(tvg.inlier_matches.len() >= 50);
 ```
 
 저장소 단위로는 `match_pairs(&store, &pairs, &PairMatchingOptions::default(), &CpuMatcher::default())` 한 번이면
-매칭·검증·기록이 끝난다. 벤치마크: `cargo run --release -p skyrecon-matching --example bench_match`(8192² 매칭).
+매칭·검증·기록이 끝난다. 벤치마크: `cargo run --release -p cumulus3d-matching --example bench_match`(8192² 매칭).
 
 ## 기능 플래그·하드웨어
 
 - 기능 플래그 없음. 순수 CPU(rayon) 구현.
-- `MatcherBackend` 를 `skyrecon-cuda` 의 `CudaMatcher` 로 바꾸면 기술자 매칭(정수 내적 GEMM + top-2)을 GPU 에서 한다
+- `MatcherBackend` 를 `cumulus3d-cuda` 의 `CudaMatcher` 로 바꾸면 기술자 매칭(정수 내적 GEMM + top-2)을 GPU 에서 한다
   (CUDA 12.x 드라이버 필요). GPU 백엔드는 `top2` 만 구현하고 검사 규칙은 이 크레이트의 기본 구현을 공유한다.
 
 ## 동작 메모

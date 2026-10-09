@@ -1,6 +1,6 @@
-# skyrecon-core
+# cumulus3d-core
 
-skyrecon 의 공통 기반 크레이트: 카메라 모델, 기하(쿼터니언·강체·상사 변환), 특징·매칭 자료형,
+cumulus3d 의 공통 기반 크레이트: 카메라 모델, 기하(쿼터니언·강체·상사 변환), 특징·매칭 자료형,
 메모리 특징 저장소, 대응 그래프, 희소 재구성 자료 구조, 범용 RANSAC, 파일 입출력을 제공한다.
 
 **파이프라인에서 맡는 단계**: 특정 단계를 수행하지 않고, 모든 단계(특징 → 매칭 → SfM → 정렬 → 조밀화)가
@@ -40,7 +40,7 @@ skyrecon 의 공통 기반 크레이트: 카메라 모델, 기하(쿼터니언·
 
 ## 공개 항목
 
-"루트" 표시는 크레이트 루트(`skyrecon_core::…`)에서도 재노출되는 항목이다.
+"루트" 표시는 크레이트 루트(`cumulus3d_core::…`)에서도 재노출되는 항목이다.
 
 ### `analyzer`
 
@@ -227,11 +227,11 @@ skyrecon 의 공통 기반 크레이트: 카메라 모델, 기하(쿼터니언·
 (`src/lib.rs` 의 doc-test 와 같다).
 
 ```rust
-use skyrecon_core::analyzer::ModelStats;
-use skyrecon_core::interop::{read_model, write_model_binary, ImageOrder};
-use skyrecon_core::{Camera, CameraModelKind, Image, Quat, Reconstruction, Rigid3, TrackEntry, Vec3};
+use cumulus3d_core::analyzer::ModelStats;
+use cumulus3d_core::interop::{read_model, write_model_binary, ImageOrder};
+use cumulus3d_core::{Camera, CameraModelKind, Image, Quat, Reconstruction, Rigid3, TrackEntry, Vec3};
 
-fn main() -> skyrecon_core::Result<()> {
+fn main() -> cumulus3d_core::Result<()> {
     let mut cam = Camera::from_focal(CameraModelKind::Pinhole, 1000.0, 1920, 1080);
     cam.camera_id = 1;
     let mut rec = Reconstruction::new();
@@ -250,7 +250,7 @@ fn main() -> skyrecon_core::Result<()> {
     assert!(rec.point3d(pid).unwrap().error < 1e-9);
     rec.check_invariants()?;
 
-    let dir = std::env::temp_dir().join("skyrecon_core_doc_example");
+    let dir = std::env::temp_dir().join("cumulus3d_core_doc_example");
     std::fs::create_dir_all(&dir)?;
     write_model_binary(&rec, &dir, ImageOrder::default())?;
     let back = read_model(&dir)?;

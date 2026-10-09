@@ -2,7 +2,7 @@
 
 use crate::device::{CudaDevice, GpuError};
 use cudarc::driver::{CudaFunction, LaunchConfig, PushKernelArg};
-use skyrecon_matching::{CpuMatcher, MatcherBackend, Top2};
+use cumulus3d_matching::{CpuMatcher, MatcherBackend, Top2};
 use std::sync::{Arc, Mutex};
 
 const SRC: &str = include_str!("kernels/matcher.cu");

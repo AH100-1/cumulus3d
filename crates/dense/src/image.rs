@@ -1,6 +1,6 @@
 //! 영상 버퍼와 재표본 도구(u8 컬러, f32 회색, 적분영상 면적 평균, 쌍선형·3차 보간).
 
-use skyrecon_core::{Error, Result};
+use cumulus3d_core::{Error, Result};
 use std::path::Path;
 
 /// 8비트 영상(채널 1 또는 3, 행 우선, 채널 섞어 저장).

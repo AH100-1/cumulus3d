@@ -9,8 +9,8 @@
 //! # 사용 예
 //!
 //! ```
-//! use skyrecon_core::{Camera, CameraModelKind, Descriptors, FeatureMatch, Keypoint, TwoViewGeometryConfig};
-//! use skyrecon_matching::{estimate_two_view, CpuMatcher, DescriptorMatchOptions, MatcherBackend, TwoViewOptions};
+//! use cumulus3d_core::{Camera, CameraModelKind, Descriptors, FeatureMatch, Keypoint, TwoViewGeometryConfig};
+//! use cumulus3d_matching::{estimate_two_view, CpuMatcher, DescriptorMatchOptions, MatcherBackend, TwoViewOptions};
 //!
 //! // 1) 기술자 매칭: 기술자 i 는 성분 4i..4i+4 만 255 인 서로 직교하는 벡터.
 //! let make = |order: &[usize]| {

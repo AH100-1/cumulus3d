@@ -1,7 +1,7 @@
-//! SIFT 처리 시간 측정: `cargo run --release -p skyrecon-features --example bench_sift -- <영상|synthetic> [W H]`
+//! SIFT 처리 시간 측정: `cargo run --release -p cumulus3d-features --example bench_sift -- <영상|synthetic> [W H]`
 //! W H 를 주면 그 크기로 재표본화한 뒤 측정한다.
 
-use skyrecon_features::*;
+use cumulus3d_features::*;
 use std::time::Instant;
 
 fn main() {

@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn ply_roundtrip_both_layouts() {
-        let dir = std::env::temp_dir().join(format!("skyrecon_ply_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cumulus3d_ply_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         for layout in [PlyLayout::XyzRgbNormal, PlyLayout::XyzNormalRgb] {
             for normals in [true, false] {

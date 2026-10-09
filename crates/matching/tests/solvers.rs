@@ -2,9 +2,9 @@
 
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use skyrecon_core::ransac::{static_max_num_trials, RansacParams};
-use skyrecon_core::{Mat3, Quat, Vec2, Vec3};
-use skyrecon_matching::*;
+use cumulus3d_core::ransac::{static_max_num_trials, RansacParams};
+use cumulus3d_core::{Mat3, Quat, Vec2, Vec3};
+use cumulus3d_matching::*;
 
 fn rng(s: u64) -> Pcg64 {
     Pcg64::seed_from_u64(s)

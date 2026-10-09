@@ -3,8 +3,8 @@
 use crate::essential::essential_eight_point;
 use crate::estimators::{fundamental_eight_point, homography_dlt};
 use crate::linalg::svd3;
-use skyrecon_core::geometry::triangulation_angle;
-use skyrecon_core::{Camera, Keypoint, Mat3, Rigid3, TwoViewGeometry, TwoViewGeometryConfig, Vec2, Vec3};
+use cumulus3d_core::geometry::triangulation_angle;
+use cumulus3d_core::{Camera, Keypoint, Mat3, Rigid3, TwoViewGeometry, TwoViewGeometryConfig, Vec2, Vec3};
 
 /// E 분해 4후보 (R_a,t), (R_b,t), (R_a,−t), (R_b,−t). t 는 단위 벡터. cam1_to_cam2 규약.
 pub fn decompose_essential(e: &Mat3) -> Option<[(Mat3, Vec3); 4]> {

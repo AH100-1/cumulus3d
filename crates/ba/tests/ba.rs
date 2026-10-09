@@ -3,8 +3,8 @@ mod common;
 use common::*;
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use skyrecon_ba::*;
-use skyrecon_core::{Quat, Reconstruction, Rigid3, TrackEntry, Vec2, Vec3};
+use cumulus3d_ba::*;
+use cumulus3d_core::{Quat, Reconstruction, Rigid3, TrackEntry, Vec2, Vec3};
 
 fn gauge_info(rec: &Reconstruction) -> (Rigid3, Rigid3, usize) {
     // 정규화된 초기 자세 기준으로 영상1(id 1), 영상2(id 2) 와 고정 축 d.
@@ -119,12 +119,12 @@ fn corrupt(rec: &mut Reconstruction, frac: f64, seed: u64) -> std::collections::
                 }
             })
             .collect();
-        let new = skyrecon_core::Image::new(id, im.name.clone(), im.camera_id, pts);
+        let new = cumulus3d_core::Image::new(id, im.name.clone(), im.camera_id, pts);
         fresh.add_image_own_frame(new, rec.world_to_cam(id)).unwrap();
         fresh.register_image(id).unwrap();
     }
     for (pid, p) in rec.points3d() {
-        fresh.add_point3d_with_id(pid, skyrecon_core::Point3D { xyz: p.xyz, color: p.color, error: -1.0, track: p.track.clone() })
+        fresh.add_point3d_with_id(pid, cumulus3d_core::Point3D { xyz: p.xyz, color: p.color, error: -1.0, track: p.track.clone() })
             .unwrap();
     }
     std::mem::swap(&mut out, &mut fresh);

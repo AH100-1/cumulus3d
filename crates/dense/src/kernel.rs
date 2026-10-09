@@ -33,7 +33,7 @@
 //! - **수치**: 커널은 근사 나눗셈·지수(속도 우선)를 쓸 수 있다. 결과는 같은 장치·같은 입력에서 비트 단위로 재현된다.
 
 use crate::params::{FilterParams, PmParams};
-use skyrecon_core::Result;
+use cumulus3d_core::Result;
 use std::sync::Arc;
 
 /// 한 스케일의 뷰 영상.

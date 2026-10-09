@@ -3,7 +3,7 @@
 
 use crate::math::{gaussian, so3_exp};
 use rand::{RngExt, SeedableRng};
-use skyrecon_core::{
+use cumulus3d_core::{
     Camera, CameraModelKind, FeatureMatch, FeatureStore, ImageId, Keypoint, Rigid3, TwoViewGeometry, TwoViewGeometryConfig, Vec2,
     Vec3,
 };
@@ -52,7 +52,7 @@ pub fn opencv_camera(id: u32) -> Camera {
 /// 아래를 보는 기본 자세(카메라 z = 세계 −Z, x = 세계 +X)에 롤·피치 기울기.
 fn drone_pose(center: Vec3, roll_deg: f64, pitch_deg: f64) -> Rigid3 {
     // cam_to_world: 열 = 카메라 축의 세계 표현.
-    let base = skyrecon_core::Mat3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0);
+    let base = cumulus3d_core::Mat3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0);
     let tilt = so3_exp(&Vec3::new(pitch_deg.to_radians(), roll_deg.to_radians(), 0.0));
     let cam_to_world = base * tilt;
     let r = cam_to_world.transpose();
@@ -151,7 +151,7 @@ pub fn generate(cfg: &SceneConfig) -> Scene {
         }
         // 기하 검증이 저장했을 E (참 자세에서).
         let rel = truth[&b] * truth[&a].inverse();
-        let e = skyrecon_core::geometry::skew(&rel.translation.normalize()) * rel.rotation_matrix();
+        let e = cumulus3d_core::geometry::skew(&rel.translation.normalize()) * rel.rotation_matrix();
         let tvg = TwoViewGeometry {
             config: TwoViewGeometryConfig::Calibrated,
             e: Some(e),

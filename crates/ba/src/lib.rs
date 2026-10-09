@@ -8,8 +8,8 @@
 //! # 사용 예
 //!
 //! ```
-//! use skyrecon_ba::{refine_abs_pose, Loss};
-//! use skyrecon_core::{Camera, CameraModelKind, Quat, Rigid3, Vec2, Vec3};
+//! use cumulus3d_ba::{refine_abs_pose, Loss};
+//! use cumulus3d_core::{Camera, CameraModelKind, Quat, Rigid3, Vec2, Vec3};
 //!
 //! // 합성 장면: 참 자세로 3D 점을 투영해 2D 관측을 만든다.
 //! let cam = Camera::from_focal(CameraModelKind::Pinhole, 1000.0, 1920, 1080);
@@ -31,8 +31,8 @@
 //! ```
 //!
 //! ```no_run
-//! use skyrecon_ba::{bundle_adjust, BaConfig};
-//! let mut rec = skyrecon_core::interop::read_model("model/0").unwrap();
+//! use cumulus3d_ba::{bundle_adjust, BaConfig};
+//! let mut rec = cumulus3d_core::interop::read_model("model/0").unwrap();
 //! let summary = bundle_adjust(&mut rec, &BaConfig::default()).unwrap();
 //! println!("RMS {:.3} px, 반복 {}", summary.rms_reprojection_error(), summary.num_iterations);
 //! ```
@@ -48,7 +48,7 @@ mod problem;
 mod tr;
 
 use problem::{BaProblem, ProblemInput};
-use skyrecon_core::{CameraId, Error, FrameId, ImageId, Point3DId, Reconstruction, Rigid3, SensorKey, Vec2, Vec3};
+use cumulus3d_core::{CameraId, Error, FrameId, ImageId, Point3DId, Reconstruction, Rigid3, SensorKey, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet};
 use tr::TrOptions;
 
@@ -238,7 +238,7 @@ pub fn select_linear_solver(num_images: usize, config: &BaConfig) -> LinearSolve
 
 /// 주어진 등록 영상들에서 깊이(카메라 z) < ε 인 관측 삭제. 트랙 ≤ 2 면 점째 삭제(core 규칙).
 /// 반환: 삭제한 관측 수.
-pub fn filter_negative_depth_observations(rec: &mut Reconstruction, images: &[ImageId]) -> skyrecon_core::Result<usize> {
+pub fn filter_negative_depth_observations(rec: &mut Reconstruction, images: &[ImageId]) -> cumulus3d_core::Result<usize> {
     let mut del = Vec::new();
     for &id in images {
         let (Some(pose), Some(im)) = (rec.world_to_cam(id), rec.image(id)) else {
@@ -273,7 +273,7 @@ pub fn filter_negative_depth_observations(rec: &mut Reconstruction, images: &[Im
 /// 풀이기가 `Failure` 로 끝나도 마지막으로 채택된 해를 써 넣고 `Ok` 를 돌려준다
 /// (`summary.termination` 으로 확인). 자명하지 않은 rig 는 프레임 자세를 변수로 두고
 /// rig_to_sensor 는 상수로 둔다.
-pub fn bundle_adjust(rec: &mut Reconstruction, config: &BaConfig) -> skyrecon_core::Result<BaSummary> {
+pub fn bundle_adjust(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_core::Result<BaSummary> {
     if config.num_threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(config.num_threads)
@@ -293,7 +293,7 @@ struct Built {
     num_images: usize,
 }
 
-fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> skyrecon_core::Result<BaSummary> {
+fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_core::Result<BaSummary> {
     let mut images: Vec<ImageId> = if config.images.is_empty() {
         rec.registered_images()
     } else {
@@ -472,7 +472,7 @@ fn build_problem(rec: &Reconstruction, config: &BaConfig, images: &[ImageId]) ->
     let rot_mask = config.constant_world_to_rig_rotation;
     let mut pose_mask = vec![[rot_mask, rot_mask, rot_mask, false, false, false]; poses.len()];
     // 카메라
-    let cams: Vec<skyrecon_core::Camera> = cam_ids.iter().map(|c| rec.camera(*c).cloned()).collect::<Option<_>>()?;
+    let cams: Vec<cumulus3d_core::Camera> = cam_ids.iter().map(|c| rec.camera(*c).cloned()).collect::<Option<_>>()?;
     let cam_var: Vec<Vec<usize>> = cams
         .iter()
         .map(|cam| {
@@ -600,14 +600,14 @@ fn rank3(pts: &[Vec3]) -> usize {
 /// 3D 점·내부 파라미터 고정, 자세 6자유도. 허용치: 기울기 1.0, 함수 1e−6, 파라미터 1e−8.
 /// 풀이기 실패면 `Err` 이고 자세는 그대로다.
 pub fn refine_abs_pose(
-    camera: &skyrecon_core::Camera,
-    points2d: &[skyrecon_core::Vec2],
-    points3d: &[skyrecon_core::Vec3],
+    camera: &cumulus3d_core::Camera,
+    points2d: &[cumulus3d_core::Vec2],
+    points3d: &[cumulus3d_core::Vec3],
     inlier_mask: &[bool],
-    world_to_cam: &mut skyrecon_core::Rigid3,
+    world_to_cam: &mut cumulus3d_core::Rigid3,
     loss: Loss,
     max_num_iterations: usize,
-) -> skyrecon_core::Result<BaSummary> {
+) -> cumulus3d_core::Result<BaSummary> {
     if points2d.len() != points3d.len() || inlier_mask.len() != points2d.len() {
         return Err(Error::InvalidArgument("refine_abs_pose: 입력 길이 불일치".into()));
     }

@@ -1,11 +1,11 @@
-# skyrecon-sfm
+# cumulus3d-sfm
 
 특징·매칭 결과로 카메라 자세와 희소 3D 점을 만드는 SfM 크레이트(전역 SfM, 새 영상 등록, 삼각측량).
 
-**파이프라인 단계**: `skyrecon-matching` 이 채운 `FeatureStore`(특징·두 뷰 기하)와 그로부터 만든 `MatchGraph` 를 받아
+**파이프라인 단계**: `cumulus3d-matching` 이 채운 `FeatureStore`(특징·두 뷰 기하)와 그로부터 만든 `MatchGraph` 를 받아
 희소 재구성(`Reconstruction`)을 만든다. 첫 모델은 전역 SfM(상대 자세 → 회전 평균 → 트랙 → 위치 추정 → BA →
-재삼각측량)으로, 이후 위치가 도착할 때마다 새 영상 등록과 삼각측량으로 모델을 키운다. 결과는 `skyrecon-align`
-(GPS 정렬)과 `skyrecon-dense`(조밀화)로 넘어간다. 번들 조정은 `skyrecon-ba` 를 쓴다.
+재삼각측량)으로, 이후 위치가 도착할 때마다 새 영상 등록과 삼각측량으로 모델을 키운다. 결과는 `cumulus3d-align`
+(GPS 정렬)과 `cumulus3d-dense`(조밀화)로 넘어간다. 번들 조정은 `cumulus3d-ba` 를 쓴다.
 
 ## 주요 진입점
 
@@ -28,7 +28,7 @@
 
 크레이트 루트 재노출: `global_mapper`, `GlobalSfmOptions`, `GlobalMapperOutput`, `register_images`, `RegistrationOptions`,
 `RegistrationOrder`, `RegistrationReport`, `triangulate_points`, `PointRefiner`, `PointTriangulatorOptions`, `TriangulationScope`.
-나머지는 모듈 경로(`skyrecon_sfm::<모듈>::<항목>`)로 쓴다.
+나머지는 모듈 경로(`cumulus3d_sfm::<모듈>::<항목>`)로 쓴다.
 
 ## 공개 항목
 
@@ -160,9 +160,9 @@
 (같은 코드가 `lib.rs` 의 doc-test 로 실행된다).
 
 ```rust
-use skyrecon_core::{MatchGraph, MatchGraphOptions};
-use skyrecon_sfm::synthetic::{generate, SceneConfig};
-use skyrecon_sfm::{
+use cumulus3d_core::{MatchGraph, MatchGraphOptions};
+use cumulus3d_sfm::synthetic::{generate, SceneConfig};
+use cumulus3d_sfm::{
     global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions,
     RegistrationOptions, TriangulationScope,
 };
@@ -187,7 +187,7 @@ let tri = triangulate_points(&mut rec, &graph, &opts)?;
 println!("등록 {} 장, 새 점 {}", rec.registered_image_count(), tri.num_created);
 ```
 
-실제 영상에서는 `FeatureStore` 를 `skyrecon-features`(추출)와 `skyrecon-matching`(`match_pairs`)으로 채우고
+실제 영상에서는 `FeatureStore` 를 `cumulus3d-features`(추출)와 `cumulus3d-matching`(`match_pairs`)으로 채우고
 `MatchGraph::from_store` 로 대응 그래프를 만든다.
 
 ## 결정성
@@ -200,9 +200,9 @@ println!("등록 {} 장, 새 점 {}", rec.registered_image_count(), tri.num_crea
 ## 기능 플래그·하드웨어
 
 - 기능 플래그 없음. CPU 전용(rayon 병렬), GPU 불필요.
-- 의존: `skyrecon-core`, `skyrecon-ba`, `skyrecon-matching`, `nalgebra`, `rayon`, `rand`, `rand_pcg`, `thiserror`.
+- 의존: `cumulus3d-core`, `cumulus3d-ba`, `cumulus3d-matching`, `nalgebra`, `rayon`, `rand`, `rand_pcg`, `thiserror`.
 
 ## 시험
 
-`cargo test --release -p skyrecon-sfm`: 최소해법 정확도(P3P·EPnP), LO-RANSAC 견고성, 회전 평균·위치 추정 정확도,
+`cargo test --release -p cumulus3d-sfm`: 최소해법 정확도(P3P·EPnP), LO-RANSAC 견고성, 회전 평균·위치 추정 정확도,
 트랙·필터·등록 경계값, 드론 3대 합성 장면(48장)의 전역 매퍼·순차 등록·삼각측량 전 과정.

@@ -2,8 +2,8 @@
 
 use crate::absolute_pose::{solve_abs_pose, AbsolutePoseOptions};
 use rayon::prelude::*;
-use skyrecon_ba::Loss;
-use skyrecon_core::{
+use cumulus3d_ba::Loss;
+use cumulus3d_core::{
     Camera, MatchGraph, FeatureStore, Image, ImageId, Point2DIdx, Point3DId, Reconstruction, Result, TrackEntry,
     Vec2, Vec3,
 };
@@ -32,7 +32,7 @@ pub struct RegistrationOptions {
     pub max_focal_length_ratio: f64,
     /// 비정상 카메라 판정: 추가 파라미터 절대값 상한.
     pub max_extra_param: f64,
-    /// RANSAC 뒤 비선형 자세 정제(skyrecon-ba `refine_abs_pose`) 실행 여부.
+    /// RANSAC 뒤 비선형 자세 정제(cumulus3d-ba `refine_abs_pose`) 실행 여부.
     pub refine_pose: bool,
     /// 자세 정제 손실 함수.
     pub refine_loss: Loss,
@@ -118,7 +118,7 @@ pub fn add_missing_images(rec: &mut Reconstruction, store: &FeatureStore, graph:
             // 이름·특징 수 일치 검사.
             let ok = store.image(id).is_some_and(|s| s.name == im.name) && store.num_keypoints(id) == im.num_points2d();
             if !ok {
-                return Err(skyrecon_core::Error::Invariant(format!("영상 {id}: 모델과 저장소의 이름/특징 수 불일치")));
+                return Err(cumulus3d_core::Error::Invariant(format!("영상 {id}: 모델과 저장소의 이름/특징 수 불일치")));
             }
             continue;
         }
@@ -126,7 +126,7 @@ pub fn add_missing_images(rec: &mut Reconstruction, store: &FeatureStore, graph:
         if rec.camera(si.camera_id).is_none() {
             let cam = store
                 .camera(si.camera_id)
-                .ok_or_else(|| skyrecon_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
+                .ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
             rec.add_camera_own_rig(cam)?;
         }
         let kps = store.keypoints(id).map(|k| k.iter().map(|p| Vec2::new(p.x as f64, p.y as f64)).collect::<Vec<_>>());
@@ -245,7 +245,7 @@ pub fn register_image(
     }
     let mut pose = res.world_to_cam;
     if opts.refine_pose {
-        let s = skyrecon_ba::refine_abs_pose(
+        let s = cumulus3d_ba::refine_abs_pose(
             &camera,
             &p2,
             &p3,
@@ -318,7 +318,7 @@ pub fn register_images(
 mod tests {
     use super::*;
     use rand::{RngExt, SeedableRng};
-    use skyrecon_core::{FeatureMatch, Rigid3, TwoViewGeometry, TwoViewGeometryConfig};
+    use cumulus3d_core::{FeatureMatch, Rigid3, TwoViewGeometry, TwoViewGeometryConfig};
 
     /// 등록 영상 1, 2 와 3D 점 n 개, 새 영상 3 이 그 점들을 무잡음으로 본다.
     fn setup(n: usize) -> (Reconstruction, MatchGraph, Rigid3) {
@@ -326,9 +326,9 @@ mod tests {
         let cam = crate::synthetic::opencv_camera(1);
         let mut rec = Reconstruction::new();
         rec.add_camera_own_rig(cam.clone()).unwrap();
-        let p1 = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(0.0, 0.0, 10.0));
-        let p2 = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 10.0));
-        let p3 = Rigid3::new(skyrecon_core::Quat::from_axis_angle(&Vec3::y(), 0.05), Vec3::new(1.0, 0.2, 10.0));
+        let p1 = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(0.0, 0.0, 10.0));
+        let p2 = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 10.0));
+        let p3 = Rigid3::new(cumulus3d_core::Quat::from_axis_angle(&Vec3::y(), 0.05), Vec3::new(1.0, 0.2, 10.0));
         let pts: Vec<Vec3> =
             (0..n).map(|_| Vec3::new(rng.random_range(-3.0..3.0), rng.random_range(-2.0..2.0), rng.random_range(-1.0..1.0))).collect();
         let proj = |p: &Rigid3| -> Vec<Vec2> { pts.iter().map(|x| cam.cam_to_img(&(*p * *x)).unwrap()).collect() };

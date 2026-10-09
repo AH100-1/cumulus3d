@@ -8,8 +8,8 @@
 //! # 사용 예
 //!
 //! ```
-//! use skyrecon_core::FeatureStore;
-//! use skyrecon_features::{
+//! use cumulus3d_core::FeatureStore;
+//! use cumulus3d_features::{
 //!     CpuSift, ExifInfo, ExtractionOptions, FeatureExtractor, GrayImage, ImageSource, ImageStatus, SiftEngine,
 //!     SiftOptions,
 //! };
@@ -34,7 +34,7 @@
 //! let reports = FeatureExtractor::new().extract_inputs(&store, vec![src], &ExtractionOptions::default())?;
 //! assert!(matches!(reports[0].status, ImageStatus::Extracted { .. }));
 //! assert_eq!(store.num_images(), 1);
-//! # Ok::<(), skyrecon_core::Error>(())
+//! # Ok::<(), cumulus3d_core::Error>(())
 //! ```
 
 #![warn(missing_docs)]

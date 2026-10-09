@@ -1,7 +1,7 @@
 //! 희소 재구성: 전역 SfM(회전 평균 + 위치 추정), 기존 모델에 새 영상 등록, 삼각측량.
 //!
-//! 입력은 `skyrecon-core` 의 [`skyrecon_core::FeatureStore`] (특징·두 뷰 기하)와
-//! [`skyrecon_core::MatchGraph`] (대응 그래프), 출력은 [`skyrecon_core::Reconstruction`].
+//! 입력은 `cumulus3d-core` 의 [`cumulus3d_core::FeatureStore`] (특징·두 뷰 기하)와
+//! [`cumulus3d_core::MatchGraph`] (대응 그래프), 출력은 [`cumulus3d_core::Reconstruction`].
 //! 진입점은 [`global_mapper()`] (첫 모델), [`register_images`] (새 영상 등록),
 //! [`triangulate_points`] (점 생성·연장)이다. 모듈별 표는 크레이트 README 에 있다.
 //!
@@ -11,9 +11,9 @@
 //! 6번째 위치의 영상을 등록한 뒤 새 영상만 삼각측량한다.
 //!
 //! ```
-//! use skyrecon_core::{MatchGraph, MatchGraphOptions};
-//! use skyrecon_sfm::synthetic::{generate, SceneConfig};
-//! use skyrecon_sfm::{
+//! use cumulus3d_core::{MatchGraph, MatchGraphOptions};
+//! use cumulus3d_sfm::synthetic::{generate, SceneConfig};
+//! use cumulus3d_sfm::{
 //!     global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions,
 //!     RegistrationOptions, TriangulationScope,
 //! };
@@ -36,7 +36,7 @@
 //! let opts = PointTriangulatorOptions { scope: TriangulationScope::Images(new_images), ..Default::default() };
 //! let tri = triangulate_points(&mut rec, &graph, &opts)?;
 //! println!("등록 {} 장, 새 점 {}", rec.registered_image_count(), tri.num_created);
-//! # Ok::<(), skyrecon_core::Error>(())
+//! # Ok::<(), cumulus3d_core::Error>(())
 //! ```
 
 #![warn(missing_docs)]

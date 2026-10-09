@@ -1,32 +1,32 @@
 [package]
-name = "skyrecon-cli"
+name = "cumulus3d-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "skyrecon command-line tool: progressive drone-image 3D reconstruction in one process"
+description = "cumulus3d command-line tool: progressive drone-image 3D reconstruction in one process"
 repository.workspace = true
 keywords = ["sfm","photogrammetry","drone","point-cloud","cli"]
 categories = ["computer-vision","command-line-utilities"]
 readme = "README.md"
 
 [[bin]]
-name = "skyrecon"
+name = "cumulus3d"
 path = "src/main.rs"
 
 [dependencies]
-skyrecon-core.workspace = true
-skyrecon-features.workspace = true
-skyrecon-matching.workspace = true
-skyrecon-ba.workspace = true
-skyrecon-sfm.workspace = true
-skyrecon-align.workspace = true
-skyrecon-dense.workspace = true
-skyrecon-cuda.workspace = true
+cumulus3d-core.workspace = true
+cumulus3d-features.workspace = true
+cumulus3d-matching.workspace = true
+cumulus3d-ba.workspace = true
+cumulus3d-sfm.workspace = true
+cumulus3d-align.workspace = true
+cumulus3d-dense.workspace = true
+cumulus3d-cuda.workspace = true
 clap.workspace = true
 rayon.workspace = true
 nalgebra.workspace = true
 image.workspace = true
 
 [lib]
-name = "skyrecon_cli"
+name = "cumulus3d_cli"
 path = "src/lib.rs"

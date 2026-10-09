@@ -1,6 +1,9 @@
-# skyrecon
+# cumulus3d
 
-드론 편대 영상으로 3D 점군을 **점진적으로** 만드는 Rust 워크스페이스.
+**cumulus3d** 는 영상이 들어올수록 3D 점군이 구름처럼 쌓이는 점진 재구성 라이브러리다.
+드론 전용이 아니라 영상 일반을 지향하며, 현재 기본 입력 구성은 3카메라 편대다.
+
+영상으로 3D 점군을 **점진적으로** 만드는 Rust 워크스페이스.
 영상이 위치 단위로 도착하는 동안 특징 추출 → 매칭 → SfM → GPS 정렬 → 조밀화를 한 프로세스 안에서 잇고,
 구역마다 빠른 초벌(BA 없음)과 정밀본(BA 있음)을 내서 정밀 지도(ENU) 위에 단계별 스냅샷을 쌓는다.
 중간 데이터베이스나 디스크 모델 폴더 없이 메모리 자료 구조로 단계를 넘긴다.
@@ -9,15 +12,15 @@
 
 | 크레이트 | 역할 |
 |---|---|
-| `crates/core` (`skyrecon-core`) | 카메라 모델, 기하(Rigid3/Sim3), 재구성 자료 구조, 대응 그래프, 특징 저장소, RANSAC, PLY/GPS 입출력, 모델 파일 형식(`interop`) |
-| `crates/features` (`skyrecon-features`) | 영상 읽기·EXIF·카메라 초기화, SIFT 검출·기술자 |
-| `crates/matching` (`skyrecon-matching`) | 기술자 매칭, 짝 목록, 두 뷰 기하(E/F/H) 추정·검증 |
-| `crates/ba` (`skyrecon-ba`) | 번들 조정(신뢰 영역 LM, Schur 보완 선형 풀이), 절대 자세 정제 |
-| `crates/sfm` (`skyrecon-sfm`) | 전역 SfM(회전 평균 + 위치 추정), 영상 등록, 삼각측량 |
-| `crates/align` (`skyrecon-align`) | GPS ↔ ENU 변환, 모델 정렬(Umeyama, 견고 추정), 점군 재기준 |
-| `crates/dense` (`skyrecon-dense`) | 왜곡 보정, 장면 변환, PatchStereo 깊이맵, 필터·융합 → 조밀 점군 |
-| `crates/cuda` (`skyrecon-cuda`) | GPU 백엔드(PatchStereo, 기술자 매칭, SIFT 스케일 공간). CUDA 없는 기계에서도 빌드됨 |
-| `crates/cli` (`skyrecon-cli`) | 실행 파일 `skyrecon`: `skyrecon stream` 과 단계별 하위 명령 |
+| `crates/core` (`cumulus3d-core`) | 카메라 모델, 기하(Rigid3/Sim3), 재구성 자료 구조, 대응 그래프, 특징 저장소, RANSAC, PLY/GPS 입출력, 모델 파일 형식(`interop`) |
+| `crates/features` (`cumulus3d-features`) | 영상 읽기·EXIF·카메라 초기화, SIFT 검출·기술자 |
+| `crates/matching` (`cumulus3d-matching`) | 기술자 매칭, 짝 목록, 두 뷰 기하(E/F/H) 추정·검증 |
+| `crates/ba` (`cumulus3d-ba`) | 번들 조정(신뢰 영역 LM, Schur 보완 선형 풀이), 절대 자세 정제 |
+| `crates/sfm` (`cumulus3d-sfm`) | 전역 SfM(회전 평균 + 위치 추정), 영상 등록, 삼각측량 |
+| `crates/align` (`cumulus3d-align`) | GPS ↔ ENU 변환, 모델 정렬(Umeyama, 견고 추정), 점군 재기준 |
+| `crates/dense` (`cumulus3d-dense`) | 왜곡 보정, 장면 변환, PatchStereo 깊이맵, 필터·융합 → 조밀 점군 |
+| `crates/cuda` (`cumulus3d-cuda`) | GPU 백엔드(PatchStereo, 기술자 매칭, SIFT 스케일 공간). CUDA 없는 기계에서도 빌드됨 |
+| `crates/cli` (`cumulus3d-cli`) | 실행 파일 `cumulus3d`: `cumulus3d stream` 과 단계별 하위 명령 |
 
 전체 공개 API 지도(무엇을 하려면 어떤 함수를 쓰나, 크레이트 의존 관계)는 [docs/API.md](docs/API.md) 에 있다.
 각 크레이트의 공개 항목은 `crates/*/README.md`, 실행 파일 사용법은 `crates/cli/README.md` 에 있다.
@@ -34,13 +37,13 @@ cargo clippy --workspace --all-targets
 
 ```bash
 # 점진 파이프라인(입력: images/camF|camR|camL/*.jpg + gps_ref.txt)
-target/release/skyrecon stream --src <입력 폴더> --out <출력 폴더>
+target/release/cumulus3d stream --src <입력 폴더> --out <출력 폴더>
 # GPU 백엔드 사용(CUDA 12.x)
-target/release/skyrecon stream --src <입력> --out <출력> --gpu
+target/release/cumulus3d stream --src <입력> --out <출력> --gpu
 # 단계별 하위 명령(기존 스크립트용): feature_extractor, matches_importer, global_mapper, image_registrator,
 # point_triangulator, bundle_adjuster, model_aligner, model_analyzer, model_converter, image_deleter,
 # image_undistorter, densify
-target/release/skyrecon model_analyzer --path <모델 폴더>
+target/release/cumulus3d model_analyzer --path <모델 폴더>
 ```
 
 ## 이벤트 기반 구조
@@ -100,7 +103,7 @@ target/release/skyrecon model_analyzer --path <모델 폴더>
 
 ### 4. 기본 출력 훅 (`sinks`)
 
-`sinks::attach(pipeline, out, &SinkOptions)` 한 줄로 `skyrecon stream` 과 같은 파일을 만드는 훅 묶음이 붙는다.
+`sinks::attach(pipeline, out, &SinkOptions)` 한 줄로 `cumulus3d stream` 과 같은 파일을 만드는 훅 묶음이 붙는다.
 
 | 훅 | 출력 |
 |---|---|
@@ -110,22 +113,22 @@ target/release/skyrecon model_analyzer --path <모델 폴더>
 | `ModelSink` (`save_models`) | `work/models/…` |
 | `SnapshotSink` | `aligned/`, `snapshots/event_NN_*.ply`, `snapshots/manifest.json`, `final_frame/` |
 
-`skyrecon stream` 자체도 이 구조 위에서 돈다: 세션 + 기본 출력 훅을 조립하고 위치마다 `push` 한 뒤 `finish` 한다.
+`cumulus3d stream` 자체도 이 구조 위에서 돈다: 세션 + 기본 출력 훅을 조립하고 위치마다 `push` 한 뒤 `finish` 한다.
 
 ### 라이브러리: 파이프라인 + 람다 훅
 
 위치 하나의 프레임 묶음을 넣을 때마다 세션이 단계별 이벤트(`ZoneArrived`, `ZonePreview`, `ZoneRefined`, …)를 내고,
-등록한 훅이 그것을 받는다. `sinks::attach` 는 `skyrecon stream` 과 같은 파일
+등록한 훅이 그것을 받는다. `sinks::attach` 는 `cumulus3d stream` 과 같은 파일
 (timeline.txt, run.log, full/, aligned/, snapshots/, manifest.json, final_frame/)을 만드는 기본 훅을 붙인다.
 
 ```rust
-use skyrecon_cli::events::{Event, EventKind};
-use skyrecon_cli::pipeline::Pipeline;
-use skyrecon_cli::session::{FrameSet, Input, Session, SessionConfig};
-use skyrecon_cli::sinks::{self, SinkOptions};
+use cumulus3d_cli::events::{Event, EventKind};
+use cumulus3d_cli::pipeline::Pipeline;
+use cumulus3d_cli::session::{FrameSet, Input, Session, SessionConfig};
+use cumulus3d_cli::sinks::{self, SinkOptions};
 
 let mut cfg = SessionConfig::new("data/images");
-cfg.gps = skyrecon_core::io::read_gps_file("data/gps_ref.txt")?;
+cfg.gps = cumulus3d_core::io::read_gps_file("data/gps_ref.txt")?;
 cfg.total_positions = Some(80);
 
 let p = Pipeline::new(Session::new(cfg))
@@ -141,7 +144,7 @@ for pos in 0..80 {
 let (_session, summary) = p.finish(); // 남은 정밀 작업을 기다리고 훅 큐를 비운다
 ```
 
-합성 장면으로 바로 돌려 보는 예: `cargo run --release -p skyrecon-cli --example hooks -- <출력 폴더>`.
+합성 장면으로 바로 돌려 보는 예: `cargo run --release -p cumulus3d-cli --example hooks -- <출력 폴더>`.
 
 ## 라이선스
 

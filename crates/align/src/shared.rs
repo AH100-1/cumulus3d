@@ -5,7 +5,7 @@
 
 use crate::error::{AlignError, Result};
 use crate::umeyama::{robust_umeyama, RobustUmeyamaOptions, RobustUmeyamaResult};
-use skyrecon_core::{Point3DId, Reconstruction, Vec3};
+use cumulus3d_core::{Point3DId, Reconstruction, Vec3};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
@@ -96,7 +96,7 @@ pub fn align_reconstructions(
 mod tests {
     use super::*;
     use crate::umeyama::tests::{random_sim3, sim_close};
-    use skyrecon_core::{Camera, CameraModelKind, Image, Rigid3, TrackEntry, Vec2};
+    use cumulus3d_core::{Camera, CameraModelKind, Image, Rigid3, TrackEntry, Vec2};
 
     fn base(n_img: u32, n_pts: u32) -> Reconstruction {
         let mut rec = Reconstruction::new();
@@ -126,12 +126,12 @@ mod tests {
     #[test]
     fn correspondences_and_alignment() {
         // A: 점 k 가 영상 1·2 의 2D 인덱스 k 에 관측. B: 같은 관측을 다른 id(k+100), 다른 좌표계.
-        let truth = random_sim3(&mut skyrecon_core::ransac::make_rng(Some(4)));
+        let truth = random_sim3(&mut cumulus3d_core::ransac::make_rng(Some(4)));
         let (mut a, mut b) = (base(3, 30), base(3, 30));
         for k in 0..30u32 {
             let x = Vec3::new(k as f64, (k * k % 7) as f64, (k % 5) as f64 * 2.0);
             let ta = vec![TrackEntry::new(1, k), TrackEntry::new(2, k)];
-            a.add_point3d_with_id(k as u64 + 1, skyrecon_core::Point3D { xyz: x, color: [0; 3], error: -1.0, track: ta }).unwrap();
+            a.add_point3d_with_id(k as u64 + 1, cumulus3d_core::Point3D { xyz: x, color: [0; 3], error: -1.0, track: ta }).unwrap();
             // B 는 영상 2·3 에서 관측, 영상 2 만 공유. 앞 25개만.
             if k < 25 {
                 let tb = vec![TrackEntry::new(2, k), TrackEntry::new(3, k)];
@@ -139,7 +139,7 @@ mod tests {
                 if k == 0 {
                     y += Vec3::new(1000.0, 0.0, 0.0); // 이상치
                 }
-                b.add_point3d_with_id(k as u64 + 100, skyrecon_core::Point3D { xyz: y, color: [0; 3], error: -1.0, track: tb })
+                b.add_point3d_with_id(k as u64 + 100, cumulus3d_core::Point3D { xyz: y, color: [0; 3], error: -1.0, track: tb })
                     .unwrap();
             }
         }
@@ -164,7 +164,7 @@ mod tests {
         let (mut a, mut b) = (base(2, 5), base(2, 5));
         for k in 0..5u32 {
             let t = vec![TrackEntry::new(1, k), TrackEntry::new(2, k)];
-            let p = skyrecon_core::Point3D { xyz: Vec3::new(k as f64, 1.0, 2.0), color: [0; 3], error: -1.0, track: t };
+            let p = cumulus3d_core::Point3D { xyz: Vec3::new(k as f64, 1.0, 2.0), color: [0; 3], error: -1.0, track: t };
             a.add_point3d_with_id(k as u64 + 1, p.clone()).unwrap();
             b.add_point3d_with_id(k as u64 + 1, p).unwrap();
         }

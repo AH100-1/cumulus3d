@@ -293,6 +293,123 @@ dependencies = [
 ]
 
 [[package]]
+name = "cumulus3d-align"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-core",
+ "nalgebra",
+ "rand 0.10.3",
+ "rand_pcg",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-ba"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-core",
+ "faer",
+ "nalgebra",
+ "rand 0.10.3",
+ "rand_pcg",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-cli"
+version = "0.3.1"
+dependencies = [
+ "clap",
+ "cumulus3d-align",
+ "cumulus3d-ba",
+ "cumulus3d-core",
+ "cumulus3d-cuda",
+ "cumulus3d-dense",
+ "cumulus3d-features",
+ "cumulus3d-matching",
+ "cumulus3d-sfm",
+ "image",
+ "nalgebra",
+ "rayon",
+]
+
+[[package]]
+name = "cumulus3d-core"
+version = "0.3.1"
+dependencies = [
+ "nalgebra",
+ "rand 0.10.3",
+ "rand_pcg",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-cuda"
+version = "0.3.1"
+dependencies = [
+ "cudarc",
+ "cumulus3d-core",
+ "cumulus3d-dense",
+ "cumulus3d-features",
+ "cumulus3d-matching",
+ "nalgebra",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-dense"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-core",
+ "image",
+ "nalgebra",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-features"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-core",
+ "image",
+ "kamadak-exif",
+ "nalgebra",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-matching"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-core",
+ "nalgebra",
+ "rand 0.10.3",
+ "rand_pcg",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cumulus3d-sfm"
+version = "0.3.1"
+dependencies = [
+ "cumulus3d-ba",
+ "cumulus3d-core",
+ "cumulus3d-matching",
+ "nalgebra",
+ "rand 0.10.3",
+ "rand_pcg",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "defer"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1394,123 +1511,6 @@ name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
-
-[[package]]
-name = "skyrecon-align"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "rand 0.10.3",
- "rand_pcg",
- "rayon",
- "skyrecon-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-ba"
-version = "0.1.0"
-dependencies = [
- "faer",
- "nalgebra",
- "rand 0.10.3",
- "rand_pcg",
- "rayon",
- "skyrecon-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "image",
- "nalgebra",
- "rayon",
- "skyrecon-align",
- "skyrecon-ba",
- "skyrecon-core",
- "skyrecon-cuda",
- "skyrecon-dense",
- "skyrecon-features",
- "skyrecon-matching",
- "skyrecon-sfm",
-]
-
-[[package]]
-name = "skyrecon-core"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "rand 0.10.3",
- "rand_pcg",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-cuda"
-version = "0.1.0"
-dependencies = [
- "cudarc",
- "nalgebra",
- "rayon",
- "skyrecon-core",
- "skyrecon-dense",
- "skyrecon-features",
- "skyrecon-matching",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-dense"
-version = "0.1.0"
-dependencies = [
- "image",
- "nalgebra",
- "rayon",
- "skyrecon-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-features"
-version = "0.1.0"
-dependencies = [
- "image",
- "kamadak-exif",
- "nalgebra",
- "rayon",
- "skyrecon-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-matching"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "rand 0.10.3",
- "rand_pcg",
- "rayon",
- "skyrecon-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "skyrecon-sfm"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "rand 0.10.3",
- "rand_pcg",
- "rayon",
- "skyrecon-ba",
- "skyrecon-core",
- "skyrecon-matching",
- "thiserror 2.0.21",
-]
 
 [[package]]
 name = "smallvec"

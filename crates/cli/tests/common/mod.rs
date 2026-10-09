@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use image::{Rgb, RgbImage};
-use skyrecon_align::EnuFrame;
+use cumulus3d_align::EnuFrame;
 use std::io::Write;
 use std::path::Path;
 
@@ -174,7 +174,7 @@ pub fn make_dataset(root: &Path) {
             let f = std::fs::File::create(root.join("images").join(&name)).unwrap();
             let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(f), 95);
             enc.encode_image(&img).unwrap();
-            let (lat, lon, alt) = enu.enu_to_lla(&skyrecon_core::Vec3::new(c[0], c[1], c[2]));
+            let (lat, lon, alt) = enu.enu_to_lla(&cumulus3d_core::Vec3::new(c[0], c[1], c[2]));
             gps.push_str(&format!("{name} {lat:.10} {lon:.10} {alt:.4}\n"));
         }
     }

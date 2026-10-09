@@ -10,9 +10,9 @@
 //! # 사용 예
 //!
 //! ```
-//! use skyrecon_align::{compose_snapshot, umeyama, EnuFrame, SnapshotOptions};
-//! use skyrecon_core::io::PointCloud;
-//! use skyrecon_core::{Quat, Sim3, Vec3};
+//! use cumulus3d_align::{compose_snapshot, umeyama, EnuFrame, SnapshotOptions};
+//! use cumulus3d_core::io::PointCloud;
+//! use cumulus3d_core::{Quat, Sim3, Vec3};
 //!
 //! // GPS(WGS84) ↔ ENU: 원점 기준 동쪽·북쪽·위 미터 좌표.
 //! let enu = EnuFrame::new(37.5, 127.0, 10.0);
@@ -35,8 +35,8 @@
 //! ```
 //!
 //! ```no_run
-//! use skyrecon_align::{align_to_gps_file, ModelAlignerOptions};
-//! let mut rec = skyrecon_core::interop::read_model("model/0").unwrap();
+//! use cumulus3d_align::{align_to_gps_file, ModelAlignerOptions};
+//! let mut rec = cumulus3d_core::interop::read_model("model/0").unwrap();
 //! let a = align_to_gps_file(&mut rec, "gps_ref.txt", &ModelAlignerOptions::default()).unwrap();
 //! println!("인라이어 {}/{}, 중앙 오차 {:.2} m", a.num_inliers, a.common.len(), a.median_error);
 //! ```

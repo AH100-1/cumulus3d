@@ -1,22 +1,22 @@
 //! 외부 SfM 도구(COLMAP) 단계별 명령 호환 하위 명령(얇은 래퍼). 하위 명령 이름과 옵션 문자열은 그 도구의 명령줄을 따른다.
-//! 단계 사이 상태는 `--database_path` (FeatureStore 이진 파일)와 모델 폴더([`skyrecon_core::interop`] 형식)로 잇는다.
+//! 단계 사이 상태는 `--database_path` (FeatureStore 이진 파일)와 모델 폴더([`cumulus3d_core::interop`] 형식)로 잇는다.
 //! GPU 관련 옵션(`--FeatureExtraction.use_gpu` 등)은 받기만 하고 무시한다.
 
 use crate::densewrap::{dense_model, make_pm_backend, parse_profile, DenseConfig};
 use clap::{Args, Subcommand};
-use skyrecon_align::{align_to_gps, ModelAlignerOptions};
-use skyrecon_ba::{bundle_adjust, BaConfig};
-use skyrecon_core::analyzer::analyzer_lines;
-use skyrecon_core::interop::{read_model, write_model_binary, write_model_text, ImageOrder};
-use skyrecon_core::io::{read_gps_file, write_ply, PointCloud, PlyLayout};
-use skyrecon_core::reconstruction::bilinear_rgb;
-use skyrecon_core::{CameraModelKind, MatchGraph, MatchGraphOptions, FeatureStore, ImageId, Reconstruction};
-use skyrecon_dense::densify::densify_with;
-use skyrecon_dense::fusion_score::ScoreFusionOptions;
-use skyrecon_dense::{write_undistorted_workspace, DenseScene, UndistortCache, UndistortOptions};
-use skyrecon_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageStatus};
-use skyrecon_matching::{match_pair_list_file, CpuMatcher, PairMatchingOptions};
-use skyrecon_sfm::{global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions};
+use cumulus3d_align::{align_to_gps, ModelAlignerOptions};
+use cumulus3d_ba::{bundle_adjust, BaConfig};
+use cumulus3d_core::analyzer::analyzer_lines;
+use cumulus3d_core::interop::{read_model, write_model_binary, write_model_text, ImageOrder};
+use cumulus3d_core::io::{read_gps_file, write_ply, PointCloud, PlyLayout};
+use cumulus3d_core::reconstruction::bilinear_rgb;
+use cumulus3d_core::{CameraModelKind, MatchGraph, MatchGraphOptions, FeatureStore, ImageId, Reconstruction};
+use cumulus3d_dense::densify::densify_with;
+use cumulus3d_dense::fusion_score::ScoreFusionOptions;
+use cumulus3d_dense::{write_undistorted_workspace, DenseScene, UndistortCache, UndistortOptions};
+use cumulus3d_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageStatus};
+use cumulus3d_matching::{match_pair_list_file, CpuMatcher, PairMatchingOptions};
+use cumulus3d_sfm::{global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -443,7 +443,7 @@ pub struct DensifyArgs {
 }
 
 /// 조밀화 하위 명령 옵션을 설정에 반영.
-pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::DensifyOptions) -> R {
+pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut cumulus3d_dense::DensifyOptions) -> R {
     if let Some(r) = a.window_radius {
         o.pm.window_radius = r;
     }
@@ -454,7 +454,7 @@ pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::Densif
         o.max_levels = l;
     }
     if let Some(m) = a.fusion_mode.as_deref().filter(|m| !is_score_mode(m)) {
-        o.fusion.mode = skyrecon_dense::FusionMode::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-mode {m}"))?;
+        o.fusion.mode = cumulus3d_dense::FusionMode::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-mode {m}"))?;
     }
     let f = &mut o.fusion;
     if let Some(v) = a.fusion_min_views {
@@ -470,7 +470,7 @@ pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut skyrecon_dense::Densif
         f.max_reproj_error = v;
     }
     if let Some(m) = &a.fusion_residual {
-        f.residual = skyrecon_dense::FusionResidual::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-residual {m}"))?;
+        f.residual = cumulus3d_dense::FusionResidual::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-residual {m}"))?;
     }
     if let Some(v) = a.residual_min_views {
         f.residual_params.min_views = v;
@@ -554,7 +554,7 @@ fn has_score_args(a: &DensifyArgs) -> bool {
 
 /// 점수 융합 설정. `--fusion-mode score` 면 `o.fusion`(다른 융합 플래그 반영 후)의 허용치를 이어받고 `--score-*` 를 덮어쓴다.
 /// `base` 는 융합 변형에서 densify 명령 자체의 인자: 변형 줄에 `--fusion-mode` 가 없으면 그 방식을 따르고, 그 `--score-*` 를 먼저 반영한다.
-pub(crate) fn score_options(a: &DensifyArgs, o: &skyrecon_dense::DensifyOptions, base: Option<&DensifyArgs>) -> Result<Option<ScoreFusionOptions>, String> {
+pub(crate) fn score_options(a: &DensifyArgs, o: &cumulus3d_dense::DensifyOptions, base: Option<&DensifyArgs>) -> Result<Option<ScoreFusionOptions>, String> {
     let mode = a.fusion_mode.as_deref().or_else(|| base.and_then(|b| b.fusion_mode.as_deref()));
     if !mode.is_some_and(is_score_mode) {
         if has_score_args(a) || base.is_some_and(|b| a.fusion_mode.is_none() && has_score_args(b)) {
@@ -630,7 +630,7 @@ pub fn run(cmd: InteropCmd) -> R {
         InteropCmd::FeatureExtractor(a) => {
             let store = load_store(&a.database_path)?;
             let names = match &a.image_list_path {
-                Some(p) => skyrecon_features::read_image_list(p).map_err(e)?,
+                Some(p) => cumulus3d_features::read_image_list(p).map_err(e)?,
                 None => list_images(&a.image_path),
             };
             let mut o = ExtractionOptions::default();
@@ -805,7 +805,7 @@ pub fn run(cmd: InteropCmd) -> R {
             }
             let rec = load_model(&a.input_path)?;
             let o = UndistortOptions { max_image_size: a.max_image_size, ..Default::default() };
-            let r = skyrecon_dense::undistort_from_dir(&rec, &a.image_path, &o, &UndistortCache::new()).map_err(e)?;
+            let r = cumulus3d_dense::undistort_from_dir(&rec, &a.image_path, &o, &UndistortCache::new()).map_err(e)?;
             write_undistorted_workspace(&r, &a.output_path, &o).map_err(e)?;
             println!("보정 {} 실패 {}", r.images.len(), r.failed.len());
         }
@@ -865,7 +865,7 @@ pub fn run(cmd: InteropCmd) -> R {
             println!("점 {} (2차 {}) 융합 {:.2}s (1차 {:.2}s 2차 {:.2}s)", out.cloud.len(), out.num_residual(), tm.fusion.as_secs_f64(), tm.fusion_pass1.as_secs_f64(), tm.fusion_pass2.as_secs_f64());
             if a.stats {
                 let ts = Instant::now();
-                let st = skyrecon_dense::cloud_stats(&scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
+                let st = cumulus3d_dense::cloud_stats(&scene, &out.depth_maps, &out.cloud, &out.visibility, 200_000, 2.0);
                 println!(
                     "통계: 점 {} 표본 {} 이웃 간격 중앙 {:.4} GSD {:.4} 이상점(2px) {:.2}% 평면 이탈(>GSD·고립) {:.2}% 평면 거리 중앙 {:.4} 중복(<GSD/2) {:.2}% ({:.1}s)",
                     st.points,

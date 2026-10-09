@@ -2,8 +2,8 @@
 
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use skyrecon_core::{Camera, CameraModelKind, FeatureMatch, Keypoint, Mat3, Quat, TwoViewGeometryConfig as C, Vec2, Vec3};
-use skyrecon_matching::*;
+use cumulus3d_core::{Camera, CameraModelKind, FeatureMatch, Keypoint, Mat3, Quat, TwoViewGeometryConfig as C, Vec2, Vec3};
+use cumulus3d_matching::*;
 
 const W: u64 = 2000;
 const H: u64 = 1500;

@@ -1,7 +1,7 @@
 //! 이미지 읽기·카메라 초기화 검증.
 
-use skyrecon_core::{CameraModelKind, FeatureStore, Keypoint};
-use skyrecon_features::*;
+use cumulus3d_core::{CameraModelKind, FeatureStore, Keypoint};
+use cumulus3d_features::*;
 
 #[test]
 fn gray_conversion_exact() {
@@ -180,7 +180,7 @@ fn keypoints_scaled_to_camera_size() {
 
 #[test]
 fn read_files_from_disk() {
-    let dir = std::env::temp_dir().join(format!("skyrecon_features_test_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cumulus3d_features_test_{}", std::process::id()));
     std::fs::create_dir_all(dir.join("camA")).unwrap();
     let g = textured(120, 90, 5);
     let img = image::GrayImage::from_raw(120, 90, g.data.clone()).unwrap();

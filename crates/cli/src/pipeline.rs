@@ -19,7 +19,7 @@
 //! (그 `Error` 는 훅에는 전달하지 않는다. 오류 훅이 다시 패닉해 무한 반복되는 것을 막기 위함.)
 
 use crate::events::{Command, Event, EventKind, Meta, ZoneRange};
-use skyrecon_core::io::ply::PointCloud;
+use cumulus3d_core::io::ply::PointCloud;
 use std::collections::{HashMap, VecDeque};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -502,7 +502,7 @@ impl<R: Reducer> Pipeline<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skyrecon_core::Reconstruction;
+    use cumulus3d_core::Reconstruction;
     use std::sync::mpsc::RecvTimeoutError;
     use std::time::Duration;
 

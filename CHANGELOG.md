@@ -1,7 +1,15 @@
 # Changelog
 
+0.3.0 까지는 skyrecon 이라는 이름으로 개발됨.
+
 이 프로젝트는 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다. 0.x 동안에는 부 버전(0.1 → 0.2)에서 호환이 깨질 수 있다.
 각 버전의 날짜는 실제 작업·커밋 날짜다.
+
+## [0.3.1] — 2026-10-09
+### 변경
+- 프로젝트 이름을 cumulus3d 로 변경. 크레이트 `cumulus3d-core`/`-features`/`-matching`/`-ba`/`-sfm`/`-align`/`-dense`/`-cuda`/`-cli`,
+  실행 파일 `cumulus3d`, 저장소 https://github.com/AH100-1/cumulus3d, 환경 변수 접두어 `CUMULUS3D_`.
+- 특징 저장소 파일 표지를 `C3DFS` 로 변경. 옛 표지로 저장된 파일도 그대로 읽는다. 동작은 바뀌지 않았다.
 
 ## [0.3.0] — 2026-10-09
 ### 추가

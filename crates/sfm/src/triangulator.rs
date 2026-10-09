@@ -3,9 +3,9 @@
 
 use crate::triangulation::{angular_error, estimate_triangulation, has_positive_depth, TriObservation, TriangulationRansacParams};
 use rayon::prelude::*;
-use skyrecon_ba::{BaConfig, Loss};
-use skyrecon_core::graph::Correspondence;
-use skyrecon_core::{
+use cumulus3d_ba::{BaConfig, Loss};
+use cumulus3d_core::graph::Correspondence;
+use cumulus3d_core::{
     images_of_pair, Camera, MatchGraph, Error, ImageId, Mat3x4, Point2DIdx, Point3DId, Reconstruction,
     Result, Rigid3, TrackEntry, Vec3, INVALID_POINT3D_ID,
 };
@@ -69,7 +69,7 @@ impl Default for TrackTriangulatorOptions {
 /// 점 정제 방식(자세·내부 고정 BA).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PointRefiner {
-    /// skyrecon-ba 의 `bundle_adjust` (자세·카메라 상수, 점만 변수). 기본 동작.
+    /// cumulus3d-ba 의 `bundle_adjust` (자세·카메라 상수, 점만 변수). 기본 동작.
     BundleAdjuster,
     /// 점별 독립 3변수 LM(자세·내부가 고정이면 BA 와 같은 문제).
     PerPoint,
@@ -368,7 +368,7 @@ impl<'a> TrackTriangulator<'a> {
         Ok(total)
     }
 
-    fn reproj_ok(&self, image_id: ImageId, xy: &skyrecon_core::Vec2, x: &Vec3, max_px: f64) -> bool {
+    fn reproj_ok(&self, image_id: ImageId, xy: &cumulus3d_core::Vec2, x: &Vec3, max_px: f64) -> bool {
         match self.poses.get(&image_id) {
             Some(pi) => Reconstruction::squared_reprojection_error(&pi.pose, &pi.camera, xy, x) <= max_px * max_px,
             None => false,
@@ -613,7 +613,7 @@ pub fn refine_points(rec: &mut Reconstruction, ids: Option<&[Point3DId]>, refine
                 num_threads: 0,
                 ..Default::default()
             };
-            skyrecon_ba::bundle_adjust(rec, &cfg)?;
+            cumulus3d_ba::bundle_adjust(rec, &cfg)?;
             Ok(())
         }
     }
@@ -622,7 +622,7 @@ pub fn refine_points(rec: &mut Reconstruction, ids: Option<&[Point3DId]>, refine
 /// 점 하나 LM(고정 자세에서 픽셀 재투영 제곱합 최소). 실패 시 None.
 fn refine_one_point(rec: &Reconstruction, id: Point3DId, max_iterations: usize) -> Option<Vec3> {
     let p = rec.point3d(id)?;
-    let obs: Vec<(Rigid3, &Camera, skyrecon_core::Vec2)> = p
+    let obs: Vec<(Rigid3, &Camera, cumulus3d_core::Vec2)> = p
         .track
         .iter()
         .filter_map(|t| {
@@ -746,7 +746,7 @@ pub fn triangulate_points(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skyrecon_core::{CameraModelKind, FeatureMatch, Image, Quat, TwoViewGeometry, TwoViewGeometryConfig, Vec2};
+    use cumulus3d_core::{CameraModelKind, FeatureMatch, Image, Quat, TwoViewGeometry, TwoViewGeometryConfig, Vec2};
 
     fn cam() -> Camera {
         Camera::new(1, CameraModelKind::Pinhole, 1000, 1000, vec![1000.0, 1000.0, 500.0, 500.0]).unwrap()

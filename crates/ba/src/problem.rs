@@ -9,8 +9,8 @@ use crate::tr::{StepInfo, TrProblem};
 use crate::{LinearSolverType, Loss};
 use nalgebra::{Matrix2x3, Matrix3};
 use rayon::prelude::*;
-use skyrecon_core::geometry::skew;
-use skyrecon_core::{Camera, Mat3, Quat, Rigid3, Vec2, Vec3};
+use cumulus3d_core::geometry::skew;
+use cumulus3d_core::{Camera, Mat3, Quat, Rigid3, Vec2, Vec3};
 
 pub(crate) const NONE: u32 = u32::MAX;
 /// 관측 결과를 결정적으로 합칠 때의 조각 크기.
@@ -1231,7 +1231,7 @@ impl BaProblem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skyrecon_core::CameraModelKind;
+    use cumulus3d_core::CameraModelKind;
 
     fn one_obs_problem(pose: Rigid3, sensor: Option<Rigid3>, x: Vec3, xy: Vec2) -> BaProblem {
         let cam = Camera::new(

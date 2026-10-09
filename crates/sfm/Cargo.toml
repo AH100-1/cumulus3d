@@ -1,5 +1,5 @@
 [package]
-name = "skyrecon-sfm"
+name = "cumulus3d-sfm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,11 +10,11 @@ categories = ["computer-vision"]
 readme = "README.md"
 
 [dependencies]
-skyrecon-core.workspace = true
+cumulus3d-core.workspace = true
 nalgebra.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
-skyrecon-ba.workspace = true
-skyrecon-matching.workspace = true
+cumulus3d-ba.workspace = true
+cumulus3d-matching.workspace = true
 rand.workspace = true
 rand_pcg.workspace = true

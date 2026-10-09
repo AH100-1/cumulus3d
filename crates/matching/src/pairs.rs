@@ -1,6 +1,6 @@
 //! 짝 목록 파일(한 줄에 영상 이름 두 개).
 
-use skyrecon_core::{pair_id_of, Error, ImageId, Result};
+use cumulus3d_core::{pair_id_of, Error, ImageId, Result};
 use std::collections::HashSet;
 use std::path::Path;
 

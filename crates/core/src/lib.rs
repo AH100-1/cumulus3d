@@ -10,9 +10,9 @@
 //! 두 영상과 3D 점 하나로 재구성을 만들고, 재투영 오차를 계산한 뒤 모델 파일로 저장·적재한다.
 //!
 //! ```
-//! use skyrecon_core::analyzer::ModelStats;
-//! use skyrecon_core::interop::{read_model, write_model_binary, ImageOrder};
-//! use skyrecon_core::{Camera, CameraModelKind, Image, Quat, Reconstruction, Rigid3, TrackEntry, Vec3};
+//! use cumulus3d_core::analyzer::ModelStats;
+//! use cumulus3d_core::interop::{read_model, write_model_binary, ImageOrder};
+//! use cumulus3d_core::{Camera, CameraModelKind, Image, Quat, Reconstruction, Rigid3, TrackEntry, Vec3};
 //!
 //! let mut cam = Camera::from_focal(CameraModelKind::Pinhole, 1000.0, 1920, 1080);
 //! cam.camera_id = 1;
@@ -32,13 +32,13 @@
 //! assert!(rec.point3d(pid).unwrap().error < 1e-9);
 //! rec.check_invariants()?;
 //!
-//! let dir = std::env::temp_dir().join("skyrecon_core_doc_example");
+//! let dir = std::env::temp_dir().join("cumulus3d_core_doc_example");
 //! std::fs::create_dir_all(&dir)?;
 //! write_model_binary(&rec, &dir, ImageOrder::default())?;
 //! let back = read_model(&dir)?;
 //! let stats = ModelStats::compute(&back);
 //! assert_eq!((stats.registered_image_count, stats.num_points3d), (2, 1));
-//! # Ok::<(), skyrecon_core::Error>(())
+//! # Ok::<(), cumulus3d_core::Error>(())
 //! ```
 
 #![warn(missing_docs)]

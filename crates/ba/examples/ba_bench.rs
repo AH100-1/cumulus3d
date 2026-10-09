@@ -1,11 +1,11 @@
 //! 규모 벤치마크: 80 위치 × 3 대 = 240 장, 3D 점 20만, OPENCV, 잡음 0.5 px, 초기 섭동.
-//! 실행: cargo run --release -p skyrecon-ba --example ba_bench [-- 위치수 점수 풀이기(auto|dense|sparse|iterative)]
+//! 실행: cargo run --release -p cumulus3d-ba --example ba_bench [-- 위치수 점수 풀이기(auto|dense|sparse|iterative)]
 
 #[path = "../tests/common/mod.rs"]
 mod common;
 
 use common::*;
-use skyrecon_ba::{bundle_adjust, BaConfig, LinearSolverType};
+use cumulus3d_ba::{bundle_adjust, BaConfig, LinearSolverType};
 use std::time::Instant;
 
 fn main() {

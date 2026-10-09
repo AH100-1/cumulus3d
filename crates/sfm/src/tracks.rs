@@ -1,8 +1,8 @@
 //! 트랙 구성·선별: 합집합-찾기 → 영상 내 일관성 검사 → 최소 뷰 수 → 길이순 선별.
 
 use crate::rotation_averaging::ViewGraph;
-use skyrecon_core::graph::Correspondence;
-use skyrecon_core::{MatchGraph, ImageId, Point3D, Reconstruction, Result, TrackEntry, Vec2, Vec3};
+use cumulus3d_core::graph::Correspondence;
+use cumulus3d_core::{MatchGraph, ImageId, Point3D, Reconstruction, Result, TrackEntry, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet};
 
 /// 트랙 옵션.

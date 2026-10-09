@@ -1,16 +1,16 @@
 [package]
-name = "skyrecon-ba"
+name = "cumulus3d-ba"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Bundle adjustment (trust-region Levenberg-Marquardt with Schur complement) for skyrecon"
+description = "Bundle adjustment (trust-region Levenberg-Marquardt with Schur complement) for cumulus3d"
 repository.workspace = true
 keywords = ["bundle-adjustment","sfm","optimization","computer-vision"]
 categories = ["computer-vision","mathematics"]
 readme = "README.md"
 
 [dependencies]
-skyrecon-core.workspace = true
+cumulus3d-core.workspace = true
 nalgebra.workspace = true
 rayon.workspace = true
 thiserror.workspace = true

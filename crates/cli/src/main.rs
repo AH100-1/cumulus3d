@@ -1,12 +1,12 @@
-//! `skyrecon` 실행 파일.
+//! `cumulus3d` 실행 파일.
 
 use clap::{Args, Parser, Subcommand};
-use skyrecon_cli::interop::{self, InteropCmd};
-use skyrecon_cli::stream::{run_stream, StreamConfig};
+use cumulus3d_cli::interop::{self, InteropCmd};
+use cumulus3d_cli::stream::{run_stream, StreamConfig};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(name = "skyrecon", version, about = "한 프로세스 점진 재구성 + 단계별 하위 명령")]
+#[command(name = "cumulus3d", version, about = "한 프로세스 점진 재구성 + 단계별 하위 명령")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

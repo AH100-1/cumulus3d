@@ -1,8 +1,8 @@
 //! 파이프라인 이벤트. 새 프레임 묶음이 처리될 때마다 단계별로 분해된 결과를 내보낸다.
 //! 이 파일은 세 모듈(session·pipeline·sinks)의 공용 계약이다. 필드 추가는 가능, 기존 필드 변경·삭제는 금지.
 
-use skyrecon_core::io::ply::PointCloud;
-use skyrecon_core::{ImageId, Reconstruction, Rigid3, Sim3};
+use cumulus3d_core::io::ply::PointCloud;
+use cumulus3d_core::{ImageId, Reconstruction, Rigid3, Sim3};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 

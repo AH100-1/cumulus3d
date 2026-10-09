@@ -1,4 +1,4 @@
-# skyrecon-align
+# cumulus3d-align
 
 좌표 정렬과 점군 후처리: GPS(WGS84) ↔ ENU 변환, 재구성을 GPS ENU 에 맞추는 강건 Sim3 정렬,
 두 재구성의 공유 3D 점 정렬, 구역 좌표계 연쇄(reanchor), 점군 마스킹·추출·스냅샷 합성.
@@ -27,7 +27,7 @@
 
 ## 공개 항목
 
-"루트" 열이 ✓ 인 항목은 크레이트 루트(`skyrecon_align::`)에도 재노출된다.
+"루트" 열이 ✓ 인 항목은 크레이트 루트(`cumulus3d_align::`)에도 재노출된다.
 
 ### `cloud` — 점군 후처리(core `PointCloud`)
 
@@ -120,9 +120,9 @@
 크레이트 문서의 doc-test 와 같은 코드(합성 데이터).
 
 ```rust
-use skyrecon_align::{compose_snapshot, umeyama, EnuFrame, SnapshotOptions};
-use skyrecon_core::io::PointCloud;
-use skyrecon_core::{Quat, Sim3, Vec3};
+use cumulus3d_align::{compose_snapshot, umeyama, EnuFrame, SnapshotOptions};
+use cumulus3d_core::io::PointCloud;
+use cumulus3d_core::{Quat, Sim3, Vec3};
 
 // GPS(WGS84) ↔ ENU: 원점 기준 동쪽·북쪽·위 미터 좌표.
 let enu = EnuFrame::new(37.5, 127.0, 10.0);
@@ -147,8 +147,8 @@ assert_eq!(snap.len(), 2);
 재구성을 GPS 기준 ENU 로 정렬:
 
 ```rust,no_run
-use skyrecon_align::{align_to_gps_file, ModelAlignerOptions};
-let mut rec = skyrecon_core::interop::read_model("model/0").unwrap();
+use cumulus3d_align::{align_to_gps_file, ModelAlignerOptions};
+let mut rec = cumulus3d_core::interop::read_model("model/0").unwrap();
 let a = align_to_gps_file(&mut rec, "gps_ref.txt", &ModelAlignerOptions::default()).unwrap();
 println!("인라이어 {}/{}, 중앙 오차 {:.2} m", a.num_inliers, a.common.len(), a.median_error);
 ```
@@ -156,4 +156,4 @@ println!("인라이어 {}/{}, 중앙 오차 {:.2} m", a.num_inliers, a.common.le
 ## 기능 플래그·하드웨어
 
 - 기능 플래그 없음. CPU 전용(점군 처리·KD-트리 질의는 rayon 병렬).
-- GPS 파일 형식(`이름 위도 경도 고도` 줄)은 `skyrecon_core::io::read_gps_file` 이 읽는다.
+- GPS 파일 형식(`이름 위도 경도 고도` 줄)은 `cumulus3d_core::io::read_gps_file` 이 읽는다.

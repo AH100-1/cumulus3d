@@ -1,8 +1,8 @@
 //! GPU 조밀화 정확도: 합성 장면(무늬 바닥 + 상자, 3×3 카메라)의 참 깊이·법선과 직접 비교. 장치가 없으면 건너뛴다.
 
-use skyrecon_cuda::{is_available, CudaPatchMatch, CudaPatchMatchOptions, CudaDevice};
-use skyrecon_dense::synthetic::{make_scene, SynthConfig, SynthScene};
-use skyrecon_dense::{compute_depth_maps, fuse_depth_maps, DensifyOptions, DepthMapSet, MvsProfile};
+use cumulus3d_cuda::{is_available, CudaPatchMatch, CudaPatchMatchOptions, CudaDevice};
+use cumulus3d_dense::synthetic::{make_scene, SynthConfig, SynthScene};
+use cumulus3d_dense::{compute_depth_maps, fuse_depth_maps, DensifyOptions, DepthMapSet, MvsProfile};
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -89,7 +89,7 @@ fn gpu_depth_accuracy_fast_and_quality() {
     }
     // 융합 점은 장면 표면 위.
     let opts = DensifyOptions::default();
-    for mode in [skyrecon_dense::FusionMode::Consistency, skyrecon_dense::FusionMode::Traversal] {
+    for mode in [cumulus3d_dense::FusionMode::Consistency, cumulus3d_dense::FusionMode::Traversal] {
         let mut o = opts.clone();
         o.fusion.mode = mode;
         let f = fuse_depth_maps(&s.scene, &fast, &o, 0);
@@ -112,7 +112,7 @@ fn gpu_depth_cache_reuses_views() {
     }
     let s = synth();
     let be = backend(true);
-    let cache = skyrecon_dense::DepthMapCache::new();
+    let cache = cumulus3d_dense::DepthMapCache::new();
     let opts = DensifyOptions::default();
     let a = compute_depth_maps(&s.scene, &opts, &be, Some(&cache)).unwrap();
     assert_eq!(a.cache_hits, 0);

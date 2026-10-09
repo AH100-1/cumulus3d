@@ -6,9 +6,9 @@ use crate::rotation_averaging::{solve_rotation_averaging, RotationAveragingOptio
 use crate::tracks::{establish_tracks, TrackOptions, TrackSummary};
 use crate::triangulator::{refine_points, TrackTriangulator, PointRefiner, TrackTriangulatorOptions};
 use rayon::prelude::*;
-use skyrecon_ba::{BaConfig, Loss};
-use skyrecon_core::reconstruction::{FilterErrorUpdate, NormalizeOptions};
-use skyrecon_core::{
+use cumulus3d_ba::{BaConfig, Loss};
+use cumulus3d_core::reconstruction::{FilterErrorUpdate, NormalizeOptions};
+use cumulus3d_core::{
     images_of_pair, Camera, MatchGraph, FeatureStore, Image, ImageId, Reconstruction, Result, Rigid3, Vec2,
     Vec3,
 };
@@ -161,7 +161,7 @@ pub fn init_reconstruction(store: &FeatureStore, graph: &MatchGraph) -> Result<R
         if rec.camera(si.camera_id).is_none() {
             let cam = store
                 .camera(si.camera_id)
-                .ok_or_else(|| skyrecon_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
+                .ok_or_else(|| cumulus3d_core::Error::NotFound(format!("카메라 {}", si.camera_id)))?;
             rec.add_camera_own_rig(cam)?;
         }
         let kps: Vec<Vec2> =
@@ -190,11 +190,11 @@ pub fn build_view_graph(rec: &Reconstruction, graph: &MatchGraph, decompose: boo
                 if tvg.inlier_matches.is_empty() {
                     return None;
                 }
-                let kp = |im: &Image| -> Vec<skyrecon_core::Keypoint> {
-                    im.points2d().iter().map(|p| skyrecon_core::Keypoint::new(p.xy.x as f32, p.xy.y as f32)).collect()
+                let kp = |im: &Image| -> Vec<cumulus3d_core::Keypoint> {
+                    im.points2d().iter().map(|p| cumulus3d_core::Keypoint::new(p.xy.x as f32, p.xy.y as f32)).collect()
                 };
                 // 설계 결정: 키포인트를 f64 모델 좌표에서 f32 로 되돌려 넘긴다(원래 f32 이므로 손실 없음).
-                if !skyrecon_matching::pose::refit_and_estimate_relative_pose(ca, cb, &kp(ia), &kp(ib), &mut tvg) {
+                if !cumulus3d_matching::pose::refit_and_estimate_relative_pose(ca, cb, &kp(ia), &kp(ib), &mut tvg) {
                     return None;
                 }
             }
@@ -219,7 +219,7 @@ pub fn rotation_averaging_round(
     };
     vg.invalidate_outside(&nodes);
     if nodes.is_empty() {
-        return Err(skyrecon_core::Error::InvalidArgument("회전 평균: 연결 성분 없음".into()));
+        return Err(cumulus3d_core::Error::InvalidArgument("회전 평균: 연결 성분 없음".into()));
     }
     let (rots, _) = solve_rotation_averaging(&nodes, vg, None, &opts.rotation_averaging)?;
     for (id, r) in &rots {
@@ -337,10 +337,10 @@ pub fn bundle_adjustment_stage(rec: &mut Reconstruction, opts: &GlobalSfmOptions
     let mut removed = 0;
     for it in 0..opts.ba_num_iterations {
         if !opts.ba_skip_fixed_rotation_stage {
-            skyrecon_ba::bundle_adjust(rec, &ba_config(rec, opts, true))?;
+            cumulus3d_ba::bundle_adjust(rec, &ba_config(rec, opts, true))?;
         }
         if !opts.ba_skip_joint_optimization_stage {
-            skyrecon_ba::bundle_adjust(rec, &ba_config(rec, opts, false))?;
+            cumulus3d_ba::bundle_adjust(rec, &ba_config(rec, opts, false))?;
         }
         rec.normalize(&NormalizeOptions::default());
         // 제거가 점 수의 0.1% 이하이면 반복 번호를 올려 더 엄격히 재필터, 끝까지 적으면 조기 종료.
@@ -395,7 +395,7 @@ pub fn retriangulation_stage(rec: &mut Reconstruction, graph: &MatchGraph, opts:
     }
     filter_normalized_reproj_error(rec, opts.max_normalized_reproj_error);
     rec.filter_points3d_with_small_triangulation_angle(opts.min_tri_angle_deg, None);
-    skyrecon_ba::bundle_adjust(rec, &ba_config(rec, opts, false))?;
+    cumulus3d_ba::bundle_adjust(rec, &ba_config(rec, opts, false))?;
     rec.normalize(&NormalizeOptions::default());
     filter_normalized_reproj_error(rec, opts.max_normalized_reproj_error);
     rec.filter_points3d_with_small_triangulation_angle(opts.min_tri_angle_deg, None);
@@ -422,7 +422,7 @@ fn run_stages(
     summary: &mut GlobalMapperSummary,
 ) -> Result<()> {
     if vg.num_valid_edges() == 0 {
-        return Err(skyrecon_core::Error::InvalidArgument("뷰 그래프 간선 없음".into()));
+        return Err(cumulus3d_core::Error::InvalidArgument("뷰 그래프 간선 없음".into()));
     }
     if !opts.skip_rotation_averaging {
         rotation_averaging_round(rec, vg, false, opts)?;
@@ -448,7 +448,7 @@ fn run_stages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skyrecon_core::{CameraModelKind, Point3D, TrackEntry};
+    use cumulus3d_core::{CameraModelKind, Point3D, TrackEntry};
 
     fn two_cam_rec(err_deg: f64) -> Reconstruction {
         // 두 카메라와 점 하나, 둘째 영상 관측을 err_deg 만큼 틀어 둔다.
@@ -458,9 +458,9 @@ mod tests {
         rec.add_camera_own_rig(cam.clone()).unwrap();
         let x = Vec3::new(0.0, 0.0, 10.0);
         let poses = [
-            Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0)),
-            Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0)),
-            Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(0.0, 1.0, 0.0)),
+            Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0)),
+            Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-1.0, 0.0, 0.0)),
+            Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(0.0, 1.0, 0.0)),
         ];
         for (i, p) in poses.iter().enumerate() {
             let mut xc = *p * x;
@@ -503,14 +503,14 @@ mod tests {
         assert!(e < 1e-12);
         // 관측 둘이 나쁘면(≥ 길이−1) 점 전체 삭제.
         let mut rec = two_cam_rec(0.0);
-        rec.set_world_to_cam(2, Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(-1.0, 3.0, 0.0))).unwrap();
-        rec.set_world_to_cam(3, Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(0.0, 4.0, 0.0))).unwrap();
+        rec.set_world_to_cam(2, Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(-1.0, 3.0, 0.0))).unwrap();
+        rec.set_world_to_cam(3, Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(0.0, 4.0, 0.0))).unwrap();
         filter_normalized_reproj_error(&mut rec, 0.1);
         assert_eq!(rec.num_points3d(), 0);
         // 경계: 0.1 ± 1e-9 (첫 영상 관측을 정규좌표에서 정확히 이동).
         for (d, keep) in [(0.1 - 1e-9, true), (0.1 + 1e-9, false)] {
             let mut rec = two_cam_rec(0.0);
-            let shifted = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(1.0 + d * 10.0, 0.0, 0.0));
+            let shifted = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(1.0 + d * 10.0, 0.0, 0.0));
             rec.set_world_to_cam(1, shifted).unwrap();
             filter_normalized_reproj_error(&mut rec, 0.1);
             assert_eq!(rec.point3d(0).unwrap().track.len() == 3, keep, "d {d}");
@@ -521,7 +521,7 @@ mod tests {
     fn normalization_extent() {
         let mut rec = two_cam_rec(0.0);
         for i in 4..20u32 {
-            let p = Rigid3::new(skyrecon_core::Quat::IDENTITY, Vec3::new(i as f64 * 1.7, (i * i % 7) as f64, 0.3 * i as f64));
+            let p = Rigid3::new(cumulus3d_core::Quat::IDENTITY, Vec3::new(i as f64 * 1.7, (i * i % 7) as f64, 0.3 * i as f64));
             rec.add_image_own_frame(Image::new(i, format!("{i}"), 1, vec![]), Some(p)).unwrap();
             rec.register_image(i).unwrap();
         }

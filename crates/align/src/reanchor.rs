@@ -6,7 +6,7 @@
 use crate::error::Result;
 use crate::shared::{align_reconstructions, SharedPointOptions};
 use crate::umeyama::{RobustUmeyamaOptions, RobustUmeyamaResult};
-use skyrecon_core::{Reconstruction, Sim3};
+use cumulus3d_core::{Reconstruction, Sim3};
 
 /// 구역별 "최신 좌표계 ← 구역 좌표계" 변환 묶음.
 #[derive(Clone, Debug, Default)]
@@ -83,11 +83,11 @@ impl AnchorChain {
 mod tests {
     use super::*;
     use crate::umeyama::tests::{rand_vec, random_sim3};
-    use skyrecon_core::Vec3;
+    use cumulus3d_core::Vec3;
 
     #[test]
     fn chain_maps_all_zones_to_latest() {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(31));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(31));
         // 구역 k 좌표계 = Z_k ∘ 세계. 진짜 zone_j_to_latest = Z_last ∘ Z_j⁻¹.
         let zs: Vec<Sim3> = (0..4).map(|_| random_sim3(&mut rng)).collect();
         let mut chain = AnchorChain::new();

@@ -326,7 +326,9 @@ impl FeatureStore {
 
     // ---------- 저장/로드 ----------
 
-    const MAGIC: &'static [u8; 8] = b"SKYFS\0v1";
+    const MAGIC: &'static [u8; 8] = b"C3DFS\0v1";
+    /// 0.3.0 까지 쓰던 표지. 읽을 때만 받아들인다(형식은 같음).
+    const LEGACY_MAGIC: &'static [u8; 8] = &[b'S', b'K', b'Y', b'F', b'S', 0, b'v', b'1'];
 
     /// 자체 이진 형식으로 저장(리틀 엔디언).
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
@@ -434,7 +436,7 @@ impl FeatureStore {
         let mut r = BufReader::new(std::fs::File::open(path)?);
         let mut magic = [0u8; 8];
         r.read_exact(&mut magic)?;
-        if &magic != Self::MAGIC {
+        if &magic != Self::MAGIC && &magic != Self::LEGACY_MAGIC {
             return Err(Error::Format("특징 저장소 파일 표지가 다름".into()));
         }
         let mut g = Inner::default();
@@ -581,7 +583,7 @@ mod tests {
         assert_eq!(since.len(), 1);
         assert_eq!(s.two_view_geometries_since(pos).0.len(), 0);
 
-        let dir = std::env::temp_dir().join(format!("skyrecon_store_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cumulus3d_store_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("store.bin");
         s.save(&path).unwrap();
@@ -593,6 +595,12 @@ mod tests {
         assert_eq!(l.pose_prior(i1), s.pose_prior(i1));
         assert_eq!(l.read_matches(i1, i2), s.read_matches(i1, i2));
         assert_eq!(l.get_two_view(i1, i2), s.get_two_view(i1, i2));
+        // 옛 표지로 쓴 파일도 읽힌다.
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[..8].copy_from_slice(FeatureStore::LEGACY_MAGIC);
+        let legacy = dir.join("legacy.bin");
+        std::fs::write(&legacy, &bytes).unwrap();
+        assert_eq!(FeatureStore::load(&legacy).unwrap().images(), s.images());
         std::fs::remove_dir_all(&dir).ok();
     }
 

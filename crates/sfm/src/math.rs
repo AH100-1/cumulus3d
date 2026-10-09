@@ -1,7 +1,7 @@
 //! 내부 수치 유틸: SO(3) 지수/로그, 점 정렬(Kabsch/Umeyama), 다항식 근, 희소 행렬.
 
 use nalgebra::{DMatrix, DVector, Matrix3};
-use skyrecon_core::{Mat3, Quat, Sim3, Vec3};
+use cumulus3d_core::{Mat3, Quat, Sim3, Vec3};
 
 /// 회전 벡터 → 회전 행렬.
 pub(crate) fn so3_exp(w: &Vec3) -> Mat3 {
@@ -22,7 +22,7 @@ pub(crate) fn rotation_angle_between(a: &Mat3, b: &Mat3) -> f64 {
 /// 3×3 SVD (U, σ 내림차순, V). nalgebra 일반 SVD 는 중복 특이값 3×3 에서 가끔 틀려
 /// matching 의 단측 야코비 구현을 쓴다.
 pub(crate) fn svd3(m: &Mat3) -> Option<(Mat3, Vec3, Mat3)> {
-    skyrecon_matching::linalg::svd3(m)
+    cumulus3d_matching::linalg::svd3(m)
 }
 
 /// 3×3 행렬을 가장 가까운 회전으로(SVD).

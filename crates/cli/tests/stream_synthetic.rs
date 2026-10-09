@@ -1,4 +1,4 @@
-//! 합성 장면(레이 캐스팅으로 그린 무늬 바닥 + 상자, 드론 3대 × 8위치)으로 `skyrecon stream` 을 끝까지 돌리고
+//! 합성 장면(레이 캐스팅으로 그린 무늬 바닥 + 상자, 드론 3대 × 8위치)으로 `cumulus3d stream` 을 끝까지 돌리고
 //! 출력 파일 구조·사건 기록을 확인한다.
 
 mod common;
@@ -8,7 +8,7 @@ use std::process::Command;
 
 #[test]
 fn stream_end_to_end_synthetic() {
-    if !skyrecon_cuda::is_available() {
+    if !cumulus3d_cuda::is_available() {
         eprintln!("CUDA 장치 없음: 조밀화가 필요한 스트림 시험을 건너뜀");
         return;
     }
@@ -17,7 +17,7 @@ fn stream_end_to_end_synthetic() {
     let out = base.join("out");
     let _ = std::fs::remove_dir_all(&base);
     make_dataset(&src);
-    let status = Command::new(env!("CARGO_BIN_EXE_skyrecon"))
+    let status = Command::new(env!("CARGO_BIN_EXE_cumulus3d"))
         .args(["stream", "--src"])
         .arg(&src)
         .arg("--out")
@@ -96,7 +96,7 @@ fn stream_end_to_end_synthetic() {
     }
     // 정밀·초벌 모두 GPS ENU 좌표계(첫 GPS 기록 camF_0000 = 원점, 고도 15 m): 바닥(하위 10%)이 z ≈ −15.
     for f in ["full/refined/refined_00_pos0-5.ply", "aligned/preview/preview_01_pos3-8.ply", "final_frame/preview/preview_00_pos0-5.ply"] {
-        let cloud = skyrecon_core::io::read_ply(out.join(f)).unwrap();
+        let cloud = cumulus3d_core::io::read_ply(out.join(f)).unwrap();
         assert!(cloud.len() > 1000, "{f}: 조밀 점 {}", cloud.len());
         let mut z: Vec<f32> = cloud.positions.iter().map(|p| p[2]).collect();
         z.sort_by(f32::total_cmp);

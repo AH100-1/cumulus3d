@@ -5,9 +5,9 @@
 use crate::error::{AlignError, Result};
 use crate::geodesy::EnuFrame;
 use crate::umeyama::{estimate_sim3_ransac, median, RankCheck};
-use skyrecon_core::io::{read_gps_file, GpsRecord};
-use skyrecon_core::ransac::RansacParams;
-use skyrecon_core::{ImageId, Reconstruction, Sim3, Vec3};
+use cumulus3d_core::io::{read_gps_file, GpsRecord};
+use cumulus3d_core::ransac::RansacParams;
+use cumulus3d_core::{ImageId, Reconstruction, Sim3, Vec3};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -175,11 +175,11 @@ mod tests {
     use crate::geodesy::EnuFrame;
     use crate::umeyama::tests::{gauss, rand_vec, random_sim3};
     use rand::RngExt;
-    use skyrecon_core::{Camera, CameraModelKind, Image, Quat, Rigid3, TrackEntry};
+    use cumulus3d_core::{Camera, CameraModelKind, Image, Quat, Rigid3, TrackEntry};
 
     /// ENU 궤적(드론 3대 × 위치)을 만들고, 임의 Sim3 로 "모델 좌표"로 옮긴 재구성 + GPS 목록.
     fn scene(num_pos: usize, seed: u64) -> (Reconstruction, Vec<GpsRecord>, Vec<Vec3>, Sim3) {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(seed));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(seed));
         let enu = EnuFrame::new(37.5, 127.0, 50.0);
         let enu_to_model = random_sim3(&mut rng);
         let mut rec = Reconstruction::new();
@@ -199,7 +199,7 @@ mod tests {
                 let rot = small * down * enu_to_model.rotation.conjugate();
                 let r = rot.to_rotation_matrix();
                 let pose = Rigid3::new(rot, -(r * c_model));
-                let pts: Vec<_> = (0..20).map(|i| skyrecon_core::Vec2::new(10.0 + i as f64, 20.0)).collect();
+                let pts: Vec<_> = (0..20).map(|i| cumulus3d_core::Vec2::new(10.0 + i as f64, 20.0)).collect();
                 let name = format!("cam{k}/img_{p:04}.jpg");
                 rec.add_image_own_frame(Image::new(id, &name, 1, pts), Some(pose)).unwrap();
                 rec.register_image(id).unwrap();
@@ -225,7 +225,7 @@ mod tests {
     }
 
     /// 모든 관측의 투영 픽셀.
-    fn projections(rec: &Reconstruction) -> Vec<skyrecon_core::Vec2> {
+    fn projections(rec: &Reconstruction) -> Vec<cumulus3d_core::Vec2> {
         let mut out = Vec::new();
         for id in rec.point3d_ids() {
             let p = rec.point3d(id).unwrap();
@@ -289,7 +289,7 @@ mod tests {
     fn robust_to_gps_outliers() {
         // 50 카메라 중 30% 를 20 m 이상 오염, 나머지 σ=1 m 잡음, 임계 3 m.
         let (rec, mut gps, centers, _) = scene(17, 13);
-        let mut rng = skyrecon_core::ransac::make_rng(Some(5));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(5));
         let enu = EnuFrame::new(gps[0].lat, gps[0].lon, gps[0].alt);
         let c0 = centers[0];
         let n = 50;

@@ -1,8 +1,8 @@
 //! Umeyama Sim3 와 견고 추정.
 
 use nalgebra::Matrix3xX;
-use skyrecon_core::ransac::{lo_ransac, Estimator, RansacParams, RansacReport};
-use skyrecon_core::{Mat3, Mat3x4, Sim3, Vec3};
+use cumulus3d_core::ransac::{lo_ransac, Estimator, RansacParams, RansacReport};
+use cumulus3d_core::{Mat3, Mat3x4, Sim3, Vec3};
 
 /// 퇴화 검사 방식.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -64,7 +64,7 @@ pub fn umeyama(src: &[Vec3], dst: &[Vec3], estimate_scale: bool) -> Option<Sim3>
     var_x *= inv_n;
     cov *= inv_n;
     // nalgebra 3×3 SVD 는 겹친 특이값에서 틀릴 수 있어 core 의 단측 야코비 SVD 를 쓴다.
-    let (u, d, v) = skyrecon_core::linalg::svd3(&cov)?;
+    let (u, d, v) = cumulus3d_core::linalg::svd3(&cov)?;
     let vt = v.transpose();
     let mut s_diag = Vec3::new(1.0, 1.0, 1.0);
     if u.determinant() * vt.determinant() < 0.0 {
@@ -221,7 +221,7 @@ pub(crate) mod tests {
     use super::*;
     use rand::RngExt;
     use rand_pcg::Pcg64;
-    use skyrecon_core::Quat;
+    use cumulus3d_core::Quat;
 
     pub fn random_sim3(rng: &mut Pcg64) -> Sim3 {
         let axis = Vec3::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));
@@ -250,7 +250,7 @@ pub(crate) mod tests {
 
     #[test]
     fn umeyama_exact() {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(1));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(1));
         for _ in 0..50 {
             let t = random_sim3(&mut rng);
             let src: Vec<Vec3> = (0..10).map(|_| rand_vec(&mut rng, 10.0)).collect();
@@ -264,7 +264,7 @@ pub(crate) mod tests {
     #[test]
     fn umeyama_isotropic_points() {
         // 정팔면체 꼭짓점: 공분산 특이값이 셋 다 같다(nalgebra 3×3 SVD 가 틀리던 경우).
-        let mut rng = skyrecon_core::ransac::make_rng(Some(7));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(7));
         let src: Vec<Vec3> = [Vec3::x(), -Vec3::x(), Vec3::y(), -Vec3::y(), Vec3::z(), -Vec3::z()].into();
         for _ in 0..50 {
             let t = random_sim3(&mut rng);
@@ -276,7 +276,7 @@ pub(crate) mod tests {
     #[test]
     fn umeyama_reflection_gives_rotation() {
         // 타깃이 거울상: 최적 해는 반사가 아닌 회전이어야 한다.
-        let mut rng = skyrecon_core::ransac::make_rng(Some(2));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(2));
         let src: Vec<Vec3> = (0..10).map(|_| rand_vec(&mut rng, 10.0)).collect();
         let dst: Vec<Vec3> = src.iter().map(|p| Vec3::new(p.x, p.y, -p.z)).collect();
         let e = umeyama(&src, &dst, true).unwrap();
@@ -299,7 +299,7 @@ pub(crate) mod tests {
     /// 이상치 30% 합성: LO-RANSAC 과 견고 Umeyama 모두 원래 Sim3 를 복원.
     #[test]
     fn sim3_recovery_with_outliers() {
-        let mut rng = skyrecon_core::ransac::make_rng(Some(3));
+        let mut rng = cumulus3d_core::ransac::make_rng(Some(3));
         let truth = random_sim3(&mut rng);
         let n = 200;
         let src: Vec<Vec3> = (0..n).map(|_| rand_vec(&mut rng, 50.0)).collect();

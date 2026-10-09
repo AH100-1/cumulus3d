@@ -3,7 +3,7 @@
 
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg64;
-use skyrecon_core::{
+use cumulus3d_core::{
     Camera, CameraModelKind, Image, ImageId, Mat3, Point3DId, Quat, Reconstruction, Rigid3, Sim3, TrackEntry, Vec2,
     Vec3,
 };

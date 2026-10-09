@@ -1,8 +1,8 @@
 //! 왜곡 보정 검증: 카메라 계산, LUT 기하 정합, 희소 모델 변환, 작업 폴더 출력.
 
-use skyrecon_core::interop::read_model;
-use skyrecon_core::{Camera, CameraModelKind, Image, Reconstruction, Rigid3, TrackEntry, Vec2, Vec3};
-use skyrecon_dense::{undistort, write_undistorted_workspace, DenseScene, ImageBuffer, SceneOptions, UndistortCache, UndistortOptions};
+use cumulus3d_core::interop::read_model;
+use cumulus3d_core::{Camera, CameraModelKind, Image, Reconstruction, Rigid3, TrackEntry, Vec2, Vec3};
+use cumulus3d_dense::{undistort, write_undistorted_workspace, DenseScene, ImageBuffer, SceneOptions, UndistortCache, UndistortOptions};
 use std::sync::Arc;
 
 fn cam() -> Camera {
@@ -99,7 +99,7 @@ fn undistort_model_images_and_folder() {
     assert!(med < 1.5, "{med}");
 
     // 폴더 출력과 다시 읽기 → 조밀화 장면 변환.
-    let dir = std::env::temp_dir().join(format!("skyrecon_undist_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cumulus3d_undist_{}", std::process::id()));
     std::fs::remove_dir_all(&dir).ok();
     write_undistorted_workspace(&res, &dir, &opts).unwrap();
     for f in ["images/sub/img0.png", "sparse/cameras.bin", "sparse/images.bin", "sparse/points3D.bin", "stereo/fusion.cfg", "stereo/patch-match.cfg"] {

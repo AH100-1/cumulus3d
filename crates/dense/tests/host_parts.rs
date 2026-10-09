@@ -1,9 +1,9 @@
 //! 커널 바깥 부분: 이웃 선택, 깊이 범위, 융합(참 깊이맵 입력), PLY, 상대 기하, 캐시.
 
-use skyrecon_dense::fusion::{fuse, FusionInput};
-use skyrecon_dense::neighbors::{depth_ranges, PairStats};
-use skyrecon_dense::synthetic::{make_scene, SynthConfig, SynthScene};
-use skyrecon_dense::{pair_geometry, CachedDepth, DenseOutput, DenseScene, DenseView, DepthMapCache, FusionMode, FusionParams, ImageBuffer, ScenePoint};
+use cumulus3d_dense::fusion::{fuse, FusionInput};
+use cumulus3d_dense::neighbors::{depth_ranges, PairStats};
+use cumulus3d_dense::synthetic::{make_scene, SynthConfig, SynthScene};
+use cumulus3d_dense::{pair_geometry, CachedDepth, DenseOutput, DenseScene, DenseView, DepthMapCache, FusionMode, FusionParams, ImageBuffer, ScenePoint};
 use std::sync::{Arc, OnceLock};
 
 fn synth() -> &'static SynthScene {
@@ -85,7 +85,7 @@ fn overlap(scene: &DenseScene) -> Vec<Vec<usize>> {
     (0..scene.views.len()).map(|v| st.select(v, 50, 0.0)).collect()
 }
 
-fn run_fusion(depth: &[Vec<f32>], normal: &[Vec<[f32; 3]>], p: &FusionParams, threads: usize) -> skyrecon_dense::FusionOutput {
+fn run_fusion(depth: &[Vec<f32>], normal: &[Vec<[f32; 3]>], p: &FusionParams, threads: usize) -> cumulus3d_dense::FusionOutput {
     let s = synth();
     let inputs: Vec<Option<FusionInput>> = depth.iter().zip(normal).map(|(d, n)| Some(FusionInput::plain(d, n))).collect();
     fuse(&s.scene, &inputs, &overlap(&s.scene), p, threads)
@@ -117,7 +117,7 @@ fn fusion_of_true_maps_lies_on_surfaces() {
     assert_eq!(again.cloud, out.cloud);
 }
 
-fn merged_with_others(out: &skyrecon_dense::FusionOutput, v: u32) -> usize {
+fn merged_with_others(out: &cumulus3d_dense::FusionOutput, v: u32) -> usize {
     out.visibility.iter().filter(|vis| vis.contains(&v) && vis.len() > 1).count()
 }
 
@@ -162,7 +162,7 @@ fn ply_output_layout() {
     out.cloud.positions = vec![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
     out.cloud.normals = vec![[0.0, 0.0, 1.0]; 2];
     out.cloud.colors = vec![[1, 2, 3], [4, 5, 6]];
-    let p = std::env::temp_dir().join(format!("skyrecon_dense_ply_{}/a.ply", std::process::id()));
+    let p = std::env::temp_dir().join(format!("cumulus3d_dense_ply_{}/a.ply", std::process::id()));
     out.write_ply(&p).unwrap();
     let b = std::fs::read(&p).unwrap();
     let hdr = "ply\nformat binary_little_endian 1.0\nelement vertex 2\nproperty float x\nproperty float y\nproperty float z\nproperty float nx\nproperty float ny\nproperty float nz\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n";

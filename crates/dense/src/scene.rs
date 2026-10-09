@@ -4,7 +4,7 @@
 //! 주점에서 0.5 를 빼서 옮긴다.
 
 use crate::image::ImageBuffer;
-use skyrecon_core::{CameraModelKind, Error, ImageId, Reconstruction, Result};
+use cumulus3d_core::{CameraModelKind, Error, ImageId, Reconstruction, Result};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::Arc;
@@ -200,7 +200,7 @@ impl DenseScene {
     /// 왜곡 보정 작업 폴더(`sparse/`, `images/`)에서 읽는다.
     pub fn from_workspace_dir(dir: impl AsRef<Path>, opts: &SceneOptions) -> Result<Self> {
         let dir = dir.as_ref();
-        let rec = skyrecon_core::interop::read_model(dir.join("sparse"))?;
+        let rec = cumulus3d_core::interop::read_model(dir.join("sparse"))?;
         let mut images = BTreeMap::new();
         for iid in rec.registered_images() {
             if let Some(im) = rec.image(iid) {

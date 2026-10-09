@@ -1,13 +1,13 @@
-//! 기존 `skyrecon stream` 출력 폴더(timeline.txt + work/models + 구역 점군)에서 이벤트 열을 다시 만든다.
+//! 기존 `cumulus3d stream` 출력 폴더(timeline.txt + work/models + 구역 점군)에서 이벤트 열을 다시 만든다.
 //! timeline 한 줄 = 이벤트 하나(시각 = 그 줄의 epoch 초.나노). 문구가 없는 이벤트(`FrameIngested`, `ZoneAdjusted`)는
 //! 입력 배치·저장된 모델로 채운다.
 #![allow(dead_code)]
 
-use skyrecon_cli::events::{Event, Meta, ZoneRange};
-use skyrecon_cli::stream::Layout;
-use skyrecon_core::interop::read_model;
-use skyrecon_core::io::PointCloud;
-use skyrecon_core::Reconstruction;
+use cumulus3d_cli::events::{Event, Meta, ZoneRange};
+use cumulus3d_cli::stream::Layout;
+use cumulus3d_core::interop::read_model;
+use cumulus3d_core::io::PointCloud;
+use cumulus3d_core::Reconstruction;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

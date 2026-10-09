@@ -7,7 +7,7 @@
 ## 조건
 - 데이터: 드론 편대 데이터 240장 모델, 960px 왜곡 보정, Tesla V100(16코어)
 - 공통 기준(C): `--fusion-min-views 3 --fusion-normal-error 30 --fusion-reproj-error 100 --filter-min-views 1 --median-filter 0 --fill-holes 1`
-- 실행: `skyrecon densify ... C --fusion-variants variants.txt --stats`. 깊이 추정과 필터는 한 번(깊이 47.0s, 필터 1.5s)만 하고, 변형마다 융합만 다시 한다.
+- 실행: `cumulus3d densify ... C --fusion-variants variants.txt --stats`. 깊이 추정과 필터는 한 번(깊이 47.0s, 필터 1.5s)만 하고, 변형마다 융합만 다시 한다.
 - 지표(`metrics2.py`): 수직면 = |n_z| < 0.5 비율, 법선 일치 = 16-근방 |n·n_i| 중앙값, 평면 잔차 = 16-근방 최소 고유값 제곱근 중앙값,
   칸 = 10cm 격자 칸 수, 지면 위 칸 = 지면(점군 z 중앙값 −30.82) + 2m 위, 고립 점 = 반경 10cm 안 이웃 < 5 인 점 비율, 벽 두께 = 수직 점 근방의 평면 수직 거리 표준편차 중앙값.
   지면 높이는 모든 변형에 같은 값을 쓴다.

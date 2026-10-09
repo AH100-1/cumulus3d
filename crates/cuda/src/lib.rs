@@ -1,17 +1,17 @@
 //! CUDA 백엔드(cudarc + NVRTC 런타임 컴파일). CUDA 가 없는 기계에서도 빌드되고(동적 로딩),
 //! 실행 시 장치가 없으면 [`is_available`] 이 거짓이다.
 //!
-//! - [`CudaPatchMatch`]: `skyrecon_dense::PatchMatchBackend` 구현(다중 스케일 조밀화의 스케일별 실행·평가·판독).
-//! - [`CudaMatcher`]: `skyrecon_matching::MatcherBackend` 구현(정수 내적 top-2).
-//! - [`CudaSift`]: `skyrecon_features::SiftEngine` 구현(GPU 스케일 공간 + CPU 검출·기술자, CpuSift 와 같은 결과).
+//! - [`CudaPatchMatch`]: `cumulus3d_dense::PatchMatchBackend` 구현(다중 스케일 조밀화의 스케일별 실행·평가·판독).
+//! - [`CudaMatcher`]: `cumulus3d_matching::MatcherBackend` 구현(정수 내적 top-2).
+//! - [`CudaSift`]: `cumulus3d_features::SiftEngine` 구현(GPU 스케일 공간 + CPU 검출·기술자, CpuSift 와 같은 결과).
 //!
 //! `unsafe` 는 cudarc 가 unsafe 로 둔 곳(커널 발사, 고정 호스트 메모리 할당, `DeviceRepr` 표시)에만 쓴다.
 //!
 //! # 사용 예
 //!
 //! ```
-//! use skyrecon_cuda::{is_available, CudaMatcher};
-//! use skyrecon_matching::MatcherBackend;
+//! use cumulus3d_cuda::{is_available, CudaMatcher};
+//! use cumulus3d_matching::MatcherBackend;
 //!
 //! // CUDA 가 없는 기계에서는 거짓이므로 아무것도 하지 않는다.
 //! if is_available() {
@@ -23,8 +23,8 @@
 //! ```
 //!
 //! ```no_run
-//! use skyrecon_cuda::CudaPatchMatch;
-//! use skyrecon_dense::{densify, DenseScene, DensifyOptions};
+//! use cumulus3d_cuda::CudaPatchMatch;
+//! use cumulus3d_dense::{densify, DenseScene, DensifyOptions};
 //!
 //! fn run(scene: &DenseScene) -> Result<(), Box<dyn std::error::Error>> {
 //!     let pm = CudaPatchMatch::try_default()?; // 장치 0, 기본 옵션

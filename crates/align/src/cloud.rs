@@ -2,8 +2,8 @@
 
 use crate::kdtree::KdTree;
 use rayon::prelude::*;
-use skyrecon_core::io::PointCloud;
-use skyrecon_core::{Sim3, Vec3};
+use cumulus3d_core::io::PointCloud;
+use cumulus3d_core::{Sim3, Vec3};
 
 /// 점과 법선에 Sim3 적용(점: sRx+t, 법선: Rn). 계산은 f64.
 pub fn transform_cloud(cloud: &mut PointCloud, t: &Sim3) {
@@ -119,7 +119,7 @@ pub fn compose_snapshot(fine: &[&PointCloud], coarse: &[&PointCloud], opts: &Sna
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skyrecon_core::Quat;
+    use cumulus3d_core::Quat;
 
     fn grid(n: usize, step: f32, z: f32) -> PointCloud {
         let mut c = PointCloud::default();

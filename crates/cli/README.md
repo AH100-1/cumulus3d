@@ -2,7 +2,7 @@ English | [한국어](https://github.com/AH100-1/cumulus3d/blob/main/crates/cli/
 
 # cumulus3d-cli
 
-The `cumulus3d` executable, which progressively builds 3D point clouds from multi-camera video (default preset: a 3-camera formation), and the library (`cumulus3d_cli`) that holds its assembly.
+The `cumulus3d` executable, which progressively builds 3D point clouds from drone-formation video (three cameras, GPS), and the library (`cumulus3d_cli`) that holds its assembly.
 
 API doc comments are currently in Korean; English translation is planned.
 

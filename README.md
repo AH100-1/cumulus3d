@@ -3,9 +3,10 @@ English | [한국어](README.ko.md)
 # cumulus3d
 
 **cumulus3d** — progressive multi-view 3D reconstruction in Rust: point clouds accumulate like cumulus clouds as video frames arrive.
-It targets video in general rather than drones only; the current default input setup is a three-camera formation.
+It is built and validated for **drone-formation aerial video**: three cameras flying in formation (about 30 m altitude, oblique downward views) with GPS.
+All default parameters were tuned and measured on this setting; other kinds of video are not validated yet and may need re-tuning.
 
-A Rust workspace that builds 3D point clouds from video **progressively**.
+A Rust workspace that builds 3D point clouds from drone-formation video **progressively**.
 While video arrives position by position, it chains feature extraction → matching → SfM → GPS alignment → densification inside a single process,
 produces a fast preview (no BA) and a refined result (with BA) for every zone, and stacks per-step snapshots on the refined map (ENU).
 Stages hand data to each other through in-memory data structures, with no intermediate database or on-disk model folders.

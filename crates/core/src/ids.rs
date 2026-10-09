@@ -2,21 +2,34 @@
 
 use crate::error::{Error, Result};
 
+/// 카메라 id.
 pub type CameraId = u32;
+/// rig id.
 pub type RigId = u32;
+/// 프레임 id.
 pub type FrameId = u32;
+/// 영상 id.
 pub type ImageId = u32;
 /// 영상 내 2D 점(특징점) 순번.
 pub type Point2DIdx = u32;
+/// 3D 점 id.
 pub type Point3DId = u64;
+/// 짝 id(`pair_id_of` 참고).
 pub type PairId = u64;
 
+/// 무효 카메라 id.
 pub const INVALID_CAMERA_ID: CameraId = u32::MAX;
+/// 무효 rig id.
 pub const INVALID_RIG_ID: RigId = u32::MAX;
+/// 무효 프레임 id.
 pub const INVALID_FRAME_ID: FrameId = u32::MAX;
+/// 무효 영상 id.
 pub const INVALID_IMAGE_ID: ImageId = u32::MAX;
+/// 무효 2D 점 순번.
 pub const INVALID_POINT2D_IDX: Point2DIdx = u32::MAX;
+/// 무효 3D 점 id(2D 점이 3D 점과 연결되지 않음).
 pub const INVALID_POINT3D_ID: Point3DId = u64::MAX;
+/// 무효 짝 id.
 pub const INVALID_PAIR_ID: PairId = u64::MAX;
 
 /// 짝 id 상수 M = 2^31 − 1. 영상 id 는 이보다 작아야 한다.
@@ -25,12 +38,16 @@ pub const MAX_NUM_IMAGES: u64 = 2_147_483_647;
 /// 센서 종류. 파일에는 i32 로 저장.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SensorKind {
+    /// 무효 센서.
     Invalid = -1,
+    /// 카메라.
     Camera = 0,
+    /// 관성 측정 장치.
     Imu = 1,
 }
 
 impl SensorKind {
+    /// 정수 값 → 종류. 알 수 없는 값이면 None.
     pub fn from_i32(v: i32) -> Option<Self> {
         match v {
             -1 => Some(SensorKind::Invalid),
@@ -39,6 +56,7 @@ impl SensorKind {
             _ => None,
         }
     }
+    /// 파일 저장용 정수 값.
     pub fn as_i32(self) -> i32 {
         self as i32
     }
@@ -50,6 +68,7 @@ impl SensorKind {
             SensorKind::Imu => "IMU",
         }
     }
+    /// 텍스트 형식 이름 → 종류.
     pub fn from_name(s: &str) -> Option<Self> {
         match s {
             "INVALID" => Some(SensorKind::Invalid),
@@ -63,11 +82,14 @@ impl SensorKind {
 /// 센서 식별자 (종류, id). 사전식 정렬(종류 → id).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SensorKey {
+    /// 센서 종류.
     pub sensor_type: SensorKind,
+    /// 종류 안에서의 센서 id.
     pub id: u32,
 }
 
 impl SensorKey {
+    /// (종류, id)로 생성.
     pub fn new(sensor_type: SensorKind, id: u32) -> Self {
         Self { sensor_type, id }
     }
@@ -80,14 +102,18 @@ impl SensorKey {
 /// 데이터 식별자 (센서, 데이터 id). 카메라 데이터의 데이터 id 는 영상 id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SensorDataKey {
+    /// 데이터를 낸 센서.
     pub sensor_id: SensorKey,
+    /// 데이터 id(카메라면 영상 id).
     pub id: u64,
 }
 
 impl SensorDataKey {
+    /// (센서, 데이터 id)로 생성.
     pub fn new(sensor_id: SensorKey, id: u64) -> Self {
         Self { sensor_id, id }
     }
+    /// 카메라 영상 데이터 키.
     pub fn image(camera_id: CameraId, image_id: ImageId) -> Self {
         Self { sensor_id: SensorKey::camera(camera_id), id: image_id as u64 }
     }

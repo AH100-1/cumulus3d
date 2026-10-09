@@ -2,7 +2,7 @@
 
 use nalgebra::DMatrix;
 
-/// 계수(오름차순: c[0] + c[1] z + …)로 주어진 다항식의 복소 근 (실수부, 허수부).
+/// 계수(오름차순: `c[0] + c[1] z + …`)로 주어진 다항식의 복소 근 (실수부, 허수부).
 /// 최고차 계수로 정규화한 동반행렬의 고유값. 최고차 계수가 0 이면 차수를 낮춘다.
 pub fn roots_companion(coeffs: &[f64]) -> Vec<(f64, f64)> {
     let mut deg = coeffs.len().saturating_sub(1);

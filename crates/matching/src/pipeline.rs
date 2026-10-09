@@ -11,12 +11,15 @@ use std::path::Path;
 /// 짝 매칭 전체 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PairMatchingOptions {
+    /// 기술자 매칭 옵션.
     pub sift: DescriptorMatchOptions,
+    /// 두 뷰 기하 검증 옵션.
     pub geometry: TwoViewOptions,
     /// 실제 사용값 = min(이 값, 저장소 영상별 키포인트 수 최댓값).
     pub max_num_matches: usize,
     /// 한 번에 처리하는 짝 수.
     pub block_size: usize,
+    /// 참이면 원시 매칭만 기록(기하 검증 생략).
     pub skip_geometric_verification: bool,
 }
 

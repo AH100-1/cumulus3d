@@ -17,18 +17,22 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 /// 저장소의 영상 행.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StoreImage {
+    /// 영상 id.
     pub image_id: ImageId,
+    /// 영상 이름(고유).
     pub name: String,
+    /// 카메라 id.
     pub camera_id: CameraId,
 }
 
-/// 사전 위치(WGS84 위도·경도 [도], 고도 [m]).
+/// 사전 위치(WGS84 위도·경도(도), 고도(m)).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PosePrior {
     /// (위도, 경도, 고도) 또는 좌표계에 따른 위치.
     pub position: Vec3,
     /// 0 = WGS84.
     pub coordinate_system: i32,
+    /// 중력 방향(선택).
     pub gravity: Option<Vec3>,
 }
 
@@ -57,6 +61,7 @@ fn swap_matches(m: &[FeatureMatch]) -> Vec<FeatureMatch> {
 }
 
 impl FeatureStore {
+    /// 빈 저장소.
     pub fn new() -> Self {
         Self::default()
     }
@@ -82,6 +87,7 @@ impl FeatureStore {
         g.cameras.insert(id, camera);
         Ok(id)
     }
+    /// 기존 카메라 덮어쓰기(없으면 오류).
     pub fn update_camera(&self, camera: Camera) -> Result<()> {
         let mut g = self.w();
         match g.cameras.get_mut(&camera.camera_id) {
@@ -92,12 +98,15 @@ impl FeatureStore {
             None => Err(Error::NotFound(format!("카메라 {}", camera.camera_id))),
         }
     }
+    /// 카메라 조회(복사).
     pub fn camera(&self, id: CameraId) -> Option<Camera> {
         self.r().cameras.get(&id).cloned()
     }
+    /// 카메라 전체(id 순).
     pub fn cameras(&self) -> Vec<Camera> {
         self.r().cameras.values().cloned().collect()
     }
+    /// 카메라 수.
     pub fn num_cameras(&self) -> usize {
         self.r().cameras.len()
     }
@@ -110,6 +119,7 @@ impl FeatureStore {
         let id = g.images.keys().next_back().map_or(1, |k| k + 1);
         Self::add_image_locked(&mut g, id, name, camera_id)
     }
+    /// 지정 id 로 영상 추가.
     pub fn add_image_with_id(&self, image_id: ImageId, name: &str, camera_id: CameraId) -> Result<ImageId> {
         Self::add_image_locked(&mut self.w(), image_id, name, camera_id)
     }
@@ -130,12 +140,15 @@ impl FeatureStore {
         g.images.insert(image_id, StoreImage { image_id, name: name.to_string(), camera_id });
         Ok(image_id)
     }
+    /// 영상 조회.
     pub fn image(&self, id: ImageId) -> Option<StoreImage> {
         self.r().images.get(&id).cloned()
     }
+    /// 이름 → 영상 id.
     pub fn image_id_by_name(&self, name: &str) -> Option<ImageId> {
         self.r().name_to_id.get(name).copied()
     }
+    /// 이름으로 영상 조회.
     pub fn image_by_name(&self, name: &str) -> Option<StoreImage> {
         let g = self.r();
         g.name_to_id.get(name).and_then(|id| g.images.get(id)).cloned()
@@ -144,43 +157,55 @@ impl FeatureStore {
     pub fn images(&self) -> Vec<StoreImage> {
         self.r().images.values().cloned().collect()
     }
+    /// 영상 id 목록(오름차순).
     pub fn image_ids(&self) -> Vec<ImageId> {
         self.r().images.keys().copied().collect()
     }
+    /// 영상 수.
     pub fn num_images(&self) -> usize {
         self.r().images.len()
     }
+    /// 영상이 있는지.
     pub fn exists_image(&self, id: ImageId) -> bool {
         self.r().images.contains_key(&id)
     }
 
+    /// 영상 사전 위치 설정.
     pub fn set_pose_prior(&self, image_id: ImageId, prior: PosePrior) {
         self.w().pose_priors.insert(image_id, prior);
     }
+    /// 영상 사전 위치 조회.
     pub fn pose_prior(&self, image_id: ImageId) -> Option<PosePrior> {
         self.r().pose_priors.get(&image_id).copied()
     }
 
     // ---------- 특징 ----------
 
+    /// 키포인트 기록(덮어씀).
     pub fn set_keypoints(&self, image_id: ImageId, kps: Vec<Keypoint>) {
         self.w().keypoints.insert(image_id, Arc::new(kps));
     }
+    /// 기술자 기록(덮어씀).
     pub fn set_descriptors(&self, image_id: ImageId, d: Descriptors) {
         self.w().descriptors.insert(image_id, Arc::new(d));
     }
+    /// 키포인트 조회(공유).
     pub fn keypoints(&self, image_id: ImageId) -> Option<Arc<Vec<Keypoint>>> {
         self.r().keypoints.get(&image_id).cloned()
     }
+    /// 기술자 조회(공유).
     pub fn descriptors(&self, image_id: ImageId) -> Option<Arc<Descriptors>> {
         self.r().descriptors.get(&image_id).cloned()
     }
+    /// 키포인트가 있는지.
     pub fn exists_keypoints(&self, image_id: ImageId) -> bool {
         self.r().keypoints.contains_key(&image_id)
     }
+    /// 기술자가 있는지.
     pub fn exists_descriptors(&self, image_id: ImageId) -> bool {
         self.r().descriptors.contains_key(&image_id)
     }
+    /// 영상의 키포인트 수(없으면 0).
     pub fn num_keypoints(&self, image_id: ImageId) -> usize {
         self.r().keypoints.get(&image_id).map_or(0, |k| k.len())
     }
@@ -208,9 +233,11 @@ impl FeatureStore {
             Some(m)
         }
     }
+    /// 원시 매칭이 있는지.
     pub fn exists_matches(&self, id1: ImageId, id2: ImageId) -> bool {
         pair_id_of(id1, id2).is_ok_and(|p| self.r().matches.contains_key(&p))
     }
+    /// 원시 매칭 삭제.
     pub fn delete_matches(&self, id1: ImageId, id2: ImageId) {
         if let Ok(p) = pair_id_of(id1, id2) {
             self.w().matches.remove(&p);
@@ -236,9 +263,11 @@ impl FeatureStore {
             Some(t)
         }
     }
+    /// 두 뷰 기하가 있는지.
     pub fn contains_two_view(&self, id1: ImageId, id2: ImageId) -> bool {
         pair_id_of(id1, id2).is_ok_and(|p| self.r().two_view.contains_key(&p))
     }
+    /// 두 뷰 기하 삭제.
     pub fn remove_two_view(&self, id1: ImageId, id2: ImageId) {
         if let Ok(p) = pair_id_of(id1, id2) {
             self.w().two_view.remove(&p);
@@ -263,11 +292,36 @@ impl FeatureStore {
         }
         (out, end)
     }
+    /// 저장된 두 뷰 기하 수.
     pub fn num_two_view_geometries(&self) -> usize {
         self.r().two_view.len()
     }
+    /// 원시 매칭이 저장된 짝 수.
     pub fn num_matched_pairs(&self) -> usize {
         self.r().matches.len()
+    }
+
+    /// `keep` 이 참인 영상만 남긴 새 저장소. 카메라는 모두, 영상 id·짝 자료·기하 기록 순서는 그대로 유지한다.
+    /// 큰 자료(키포인트·기술자·매칭·기하)는 `Arc` 로 공유하므로 복사가 싸다. 점진 처리의 되감기용.
+    pub fn retain_copy(&self, keep: impl Fn(&StoreImage) -> bool) -> FeatureStore {
+        let g = self.r();
+        let images: BTreeMap<ImageId, StoreImage> = g.images.iter().filter(|(_, im)| keep(im)).map(|(k, v)| (*k, v.clone())).collect();
+        let pair_ok = |pid: &PairId| {
+            let (a, b) = images_of_pair(*pid);
+            images.contains_key(&a) && images.contains_key(&b)
+        };
+        let inner = Inner {
+            cameras: g.cameras.clone(),
+            name_to_id: images.values().map(|im| (im.name.clone(), im.image_id)).collect(),
+            keypoints: g.keypoints.iter().filter(|(k, _)| images.contains_key(k)).map(|(k, v)| (*k, v.clone())).collect(),
+            descriptors: g.descriptors.iter().filter(|(k, _)| images.contains_key(k)).map(|(k, v)| (*k, v.clone())).collect(),
+            pose_priors: g.pose_priors.iter().filter(|(k, _)| images.contains_key(k)).map(|(k, v)| (*k, *v)).collect(),
+            matches: g.matches.iter().filter(|(k, _)| pair_ok(k)).map(|(k, v)| (*k, v.clone())).collect(),
+            two_view: g.two_view.iter().filter(|(k, _)| pair_ok(k)).map(|(k, v)| (*k, v.clone())).collect(),
+            tvg_log: g.tvg_log.iter().copied().filter(|k| pair_ok(k)).collect(),
+            images,
+        };
+        FeatureStore { inner: RwLock::new(inner) }
     }
 
     // ---------- 저장/로드 ----------
@@ -559,5 +613,31 @@ mod tests {
         });
         assert_eq!(s.num_images(), 400);
         assert_eq!(s.largest_keypoint_count(), 49);
+    }
+
+    #[test]
+    fn retain_copy_drops_images_and_pairs() {
+        let s = FeatureStore::new();
+        let c = s.add_camera(Camera::from_focal(CameraModelKind::OpenCv, 100.0, 64, 48)).unwrap();
+        let ids: Vec<ImageId> = (0..3).map(|i| s.add_image(&format!("cam/{i}.jpg"), c).unwrap()).collect();
+        for &i in &ids {
+            s.set_keypoints(i, vec![Keypoint::new(1.0, 1.0)]);
+        }
+        let tvg = TwoViewGeometry { inlier_matches: vec![FeatureMatch::new(0, 0)], ..Default::default() };
+        s.put_two_view(ids[0], ids[1], &tvg).unwrap();
+        s.put_two_view(ids[1], ids[2], &tvg).unwrap();
+        s.write_matches(ids[0], ids[2], &[FeatureMatch::new(0, 0)]).unwrap();
+        let r = s.retain_copy(|im| im.image_id != ids[2]);
+        assert_eq!(r.num_images(), 2);
+        assert_eq!(r.num_cameras(), 1);
+        assert!(r.image_id_by_name("cam/2.jpg").is_none());
+        assert!(r.contains_two_view(ids[0], ids[1]));
+        assert!(!r.contains_two_view(ids[1], ids[2]));
+        assert!(!r.exists_matches(ids[0], ids[2]));
+        assert_eq!(r.two_view_geometries_since(0).1, 1);
+        // 새 영상 id 는 남은 최대 id + 1.
+        assert_eq!(r.add_image("cam/9.jpg", c).unwrap(), ids[2]);
+        // 원래 저장소는 그대로.
+        assert_eq!(s.num_images(), 3);
     }
 }

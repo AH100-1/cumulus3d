@@ -130,6 +130,7 @@ fn open(p: &Path) -> Result<BufReader<File>> {
 
 // ======================= 이진 =======================
 
+/// 이진 모델 파일(`*.bin`) 읽기.
 pub fn read_model_binary(dir: impl AsRef<Path>) -> Result<Reconstruction> {
     let d = dir.as_ref();
     let cameras = {
@@ -431,6 +432,7 @@ impl<'a> Toks<'a> {
     }
 }
 
+/// 텍스트 모델 파일(`*.txt`) 읽기.
 pub fn read_model_text(dir: impl AsRef<Path>) -> Result<Reconstruction> {
     let d = dir.as_ref();
     let mut cameras = Vec::new();

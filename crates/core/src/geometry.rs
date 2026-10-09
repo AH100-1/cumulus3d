@@ -3,17 +3,25 @@
 use nalgebra::{Matrix3, Matrix3x4, UnitQuaternion, Vector2, Vector3};
 use std::ops::Mul;
 
+/// 2차원 f64 벡터.
 pub type Vec2 = Vector2<f64>;
+/// 3차원 f64 벡터.
 pub type Vec3 = Vector3<f64>;
+/// 3×3 f64 행렬.
 pub type Mat3 = Matrix3<f64>;
+/// 3×4 f64 행렬.
 pub type Mat3x4 = Matrix3x4<f64>;
 
 /// 해밀턴 쿼터니언(i²=j²=k²=ijk=−1, 능동 회전 v' = q v q*). 필드 순서 w, x, y, z.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Quat {
+    /// 실수부.
     pub w: f64,
+    /// i 성분.
     pub x: f64,
+    /// j 성분.
     pub y: f64,
+    /// k 성분.
     pub z: f64,
 }
 
@@ -24,8 +32,10 @@ impl Default for Quat {
 }
 
 impl Quat {
+    /// 항등 회전.
     pub const IDENTITY: Quat = Quat { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
 
+    /// (w, x, y, z)로 생성(정규화하지 않음).
     pub fn new(w: f64, x: f64, y: f64, z: f64) -> Self {
         Self { w, x, y, z }
     }
@@ -33,9 +43,11 @@ impl Quat {
     pub fn from_wxyz(v: [f64; 4]) -> Self {
         Self { w: v[0], x: v[1], y: v[2], z: v[3] }
     }
+    /// `[w, x, y, z]` 배열.
     pub fn to_wxyz(&self) -> [f64; 4] {
         [self.w, self.x, self.y, self.z]
     }
+    /// 노름.
     pub fn norm(&self) -> f64 {
         (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
@@ -47,6 +59,7 @@ impl Quat {
         }
         Self { w: self.w / n, x: self.x / n, y: self.y / n, z: self.z / n }
     }
+    /// 켤레.
     pub fn conjugate(&self) -> Self {
         Self { w: self.w, x: -self.x, y: -self.y, z: -self.z }
     }
@@ -54,6 +67,7 @@ impl Quat {
     pub fn inverse(&self) -> Self {
         self.conjugate()
     }
+    /// 4차원 내적.
     pub fn dot(&self, o: &Quat) -> f64 {
         self.w * o.w + self.x * o.x + self.y * o.y + self.z * o.z
     }
@@ -164,9 +178,11 @@ impl Quat {
         let d = self.normalized().dot(&other.normalized()).abs().min(1.0);
         2.0 * d.acos()
     }
+    /// nalgebra 단위 쿼터니언으로 변환.
     pub fn to_nalgebra(&self) -> UnitQuaternion<f64> {
         UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(self.w, self.x, self.y, self.z))
     }
+    /// nalgebra 단위 쿼터니언에서 변환.
     pub fn from_nalgebra(q: &UnitQuaternion<f64>) -> Quat {
         Quat { w: q.w, x: q.i, y: q.j, z: q.k }
     }
@@ -179,7 +195,7 @@ impl Mul for Quat {
     }
 }
 
-/// 반대칭(외적) 행렬 [v]×.
+/// 반대칭(외적) 행렬 `[v]×`.
 pub fn skew(v: &Vec3) -> Mat3 {
     Mat3::new(0.0, -v.z, v.y, v.z, 0.0, -v.x, -v.y, v.x, 0.0)
 }
@@ -187,17 +203,22 @@ pub fn skew(v: &Vec3) -> Mat3 {
 /// 강체 변환 A_to_B: X_B = R·X_A + t.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Rigid3 {
+    /// 회전 R.
     pub rotation: Quat,
+    /// 평행이동 t.
     pub translation: Vec3,
 }
 
 impl Rigid3 {
+    /// 항등 변환.
     pub fn identity() -> Self {
         Self { rotation: Quat::IDENTITY, translation: Vec3::zeros() }
     }
+    /// (R, t)로 생성.
     pub fn new(rotation: Quat, translation: Vec3) -> Self {
         Self { rotation, translation }
     }
+    /// 회전 행렬과 평행이동으로 생성.
     pub fn from_rotation_matrix(r: &Mat3, t: Vec3) -> Self {
         Self { rotation: Quat::from_rotation_matrix(r), translation: t }
     }
@@ -208,11 +229,13 @@ impl Rigid3 {
             translation: Vec3::new(p[4], p[5], p[6]),
         }
     }
+    /// 파일 순서 `[qw, qx, qy, qz, tx, ty, tz]`.
     pub fn to_params(&self) -> [f64; 7] {
         let q = self.rotation;
         let t = self.translation;
         [q.w, q.x, q.y, q.z, t.x, t.y, t.z]
     }
+    /// 회전 행렬 R.
     pub fn rotation_matrix(&self) -> Mat3 {
         self.rotation.to_rotation_matrix()
     }
@@ -224,6 +247,7 @@ impl Rigid3 {
         m.set_column(3, &self.translation);
         m
     }
+    /// `[R | t]` 행렬에서 생성.
     pub fn from_matrix(m: &Mat3x4) -> Self {
         let r: Mat3 = m.fixed_view::<3, 3>(0, 0).into_owned();
         Self::from_rotation_matrix(&r, m.column(3).into_owned())
@@ -273,8 +297,11 @@ impl Mul<Vec3> for Rigid3 {
 /// 상사 변환 new_from_old: X_new = s·R·X_old + t.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sim3 {
+    /// 스케일 s.
     pub scale: f64,
+    /// 회전 R.
     pub rotation: Quat,
+    /// 평행이동 t.
     pub translation: Vec3,
 }
 
@@ -285,9 +312,11 @@ impl Default for Sim3 {
 }
 
 impl Sim3 {
+    /// 항등 변환.
     pub fn identity() -> Self {
         Self { scale: 1.0, rotation: Quat::IDENTITY, translation: Vec3::zeros() }
     }
+    /// (s, R, t)로 생성.
     pub fn new(scale: f64, rotation: Quat, translation: Vec3) -> Self {
         Self { scale, rotation, translation }
     }
@@ -309,6 +338,7 @@ impl Sim3 {
             translation: m.column(3).into_owned(),
         }
     }
+    /// X_new = s·R·X_old + t.
     pub fn transform_point(&self, p: &Vec3) -> Vec3 {
         self.scale * (self.rotation.to_rotation_matrix() * p) + self.translation
     }
@@ -345,9 +375,11 @@ impl Mul for Sim3 {
     }
 }
 
+/// 도 → 라디안.
 pub fn deg_to_rad(d: f64) -> f64 {
     d.to_radians()
 }
+/// 라디안 → 도.
 pub fn rad_to_deg(r: f64) -> f64 {
     r.to_degrees()
 }

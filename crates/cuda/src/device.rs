@@ -8,10 +8,13 @@ use std::sync::Arc;
 #[derive(Debug, thiserror::Error)]
 pub enum GpuError {
     #[error("CUDA 사용 불가: {0}")]
+    /// 드라이버·NVRTC 라이브러리 또는 장치가 없음.
     NotAvailable(String),
     #[error("CUDA 드라이버 오류: {0:?}")]
+    /// CUDA 드라이버 호출 오류.
     Driver(#[from] cudarc::driver::DriverError),
     #[error("NVRTC 컴파일 실패: {0}")]
+    /// NVRTC 커널 컴파일 실패.
     Compile(String),
 }
 

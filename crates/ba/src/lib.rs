@@ -4,6 +4,39 @@
 //!
 //! 구성: 신뢰 영역 LM(`tr`), Schur 보수 조립·역대입(`problem`), 축소 계통 풀이기(`linsolve`),
 //! 단일 자세 정제(`abspose`), 견고 손실(`loss`).
+//!
+//! # 사용 예
+//!
+//! ```
+//! use skyrecon_ba::{refine_abs_pose, Loss};
+//! use skyrecon_core::{Camera, CameraModelKind, Quat, Rigid3, Vec2, Vec3};
+//!
+//! // 합성 장면: 참 자세로 3D 점을 투영해 2D 관측을 만든다.
+//! let cam = Camera::from_focal(CameraModelKind::Pinhole, 1000.0, 1920, 1080);
+//! let truth = Rigid3::new(Quat::from_axis_angle(&Vec3::y(), 0.1), Vec3::new(0.2, -0.1, 6.0));
+//! let pts3d: Vec<Vec3> = (0..60)
+//!     .map(|i| {
+//!         let a = i as f64;
+//!         Vec3::new((a * 0.37).sin() * 3.0, (a * 0.71).cos() * 2.0, (a * 0.13).sin())
+//!     })
+//!     .collect();
+//! let pts2d: Vec<Vec2> = pts3d.iter().map(|p| cam.cam_to_img(&truth.transform_point(p)).unwrap()).collect();
+//! let mask = vec![true; pts3d.len()];
+//!
+//! // 흐트러진 초기 자세에서 절대 자세 정제.
+//! let mut pose = Rigid3::new(Quat::from_axis_angle(&Vec3::y(), 0.12), Vec3::new(0.25, -0.05, 5.9));
+//! let summary = refine_abs_pose(&cam, &pts2d, &pts3d, &mask, &mut pose, Loss::Cauchy(1.0), 100).unwrap();
+//! assert!(summary.is_usable());
+//! assert!((pose.translation - truth.translation).norm() < 1e-6);
+//! ```
+//!
+//! ```no_run
+//! use skyrecon_ba::{bundle_adjust, BaConfig};
+//! let mut rec = skyrecon_core::interop::read_model("model/0").unwrap();
+//! let summary = bundle_adjust(&mut rec, &BaConfig::default()).unwrap();
+//! println!("RMS {:.3} px, 반복 {}", summary.rms_reprojection_error(), summary.num_iterations);
+//! ```
+#![warn(missing_docs)]
 
 // 수치 커널은 인덱스 루프가 읽기 쉽다.
 #![allow(clippy::needless_range_loop)]
@@ -22,9 +55,13 @@ use tr::TrOptions;
 /// 견고 손실 함수. 스케일은 잔차(픽셀) 단위.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Loss {
+    /// 손실 없음(제곱 오차 그대로).
     Trivial,
+    /// Soft L1 손실(인자 = 스케일).
     SoftL1(f64),
+    /// Cauchy 손실(인자 = 스케일).
     Cauchy(f64),
+    /// Huber 손실(인자 = 스케일).
     Huber(f64),
 }
 
@@ -45,24 +82,37 @@ pub enum LinearSolverType {
 /// 최적화 종료 상태. `Failure` 외에는 결과를 쓸 수 있다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Termination {
+    /// 허용오차 조건으로 수렴.
     Convergence,
     #[default]
+    /// 최대 반복에 도달(결과는 사용 가능).
     NoConvergence,
+    /// 수치 실패(결과를 쓰면 안 됨).
     Failure,
 }
 
 /// 어떤 변수를 정제·고정할지.
 #[derive(Clone, Debug)]
 pub struct BaConfig {
+    /// 초점 거리 정제 여부.
     pub refine_focal_length: bool,
+    /// 주점 정제 여부.
     pub refine_principal_point: bool,
+    /// 추가 파라미터(왜곡 등) 정제 여부.
     pub refine_extra_params: bool,
+    /// 영상(프레임) 자세 정제 여부.
     pub refine_poses: bool,
+    /// 3D 점 위치 정제 여부.
     pub refine_points: bool,
+    /// 견고 손실 함수.
     pub loss: Loss,
+    /// 최대 LM 반복 수.
     pub max_num_iterations: usize,
+    /// 상대 비용 감소 허용오차(0 이면 끔).
     pub function_tolerance: f64,
+    /// 기울기 허용오차.
     pub gradient_tolerance: f64,
+    /// 파라미터 변화 허용오차(0 이면 끔).
     pub parameter_tolerance: f64,
     /// 대상 영상. 비면 등록된 영상 전부.
     pub images: HashSet<ImageId>,
@@ -74,15 +124,19 @@ pub struct BaConfig {
     pub constant_points: HashSet<Point3DId>,
     /// 게이지 고정을 자동으로 할지(두 영상 고정 규칙). constant_poses 가 비었을 때만 의미 있음.
     pub auto_gauge: bool,
+    /// 스레드 수(0 이면 전역 rayon 풀).
     pub num_threads: usize,
     /// 모든 자세의 회전 고정(이동만 정제).
     pub constant_world_to_rig_rotation: bool,
     /// > 0 이면 트랙 길이가 이보다 짧은 점은 문제에서 제외.
     pub min_track_length: usize,
+    /// 축소 계통 풀이기 종류.
     pub linear_solver: LinearSolverType,
     /// 반복 풀이기(PCG) 최대 반복.
     pub max_linear_solver_iterations: usize,
+    /// `Auto` 에서 밀집 풀이기를 쓰는 최대 영상 수.
     pub dense_solver_image_limit: usize,
+    /// `Auto` 에서 희소 풀이기를 쓰는 최대 영상 수.
     pub sparse_solver_image_limit: usize,
     /// BA 전에 깊이 < ε 관측 삭제(사전 처리).
     pub filter_negative_depth: bool,
@@ -122,18 +176,30 @@ impl Default for BaConfig {
     }
 }
 
+/// 번들 조정 결과 요약.
 #[derive(Clone, Debug, Default)]
 pub struct BaSummary {
+    /// 수행한 반복 수.
     pub num_iterations: usize,
+    /// 초기 비용(½·잔차 제곱합).
     pub initial_cost: f64,
+    /// 최종 비용(½·잔차 제곱합).
     pub final_cost: f64,
+    /// 잔차 수(관측 수 × 2).
     pub num_residuals: usize,
+    /// `termination == Convergence` 여부.
     pub converged: bool,
+    /// 종료 상태.
     pub termination: Termination,
+    /// 채택된(성공한) 단계 수.
     pub num_successful_steps: usize,
+    /// 실제로 쓴 선형 풀이기.
     pub linear_solver: LinearSolverType,
+    /// 문제에 들어간 영상 수.
     pub num_images: usize,
+    /// 문제에 들어간 3D 점 수.
     pub num_points: usize,
+    /// 가변(고정 아님) 3D 점 수.
     pub free_point_count: usize,
     /// 사전 필터가 지운 관측 수.
     pub dropped_observations: usize,

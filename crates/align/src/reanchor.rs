@@ -17,12 +17,15 @@ pub struct AnchorChain {
 }
 
 impl AnchorChain {
+    /// 빈 체인.
     pub fn new() -> Self {
         Self::default()
     }
+    /// 등록된 구역 수.
     pub fn len(&self) -> usize {
         self.zone_to_latest.len()
     }
+    /// 구역이 없으면 참.
     pub fn is_empty(&self) -> bool {
         self.zone_to_latest.is_empty()
     }
@@ -70,6 +73,7 @@ impl AnchorChain {
     pub fn zone_to_latest(&self, zone: usize) -> Option<Sim3> {
         self.zone_to_latest.get(zone).copied()
     }
+    /// 구역 `zone` 이 직전 구역과 연결됐는지.
     pub fn is_linked(&self, zone: usize) -> bool {
         self.linked.get(zone).copied().unwrap_or(false)
     }

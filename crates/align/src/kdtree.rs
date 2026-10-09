@@ -41,9 +41,11 @@ impl KdTree {
     pub fn from_f32(points: &[[f32; 3]]) -> Self {
         Self::new(points.iter().map(|p| [p[0] as f64, p[1] as f64, p[2] as f64]))
     }
+    /// 점 개수.
     pub fn len(&self) -> usize {
         self.pts.len()
     }
+    /// 점이 없으면 참.
     pub fn is_empty(&self) -> bool {
         self.pts.is_empty()
     }
@@ -130,7 +132,7 @@ impl KdTree {
         queries.par_iter().map(|q| self.nearest(q)).collect()
     }
 
-    /// 병렬 반경 판정(f32 질의). 결과[i] = 질의 i 의 r 안에 점이 있음.
+    /// 병렬 반경 판정(f32 질의). `결과[i]` = 질의 i 의 r 안에 점이 있음.
     pub fn any_within_many_f32(&self, queries: &[[f32; 3]], r: f64) -> Vec<bool> {
         queries.par_iter().map(|q| self.any_within(&[q[0] as f64, q[1] as f64, q[2] as f64], r)).collect()
     }

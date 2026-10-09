@@ -12,8 +12,11 @@ pub const DOT_NORM: f32 = 262144.0;
 /// SIFT 기술자 매칭 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DescriptorMatchOptions {
+    /// 최근접/차근접 각 거리 비율 상한(Lowe 비율 검사).
     pub max_ratio: f64,
+    /// 최근접 각 거리 상한(라디안).
     pub max_distance: f64,
+    /// 교차 검사(양방향 최근접 일치) 사용 여부.
     pub cross_check: bool,
     /// 경계 규칙: GPU(θ1 < max_dist && θ1 < r θ2) 또는 CPU 무차별(θ1 ≤ max_dist && θ1 < r θ2).
     pub rule: AcceptRule,
@@ -29,7 +32,9 @@ impl Default for DescriptorMatchOptions {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum AcceptRule {
     #[default]
+    /// GPU 규칙: θ1 < max_distance (엄격).
     Gpu,
+    /// CPU 무차별 규칙: θ1 ≤ max_distance.
     CpuBruteForce,
 }
 
@@ -37,8 +42,11 @@ pub enum AcceptRule {
 /// 초기값 0, "엄격히 큼"으로 갱신하므로 동점이면 앞선 인덱스 유지.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Top2 {
+    /// 최댓값 내적.
     pub best: u32,
+    /// 최댓값의 상대 인덱스(없으면 `u32::MAX`).
     pub idx: u32,
+    /// 두 번째 최댓값 내적.
     pub second: u32,
 }
 
@@ -50,6 +58,7 @@ impl Default for Top2 {
 
 impl Top2 {
     #[inline]
+    /// 내적 `d`(인덱스 `idx`)로 top-2 를 갱신한다.
     pub fn push(&mut self, d: u32, idx: u32) {
         if d > self.best {
             self.second = self.best;

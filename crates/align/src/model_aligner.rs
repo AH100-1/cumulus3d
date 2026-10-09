@@ -18,18 +18,28 @@ pub enum EnuOrigin {
     #[default]
     FirstRecord,
     /// 세션 전체 고정 원점(위도°, 경도°, 고도 m). 구역마다 원점이 바뀌는 문제를 피한다.
-    Explicit { lat: f64, lon: f64, alt: f64 },
+    Explicit {
+        /// 위도(°).
+        lat: f64,
+        /// 경도(°).
+        lon: f64,
+        /// 타원체고(m).
+        alt: f64,
+    },
 }
 
 /// model_aligner 옵션. 기본값 = 스크립트 호출(`--alignment_max_error 3`, min_common_images 3).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModelAlignerOptions {
-    /// 인라이어 거리 임계 [m] (변환된 카메라 중심 ↔ GPS ENU 거리 ≤ 3 m).
+    /// 인라이어 거리 임계 (m) (변환된 카메라 중심 ↔ GPS ENU 거리 ≤ 3 m).
     pub max_error: f64,
+    /// 정렬에 필요한 최소 공통 영상 수.
     pub min_common_images: usize,
+    /// ENU 원점 선택.
     pub origin: EnuOrigin,
     /// 신뢰도·반복 수·시드. `max_error` 필드는 무시되고 위 값이 쓰인다.
     pub ransac: RansacParams,
+    /// 최소 표본 퇴화 판정 방식.
     pub rank_check: RankCheck,
 }
 
@@ -56,11 +66,15 @@ pub struct GpsAlignment {
     pub common: Vec<(ImageId, String, Vec3)>,
     /// `common` 과 같은 순서의 인라이어 여부.
     pub inlier_mask: Vec<bool>,
+    /// 인라이어 수.
     pub num_inliers: usize,
+    /// RANSAC 시행 수.
     pub num_trials: usize,
     /// 정렬 후 ‖C' − g‖ (파일의 각 이름 중 모델에 있고 자세가 있는 영상, 필터링 없음).
     pub errors: Vec<(String, f64)>,
+    /// 정렬 오차 평균 (m).
     pub mean_error: f64,
+    /// 정렬 오차 중앙값 (m).
     pub median_error: f64,
 }
 

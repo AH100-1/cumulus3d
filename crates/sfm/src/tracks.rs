@@ -32,10 +32,15 @@ impl Default for TrackOptions {
 /// 트랙 구성 통계.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TrackSummary {
+    /// 후보 트랙 수.
     pub num_candidates: usize,
+    /// 영상 내 일관성 검사로 버린 트랙 수.
     pub num_inconsistent: usize,
+    /// 뷰 수 부족으로 버린 트랙 수.
     pub num_too_few_views: usize,
+    /// 검사를 통과한 트랙 수.
     pub num_valid: usize,
+    /// 최종 선별한 트랙 수.
     pub num_selected: usize,
 }
 

@@ -15,9 +15,11 @@ use std::time::Instant;
 /// 융합 변형 하나.
 #[derive(Clone, Debug)]
 pub struct FusionVariant {
+    /// 변형 이름(출력 파일 이름에 쓴다).
     pub name: String,
     /// 원래 줄의 플래그 문자열(보고용).
     pub flags: String,
+    /// 이 변형의 조밀화 옵션.
     pub opts: DensifyOptions,
     /// 점수 융합 설정(있으면 점수 융합).
     pub score: Option<ScoreFusionOptions>,

@@ -21,7 +21,10 @@ pub enum FeatureSelection {
     /// 개선: 거친 레벨 우선 + 레벨 내 |DoG 응답| 내림차순으로 정확히 K개.
     TopK,
     /// 개선: 영상을 `cells × cells` 격자로 나눠 칸마다 |응답| 순으로 번갈아 뽑아 정확히 K개(공간 균등).
-    SpatialGrid { cells: u32 },
+    SpatialGrid {
+        /// 한 축의 격자 칸 수.
+        cells: u32,
+    },
 }
 
 /// SIFT 옵션. 기본값 = 파이프라인 설정 + 레벨 단위 선택 동작.
@@ -33,11 +36,17 @@ pub struct SiftOptions {
     pub first_octave: i32,
     /// None = GPU 자동(floor(log2 min) − 3). Some(n) = CPU 경로식 고정.
     pub num_octaves: Option<usize>,
+    /// 옥타브당 검출 레벨 수 S.
     pub octave_resolution: usize,
+    /// DoG 극값 임계값(대비).
     pub peak_threshold: f32,
+    /// 엣지 억제 임계값(주곡률 비).
     pub edge_threshold: f32,
+    /// 키포인트당 최대 방향 수.
     pub max_num_orientations: usize,
+    /// 참이면 방향 할당 없이 θ = 0.
     pub upright: bool,
+    /// 기술자 정규화 방식.
     pub normalization: DescriptorNormalization,
     /// 입력 너비를 4의 배수로 내림(기본 동작). 끄면 오른쪽 열을 버리지 않음(개선).
     pub truncate_width_to_4: bool,
@@ -47,6 +56,7 @@ pub struct SiftOptions {
     pub reject_singular_refinement: bool,
     /// 방향 히스토그램 인접 빈 선형 보간(개선, CPU 경로식).
     pub orientation_bin_interpolation: bool,
+    /// 최대 특징 수 제한 방식.
     pub selection: FeatureSelection,
 }
 
@@ -75,11 +85,15 @@ impl Default for SiftOptions {
 /// 특징 하나(입력 영상 화소 단위, 좌상단 화소 중심 = (0.5, 0.5)).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SiftFeature {
+    /// x 좌표(화소).
     pub x: f32,
+    /// y 좌표(화소).
     pub y: f32,
+    /// 스케일 σ(입력 영상 화소 단위).
     pub scale: f32,
     /// 출력 방향 = (2π − θ_int) mod 2π.
     pub orientation: f32,
+    /// 검출 옥타브 번호.
     pub octave: i32,
     /// 옥타브 내 검출 레벨 j (0..S).
     pub level: u32,
@@ -97,17 +111,22 @@ impl SiftFeature {
 /// 추출 결과. `features[i]` ↔ `descriptors.row(i)`.
 #[derive(Clone, Debug, Default)]
 pub struct SiftOutput {
+    /// 특징 목록.
     pub features: Vec<SiftFeature>,
+    /// 128차원 uint8 기술자(행 i ↔ 특징 i).
     pub descriptors: Descriptors,
 }
 
 impl SiftOutput {
+    /// 특징들을 아핀 키포인트로 변환.
     pub fn keypoints(&self) -> Vec<Keypoint> {
         self.features.iter().map(|f| f.keypoint()).collect()
     }
+    /// 특징 수.
     pub fn len(&self) -> usize {
         self.features.len()
     }
+    /// 특징이 없으면 참.
     pub fn is_empty(&self) -> bool {
         self.features.is_empty()
     }
@@ -115,6 +134,7 @@ impl SiftOutput {
 
 /// SIFT 계산 백엔드. CUDA 등 다른 구현을 끼울 수 있게 trait 로 둔다.
 pub trait SiftEngine: Send + Sync {
+    /// 백엔드 이름(로그용).
     fn name(&self) -> &str;
     /// 회색 영상에서 특징 추출. 좌표는 입력 영상 화소 단위.
     fn extract(&self, image: &GrayImage, options: &SiftOptions) -> Result<SiftOutput>;
@@ -127,6 +147,7 @@ pub struct CpuSift {
 }
 
 impl CpuSift {
+    /// 빈 버퍼 풀로 CPU 백엔드를 만든다.
     pub fn new() -> Self {
         Self::default()
     }

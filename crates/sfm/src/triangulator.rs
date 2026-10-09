@@ -12,22 +12,36 @@ use skyrecon_core::{
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// 증분 삼각측량기 옵션(`--Mapper.tri_*`).
+/// 증분 삼각측량기 옵션.
 #[derive(Clone, Debug)]
 pub struct TrackTriangulatorOptions {
+    /// 새 점 생성 시 대응 그래프 전이 탐색 깊이.
     pub max_transitivity: usize,
+    /// 새 점 생성 시 각도 오차 허용(도).
     pub create_angle_tol: f64,
+    /// 기존 점 연장 시 각도 오차 허용(도).
     pub continue_angle_tol: f64,
+    /// 트랙 병합 재투영 오차 상한(픽셀).
     pub merge_max_reproj_error: f64,
+    /// 트랙 완성 재투영 오차 상한(픽셀).
     pub complete_max_reproj_error: f64,
+    /// 트랙 완성 시 전이 탐색 깊이.
     pub complete_transitivity: usize,
+    /// 재삼각측량 각도 오차 허용(도).
     pub retri_angle_tol: f64,
+    /// 짝의 삼각측량 비율이 이보다 낮을 때만 재삼각측량.
     pub retri_min_ratio: f64,
+    /// 짝당 재삼각측량 최대 시도 횟수.
     pub retri_max_attempts: usize,
+    /// 최소 삼각측량 각(도).
     pub min_angle: f64,
+    /// 두 영상뿐인 트랙은 건너뛸지.
     pub skip_two_view_tracks: bool,
+    /// 비정상 카메라 판정: 초점 비율 하한.
     pub min_focal_length_ratio: f64,
+    /// 비정상 카메라 판정: 초점 비율 상한.
     pub max_focal_length_ratio: f64,
+    /// 비정상 카메라 판정: 추가 파라미터 절대값 상한.
     pub max_extra_param: f64,
 }
 
@@ -75,15 +89,23 @@ pub enum TriangulationScope {
 /// point_triangulator 옵션.
 #[derive(Clone, Debug)]
 pub struct PointTriangulatorOptions {
+    /// 증분 삼각측량기 옵션.
     pub tri: TrackTriangulatorOptions,
     /// 참이면 시작 전에 모든 3D 점 삭제(파이프라인은 거짓).
     pub clear_points: bool,
+    /// 끝 필터의 재투영 오차 상한(픽셀).
     pub filter_max_reproj_error: f64,
+    /// 끝 필터의 최소 삼각측량 각(도).
     pub filter_min_tri_angle: f64,
+    /// 점 정제·재삼각측량 반복 최대 횟수.
     pub ba_global_max_refinements: usize,
+    /// 반복을 멈추는 변경 관측 비율.
     pub ba_global_max_refinement_change: f64,
+    /// 점 정제 BA 최대 반복.
     pub ba_global_max_num_iterations: usize,
+    /// 점 정제 방식.
     pub refiner: PointRefiner,
+    /// 처리 범위(전체 또는 새 영상).
     pub scope: TriangulationScope,
 }
 
@@ -106,12 +128,19 @@ impl Default for PointTriangulatorOptions {
 /// 실행 통계.
 #[derive(Clone, Debug, Default)]
 pub struct TriangulationReport {
+    /// 새로 만든 점 수.
     pub num_created: usize,
+    /// 기존 점에 이어 붙인 관측 수.
     pub num_continued: usize,
+    /// 트랙 완성으로 붙인 관측 수.
     pub num_completed: usize,
+    /// 병합된 점들의 관측 수 합.
     pub num_merged: usize,
+    /// 재삼각측량으로 만든 관측 수.
     pub num_retriangulated: usize,
+    /// 필터가 지운 관측·점 수.
     pub num_filtered: usize,
+    /// 수행한 정제 반복 수.
     pub num_refinements: usize,
 }
 
@@ -134,16 +163,19 @@ enum Action {
 /// 증분 삼각측량기. 생성 시점 등록 영상의 자세·역투영 광선을 캐시한다(자세 고정 전제).
 pub struct TrackTriangulator<'a> {
     graph: &'a MatchGraph,
+    /// 삼각측량 옵션.
     pub opts: TrackTriangulatorOptions,
     poses: HashMap<ImageId, PoseInfo>,
     merge_trials: HashSet<(Point3DId, Point3DId)>,
     re_trials: HashMap<(ImageId, ImageId), usize>,
     /// 이번 실행에서 만들어지거나 바뀐 점.
     pub touched: HashSet<Point3DId>,
+    /// 누적 실행 통계.
     pub report: TriangulationReport,
 }
 
 impl<'a> TrackTriangulator<'a> {
+    /// 재구성의 등록 영상 자세·광선을 캐시해 삼각측량기를 만든다.
     pub fn new(rec: &Reconstruction, graph: &'a MatchGraph, opts: TrackTriangulatorOptions) -> Self {
         let ids = rec.registered_images();
         let infos: Vec<(ImageId, PoseInfo)> = ids

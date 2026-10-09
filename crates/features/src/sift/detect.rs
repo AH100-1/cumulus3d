@@ -7,6 +7,7 @@ use rayon::prelude::*;
 pub struct Candidate {
     /// 옥타브 내 좌표(화소 중심 .5 규칙 포함): c + 0.5 + δx.
     pub x: f32,
+    /// 옥타브 내 y 좌표(x 와 같은 규칙).
     pub y: f32,
     /// 옥타브 내 σ_o = σ₀ k^(j + δs).
     pub sigma: f32,
@@ -17,13 +18,17 @@ pub struct Candidate {
 /// 검출 매개변수.
 #[derive(Clone, Copy, Debug)]
 pub struct DetectParams {
+    /// DoG 극값 임계값.
     pub peak_threshold: f32,
+    /// 엣지 억제 임계값.
     pub edge_threshold: f32,
     /// 1 = GPU(1회, 이동 없음). >1 이면 |δ|>0.6 일 때 화소 이동하며 재보정.
     pub refinement_iterations: usize,
     /// 특이 헤시안일 때 통과(GPU) 대신 버림.
     pub reject_singular: bool,
+    /// 기준 σ₀.
     pub sigma0: f32,
+    /// 레벨 간 배율 k = 2^(1/S).
     pub k: f32,
 }
 
@@ -202,7 +207,7 @@ fn refine(dm: &[f32], d0: &[f32], dp: &[f32], w: usize, h: usize, r0: usize, c0:
     None
 }
 
-/// DoG D_d = G_{d} − G_{d−1} (배열 색인: gauss[d+1] − gauss[d]).
+/// DoG D_d = G_{d} − G_{d−1} (배열 색인: `gauss[d+1] − gauss[d]`).
 pub fn dog(a: &[f32], b: &[f32], out: &mut [f32]) {
     out.par_chunks_mut(4096)
         .zip(a.par_chunks(4096).zip(b.par_chunks(4096)))

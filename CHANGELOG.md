@@ -3,12 +3,27 @@
 이 프로젝트는 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다. 0.x 동안에는 부 버전(0.1 → 0.2)에서 호환이 깨질 수 있다.
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
-## [0.3.0] — 계획
-### 추가 예정
-- 이벤트 기반 파이프라인 API: 상태 값 `Session` + `step(&Session, frames) -> (Session, Vec<Event>)`.
-- 프레임이 들어올 때마다 단계별로 분해된 이벤트(`FrameIngested`, `FeaturesExtracted`, `PairsMatched`, `FrameRegistered`,
-  `ZonePreview`, `ZoneRefined`, `Reanchored`, `Snapshot`)를 내보냄.
-- `Pipeline` 래퍼와 이벤트별 람다 훅(`.on(|e: &ZonePreview| …)`), 채널 방식 수신. 훅은 별도 큐에서 실행되어 처리를 막지 않음.
+## [0.3.0] — 2026-10-09
+### 추가
+- 이벤트 계약 `events`: `Event`/`EventKind`/`Meta`(세션 버전·발생 시각)/`ZoneRange`/`Command`.
+  단계별 이벤트 `Started`, `FrameIngested`, `FeaturesExtracted`, `PairsMatched`, `ModelInitialized`, `FrameRegistered`,
+  `PositionDone`, `ZoneArrived`, `ZonePreview`, `RefineStarted`, `ZoneAdjusted`, `ZoneRefinedPose`, `ZoneRefined`,
+  `BaseAdopted`, `Reanchored`, `Snapshot`, `AllPositionsDone`, `AllRefinedDone`, `Finished`, `Reset`, `ZoneInvalidated`,
+  `Log`, `Warning`, `Error`. 구역 이벤트는 모델·점군(`Arc`)을 함께 싣는다. `Event::timeline_text` 가 timeline.txt 문구를 준다.
+- 상태 값 세션 `session`: `Session` + `step(&Session, FrameSet) -> (Session, Vec<Event>)`, `poll`, `command`, `finish`.
+  위치 하나의 프레임 묶음(`FrameSet`)마다 특징 → 매칭 → 등록·삼각측량 → 구역 초벌/정밀(배경)을 이벤트로 내보내며 파일은 쓰지 않는다.
+  `SessionConfig`(구역·겹침, 전체 위치 수, GPS, 조밀화 설정, 되감기 지점 수), `Command::ResetFrom`·`InvalidateZone`.
+- 람다 훅 파이프라인 `pipeline::Pipeline`: `.on(EventKind, 훅)`, `.on_any`, `.on_zone_preview`/`.on_zone_refined`/
+  `.on_snapshot`/`.on_position_done`/`.on_message`, 채널 수신 `subscribe`. 훅은 종류별 워커 레인에서 돌아 처리를 막지 않고
+  (`sync(true)` 면 즉시 동기 실행), 종류별 큐 정책(`KeepAll`/`LatestPerKey`/`LatestOnly`), 훅 패닉 격리(`Error` 이벤트), `finish` 요약.
+- 기본 출력 훅 `sinks`: `TimelineSink`(timeline.txt), `RunLogSink`(run.log·DONE), `ZonePlySink`(full/*.ply), `ModelSink`(work/models),
+  `SnapshotSink`(초벌 정렬·마스킹·사건별 스냅샷·manifest.json·재고정 final_frame). `sinks::attach(pipeline, out, opts)` 로 한 번에 붙이고,
+  종류별 목록 `default_sinks` 도 있다. 출력 문구·파일 이름·manifest 형식은 0.2 의 `skyrecon stream` 과 같다.
+- 후처리 메모리 입력 `post::run_zones`(`PostZones`): 이벤트로 모은 구역 점군·모델을 바로 받는다. 기존 `post::run` 은 이를 감싼다.
+- 예제 `examples/hooks.rs`(합성 장면에 람다 훅 + 기본 출력 훅), 시험 `tests/sinks_equivalence.rs`
+  (`run_stream` 출력과, 같은 이벤트 열을 기본 훅에 흘린 출력의 timeline·run.log·파일 목록·manifest·점 수 비교).
+### 변경
+- `util::Logger::clock_at`/`stamped_at`: 주어진 시각으로 `[HH:MM:SS]` 머리를 붙인다(이벤트 발생 시각 기록용).
 
 ## [0.2.0] — 작업 중 (2026-10-09)
 ### 추가

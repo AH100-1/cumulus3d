@@ -51,8 +51,11 @@ pub fn make_match_backend(name: &str) -> Result<Box<dyn skyrecon_matching::Match
 /// 조밀화 설정.
 #[derive(Clone)]
 pub struct DenseConfig {
+    /// 왜곡 보정 옵션.
     pub undistort: UndistortOptions,
+    /// 조밀 장면 변환 옵션.
     pub scene: SceneOptions,
+    /// 조밀화(PatchMatch·필터·융합) 옵션.
     pub densify: DensifyOptions,
     /// 점수 융합 설정(있으면 `densify.fusion.mode` 대신 점수 융합).
     pub score: Option<skyrecon_dense::fusion_score::ScoreFusionOptions>,
@@ -60,7 +63,9 @@ pub struct DenseConfig {
     pub backend: Result<Arc<dyn PatchMatchBackend>, String>,
     /// `--serialize-dense`: 백엔드 호출을 한 번에 하나로.
     pub lock: Option<Arc<Mutex<()>>>,
+    /// 깊이맵 캐시(`--depth-cache`).
     pub depth_cache: Option<Arc<DepthMapCache>>,
+    /// 왜곡 보정 결과 캐시.
     pub undistort_cache: Arc<UndistortCache>,
 }
 
@@ -82,11 +87,17 @@ impl DenseConfig {
 
 /// 조밀화 결과 요약.
 pub struct DenseRun {
+    /// 조밀화에 쓴 영상 수.
     pub frames: usize,
+    /// 조밀화 입력 장면.
     pub scene: DenseScene,
+    /// 조밀화 결과(점군 등).
     pub output: DenseOutput,
+    /// 왜곡 보정 시간.
     pub undistort_time: Duration,
+    /// 조밀화 시간.
     pub densify_time: Duration,
+    /// 백엔드 직렬화 잠금 대기 시간.
     pub lock_wait: Duration,
 }
 

@@ -7,21 +7,28 @@ use std::path::Path;
 /// 점군. `normals`/`colors` 는 비어 있거나 `positions` 와 길이가 같다.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PointCloud {
+    /// 점 위치.
     pub positions: Vec<[f32; 3]>,
+    /// 법선(비어 있을 수 있음).
     pub normals: Vec<[f32; 3]>,
+    /// RGB 색(비어 있을 수 있음).
     pub colors: Vec<[u8; 3]>,
 }
 
 impl PointCloud {
+    /// 점 수.
     pub fn len(&self) -> usize {
         self.positions.len()
     }
+    /// 점이 없는지.
     pub fn is_empty(&self) -> bool {
         self.positions.is_empty()
     }
+    /// 법선이 있는지.
     pub fn has_normals(&self) -> bool {
         !self.normals.is_empty()
     }
+    /// 색이 있는지.
     pub fn has_colors(&self) -> bool {
         !self.colors.is_empty()
     }

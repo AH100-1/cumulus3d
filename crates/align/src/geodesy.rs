@@ -2,11 +2,11 @@
 
 use skyrecon_core::{Mat3, Vec3};
 
-/// 장반경 a [m].
+/// 장반경 a (m).
 pub const WGS84_A: f64 = 6378137.0;
 /// 편평률 f.
 pub const WGS84_F: f64 = 1.0 / 298.257223563;
-/// 단반경 b = (1 − f) a [m].
+/// 단반경 b = (1 − f) a (m).
 pub const WGS84_B: f64 = (1.0 - WGS84_F) * WGS84_A;
 /// 제1이심률 제곱 e² = f (2 − f).
 pub const WGS84_E2: f64 = WGS84_F * (2.0 - WGS84_F);
@@ -16,7 +16,7 @@ fn prime_vertical_radius(sin_lat: f64) -> f64 {
     WGS84_A / (1.0 - WGS84_E2 * sin_lat * sin_lat).sqrt()
 }
 
-/// (위도°, 경도°, 타원체고 m) → ECEF [m].
+/// (위도°, 경도°, 타원체고 m) → ECEF (m).
 pub fn lla_to_ecef(lat_deg: f64, lon_deg: f64, alt: f64) -> Vec3 {
     let (sp, cp) = lat_deg.to_radians().sin_cos();
     let (sl, cl) = lon_deg.to_radians().sin_cos();
@@ -78,15 +78,19 @@ impl EnuFrame {
         );
         Self { origin_lla: (lat_deg, lon_deg, alt), origin_ecef: r0, rotation }
     }
+    /// ECEF → 이 좌표계의 ENU.
     pub fn ecef_to_enu(&self, p: &Vec3) -> Vec3 {
         self.rotation * (p - self.origin_ecef)
     }
+    /// ENU → ECEF.
     pub fn enu_to_ecef(&self, e: &Vec3) -> Vec3 {
         self.rotation.transpose() * e + self.origin_ecef
     }
+    /// (위도°, 경도°, 타원체고 m) → ENU.
     pub fn lla_to_enu(&self, lat_deg: f64, lon_deg: f64, alt: f64) -> Vec3 {
         self.ecef_to_enu(&lla_to_ecef(lat_deg, lon_deg, alt))
     }
+    /// ENU → (위도°, 경도°, 타원체고 m).
     pub fn enu_to_lla(&self, e: &Vec3) -> (f64, f64, f64) {
         ecef_to_lla(&self.enu_to_ecef(e))
     }

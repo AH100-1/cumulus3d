@@ -15,6 +15,7 @@ pub struct Logger {
 }
 
 impl Logger {
+    /// `path` 에 기록 파일을 만든다(`None` 이면 파일 없음; `echo` 면 표준 출력에도).
     pub fn new(path: Option<&Path>, echo: bool) -> std::io::Result<Self> {
         let file = match path {
             Some(p) => Some(Mutex::new(File::create(p)?)),
@@ -41,8 +42,19 @@ impl Logger {
         self.line(&format!("[{}] {s}", self.clock()));
     }
 
+    /// `[HH:MM:SS] msg` (주어진 시각, 현지 시각).
+    pub fn stamped_at(&self, at: SystemTime, s: &str) {
+        self.line(&format!("[{}] {s}", self.clock_at(at)));
+    }
+
+    /// 현재 현지 시각 `HH:MM:SS`.
     pub fn clock(&self) -> String {
-        let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64 + self.tz_offset_s;
+        self.clock_at(SystemTime::now())
+    }
+
+    /// 주어진 시각의 `HH:MM:SS`(현지 시각).
+    pub fn clock_at(&self, at: SystemTime) -> String {
+        let t = at.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64 + self.tz_offset_s;
         let d = t.rem_euclid(86400);
         format!("{:02}:{:02}:{:02}", d / 3600, (d / 60) % 60, d % 60)
     }
@@ -69,6 +81,7 @@ pub struct Timeline {
 }
 
 impl Timeline {
+    /// `path` 에 timeline 파일을 만든다.
     pub fn new(path: &Path) -> std::io::Result<Self> {
         Ok(Self { file: Mutex::new(File::create(path)?), events: Mutex::new(Vec::new()) })
     }
@@ -102,6 +115,7 @@ pub struct StageTimes {
 }
 
 impl StageTimes {
+    /// 단계 시간 누적.
     pub fn add(&self, stage: &str, d: Duration) {
         if let Ok(mut m) = self.m.lock() {
             let e = m.entry(stage.to_string()).or_default();
@@ -110,6 +124,7 @@ impl StageTimes {
         }
     }
 
+    /// (단계 → 누적 시간, 횟수) 사본.
     pub fn snapshot(&self) -> BTreeMap<String, (Duration, usize)> {
         self.m.lock().map(|m| m.clone()).unwrap_or_default()
     }
@@ -144,26 +159,36 @@ pub fn py_float(x: f64, digits: i32) -> String {
 /// 작은 JSON 값(매니페스트용).
 #[derive(Clone, Debug)]
 pub enum Json {
+    /// `null`.
     Null,
+    /// 불린.
     Bool(bool),
+    /// 정수.
     Int(i64),
     /// 이미 서식화한 수(파이썬 round 결과).
     Num(String),
+    /// 문자열.
     Str(String),
+    /// 배열.
     Arr(Vec<Json>),
+    /// 객체(키 순서 유지).
     Obj(Vec<(String, Json)>),
 }
 
 impl Json {
+    /// (키, 값) 목록으로 객체.
     pub fn obj(items: Vec<(&str, Json)>) -> Json {
         Json::Obj(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
     }
+    /// 소수 `digits` 자리 반올림 수.
     pub fn f(x: f64, digits: i32) -> Json {
         Json::Num(py_float(x, digits))
     }
+    /// 수 또는 null.
     pub fn of(x: Option<f64>, digits: i32) -> Json {
         x.map_or(Json::Null, |v| Json::f(v, digits))
     }
+    /// 정수 배열.
     pub fn ints(v: &[usize]) -> Json {
         Json::Arr(v.iter().map(|x| Json::Int(*x as i64)).collect())
     }
@@ -236,6 +261,7 @@ impl Json {
         }
     }
 
+    /// 객체의 키 조회.
     pub fn get(&self, key: &str) -> Option<&Json> {
         match self {
             Json::Obj(v) => v.iter().find(|(k, _)| k == key).map(|(_, x)| x),

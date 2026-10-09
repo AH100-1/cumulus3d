@@ -6,12 +6,16 @@ use std::path::Path;
 /// 행 우선 8비트 회색 영상.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrayImage {
+    /// 너비(화소).
     pub width: usize,
+    /// 높이(화소).
     pub height: usize,
+    /// 행 우선 화소 값(길이 width × height).
     pub data: Vec<u8>,
 }
 
 impl GrayImage {
+    /// 버퍼로 만든다. 길이가 width × height 가 아니면 오류.
     pub fn new(width: usize, height: usize, data: Vec<u8>) -> Result<Self> {
         if data.len() != width * height {
             return Err(Error::InvalidArgument(format!(
@@ -22,11 +26,12 @@ impl GrayImage {
         Ok(Self { width, height, data })
     }
 
+    /// 모든 화소가 `v` 인 영상.
     pub fn filled(width: usize, height: usize, v: u8) -> Self {
         Self { width, height, data: vec![v; width * height] }
     }
 
-    /// [0,1] 실수 영상에서 만든다(반올림·포화).
+    /// `[0,1]` 실수 영상에서 만든다(반올림·포화).
     pub fn from_f32(width: usize, height: usize, f: impl Fn(usize, usize) -> f32) -> Self {
         let mut data = Vec::with_capacity(width * height);
         for y in 0..height {
@@ -38,6 +43,7 @@ impl GrayImage {
     }
 
     #[inline]
+    /// 화소 (x, y) 값.
     pub fn get(&self, x: usize, y: usize) -> u8 {
         self.data[y * self.width + x]
     }

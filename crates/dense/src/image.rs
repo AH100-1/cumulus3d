@@ -6,13 +6,18 @@ use std::path::Path;
 /// 8비트 영상(채널 1 또는 3, 행 우선, 채널 섞어 저장).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageBuffer {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
+    /// 채널 수(1 또는 3).
     pub channels: usize,
+    /// 픽셀 값(행 우선, 채널 섞어 저장).
     pub data: Vec<u8>,
 }
 
 impl ImageBuffer {
+    /// 0 으로 채운 영상.
     pub fn new(width: usize, height: usize, channels: usize) -> Self {
         Self { width, height, channels, data: vec![0; width * height * channels] }
     }
@@ -61,7 +66,7 @@ impl ImageBuffer {
             [self.data[i]; 3]
         }
     }
-    /// 회색 float [0,1]: (0.299R + 0.587G + 0.114B)/255.
+    /// 회색 float \[0,1\]: (0.299R + 0.587G + 0.114B)/255.
     pub fn to_gray(&self) -> GrayImage {
         let n = self.width * self.height;
         let mut data = vec![0.0f32; n];
@@ -95,16 +100,21 @@ impl ImageBuffer {
 /// f32 회색 영상.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GrayImage {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
+    /// 픽셀 값(행 우선).
     pub data: Vec<f32>,
 }
 
 impl GrayImage {
+    /// 0 으로 채운 영상.
     pub fn new(width: usize, height: usize) -> Self {
         Self { width, height, data: vec![0.0; width * height] }
     }
     #[inline]
+    /// 정수 좌표 픽셀 값.
     pub fn at(&self, x: usize, y: usize) -> f32 {
         self.data[y * self.width + x]
     }
@@ -202,12 +212,15 @@ pub fn bilinear_clamped(data: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32
 /// 적분영상(합계표, (w+1)×(h+1), f64). 임의 실수 상자 합을 쌍선형 보간으로 정확히 구한다.
 #[derive(Clone, Debug)]
 pub struct Integral {
+    /// 입력 영상 너비.
     pub width: usize,
+    /// 입력 영상 높이.
     pub height: usize,
     sums: Vec<f64>,
 }
 
 impl Integral {
+    /// 회색 영상의 적분영상을 만든다.
     pub fn new(img: &GrayImage) -> Self {
         let (w, h) = (img.width, img.height);
         let mut sums = vec![0.0f64; (w + 1) * (h + 1)];

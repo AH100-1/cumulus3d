@@ -22,15 +22,23 @@ pub enum RegistrationOrder {
 /// image_registrator 옵션.
 #[derive(Clone, Debug)]
 pub struct RegistrationOptions {
+    /// 등록에 필요한 최소 가시 점·대응·인라이어 수.
     pub abs_pose_min_num_inliers: usize,
+    /// 절대 자세 RANSAC 옵션.
     pub ransac: AbsolutePoseOptions,
+    /// 비정상 카메라 판정: 초점 비율 하한.
     pub min_focal_length_ratio: f64,
+    /// 비정상 카메라 판정: 초점 비율 상한.
     pub max_focal_length_ratio: f64,
+    /// 비정상 카메라 판정: 추가 파라미터 절대값 상한.
     pub max_extra_param: f64,
     /// RANSAC 뒤 비선형 자세 정제(skyrecon-ba `refine_abs_pose`) 실행 여부.
     pub refine_pose: bool,
+    /// 자세 정제 손실 함수.
     pub refine_loss: Loss,
+    /// 자세 정제 최대 반복.
     pub refine_max_num_iterations: usize,
+    /// 등록 순서.
     pub order: RegistrationOrder,
     /// 끝나고 등록 실패 영상(프레임·쓰이지 않는 카메라)을 모델에서 삭제.
     pub remove_unregistered: bool,
@@ -56,16 +64,29 @@ impl Default for RegistrationOptions {
 /// 영상 하나 등록 결과.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RegisterOutcome {
-    Registered { num_correspondences: usize, num_inliers: usize },
+    /// 등록 성공.
+    Registered {
+        /// 2D–3D 대응 수.
+        num_correspondences: usize,
+        /// RANSAC 인라이어 수.
+        num_inliers: usize,
+    },
+    /// 가시 3D 점이 부족(가시 점 수).
     TooFewVisiblePoints(usize),
+    /// 2D–3D 대응이 부족(대응 수).
     TooFewCorrespondences(usize),
+    /// 절대 자세 RANSAC 실패.
     RansacFailed,
+    /// 인라이어 부족(인라이어 수).
     TooFewInliers(usize),
+    /// 자세 정제 실패.
     RefinementFailed,
+    /// 이미 등록된 영상.
     AlreadyRegistered,
 }
 
 impl RegisterOutcome {
+    /// 등록에 성공했는지.
     pub fn is_registered(&self) -> bool {
         matches!(self, RegisterOutcome::Registered { .. })
     }
@@ -76,10 +97,12 @@ impl RegisterOutcome {
 pub struct RegistrationReport {
     /// 시도 순서대로 (영상, 결과).
     pub attempts: Vec<(ImageId, RegisterOutcome)>,
+    /// 모델에 새로 추가한 영상 수.
     pub num_added_images: usize,
 }
 
 impl RegistrationReport {
+    /// 등록에 성공한 영상 id(시도 순서).
     pub fn registered(&self) -> Vec<ImageId> {
         self.attempts.iter().filter(|(_, o)| o.is_registered()).map(|(i, _)| *i).collect()
     }

@@ -82,6 +82,7 @@ impl From<GpuError> for Fail {
 }
 
 impl CudaSift {
+    /// 장치 `dev` 에 스케일 공간 커널을 컴파일해 만든다.
     pub fn new(dev: Arc<CudaDevice>) -> std::result::Result<Self, GpuError> {
         // 곱셈-덧셈 융합을 끄고 IEEE 나눗셈: CPU 피라미드와 비트 단위로 같게.
         let m = dev.compile(SRC, false, &[])?;
@@ -96,6 +97,7 @@ impl CudaSift {
         })
     }
 
+    /// 장치 0 으로 만든다.
     pub fn try_default() -> std::result::Result<Self, GpuError> {
         Self::new(CudaDevice::new(0)?)
     }

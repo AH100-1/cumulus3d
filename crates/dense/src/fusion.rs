@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 /// 융합 입력: 뷰 크기의 깊이(0 = 무효)와 기준 카메라 좌표 법선.
 #[derive(Clone, Copy, Debug)]
 pub struct FusionInput<'a> {
+    /// 뷰 크기의 깊이(0 = 무효).
     pub depth: &'a [f32],
+    /// 기준 카메라 좌표 법선.
     pub normal: &'a [[f32; 3]],
     /// 픽셀별 최종 정합 비용(있으면 역분산 가중에 쓴다).
     pub cost: Option<&'a [f32]>,
@@ -45,7 +47,9 @@ fn inv_var(p: &FusionParams, inp: &FusionInput<'_>, f: f64, pix: usize, d: f64) 
 /// 융합 결과(점, 점마다 기여 뷰 색인 오름차순).
 #[derive(Clone, Debug, Default)]
 pub struct FusionOutput {
+    /// 융합된 점군.
     pub cloud: PointCloud,
+    /// 점마다 기여 뷰 색인(오름차순).
     pub visibility: Vec<Vec<u32>>,
     /// 점마다 2차 융합 점 여부(2차 융합을 하지 않았으면 비어 있다).
     pub residual: Vec<bool>,

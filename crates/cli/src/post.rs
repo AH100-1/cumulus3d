@@ -11,16 +11,25 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// 후처리 입력(PLY 경로·사건 문자열 기반).
 pub struct PostInput<'a> {
+    /// 출력 폴더.
     pub out: &'a Path,
+    /// 구역 크기(위치 수).
     pub span: usize,
+    /// 구역 겹침(위치 수).
     pub ovl: usize,
     /// (첫 사건 기준 초, 사건 문자열).
     pub events: Vec<(f64, String)>,
+    /// 구역별 초벌 모델.
     pub previews: &'a BTreeMap<usize, Reconstruction>,
+    /// 구역별 정밀 모델.
     pub refined: &'a BTreeMap<usize, Reconstruction>,
+    /// 구역별 초벌 PLY 경로.
     pub preview_ply: &'a BTreeMap<usize, PathBuf>,
+    /// 구역별 정밀 PLY 경로.
     pub refined_ply: &'a BTreeMap<usize, PathBuf>,
+    /// 영상 이름 → 위치.
     pub position: &'a (dyn Fn(&str) -> Option<usize> + Sync),
 }
 
@@ -90,31 +99,105 @@ fn overlap_median(prev: &PointCloud, cur: &PointCloud) -> Option<(f64, usize)> {
     Some((m, n))
 }
 
-/// 후처리 전체. 요약은 run.log(+표준 출력)로.
+/// 구역별 사건 시각(첫 사건 기준 초). 없으면 None.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ZoneTimes {
+    /// `region K arrived`.
+    pub arrived: Option<f64>,
+    /// `preview K ready`.
+    pub preview_ready: Option<f64>,
+    /// `refined K pose_ready`.
+    pub refined_pose: Option<f64>,
+    /// `refined K ready`.
+    pub refined_ready: Option<f64>,
+}
+
+/// 구역 점군 하나: 출력 파일 이름(full/ 과 같은 이름)과 점군.
+pub struct ZoneCloud<'a> {
+    /// 출력 파일 이름.
+    pub file: String,
+    /// 점군.
+    pub cloud: &'a PointCloud,
+}
+
+/// 메모리 입력형 후처리(이벤트로 모은 구역 결과). [`run`] 과 기본 훅이 함께 쓴다.
+pub struct PostZones<'a> {
+    /// 출력 폴더.
+    pub out: &'a Path,
+    /// 조밀 점군이 있는 초벌 구역.
+    pub preview: BTreeMap<usize, ZoneCloud<'a>>,
+    /// 조밀 점군이 있는 정밀 구역.
+    pub refined: BTreeMap<usize, ZoneCloud<'a>>,
+    /// 초벌 모델(구역 0 은 GPS 정렬본).
+    pub preview_models: BTreeMap<usize, &'a Reconstruction>,
+    /// 정밀 모델(BA + GPS 정렬).
+    pub refined_models: BTreeMap<usize, &'a Reconstruction>,
+    /// 구역별 사건 시각.
+    pub times: BTreeMap<usize, ZoneTimes>,
+    /// 구역 K(≥ 1) 초벌 정렬에 쓰는 위치 구간 [lo, hi) = 앞 구역과의 겹침.
+    pub windows: BTreeMap<usize, (usize, usize)>,
+    /// 영상 이름 → 위치.
+    pub position: &'a (dyn Fn(&str) -> Option<usize> + Sync),
+}
+
+/// 후처리 전체(PLY 경로·사건 문자열 입력). 요약은 run.log(+표준 출력)로.
 pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
-    let out = inp.out;
     let ev = &inp.events;
-    let pv_paths = inp.preview_ply;
-    let rf_paths = inp.refined_ply;
     let mut pv: BTreeMap<usize, PointCloud> = BTreeMap::new();
-    for (k, p) in pv_paths {
+    for (k, p) in inp.preview_ply {
         pv.insert(*k, read_ply(p).map_err(|e| format!("{}: {e}", p.display()))?);
     }
     let mut rf: BTreeMap<usize, PointCloud> = BTreeMap::new();
-    for (k, p) in rf_paths {
+    for (k, p) in inp.refined_ply {
         rf.insert(*k, read_ply(p).map_err(|e| format!("{}: {e}", p.display()))?);
     }
-    let t_p: BTreeMap<usize, Option<f64>> = pv.keys().map(|k| (*k, tof(ev, &format!("preview {k} ready")))).collect();
-    let t_r: BTreeMap<usize, Option<f64>> = rf.keys().map(|k| (*k, tof(ev, &format!("refined {k} ready")))).collect();
-    let t_rp: BTreeMap<usize, Option<f64>> = rf.keys().map(|k| (*k, tof(ev, &format!("refined {k} pose_ready")))).collect();
-    let t_a: BTreeMap<usize, Option<f64>> = pv.keys().map(|k| (*k, tof(ev, &format!("region {k} arrived")))).collect();
+    let mut times: BTreeMap<usize, ZoneTimes> = BTreeMap::new();
+    for k in pv.keys() {
+        let t = times.entry(*k).or_default();
+        t.preview_ready = tof(ev, &format!("preview {k} ready"));
+        t.arrived = tof(ev, &format!("region {k} arrived"));
+    }
+    for k in rf.keys() {
+        let t = times.entry(*k).or_default();
+        t.refined_ready = tof(ev, &format!("refined {k} ready"));
+        t.refined_pose = tof(ev, &format!("refined {k} pose_ready"));
+    }
+    let windows = pv
+        .keys()
+        .map(|k| {
+            let start = k * inp.span;
+            (*k, (start.saturating_sub(inp.ovl), start + inp.ovl))
+        })
+        .collect();
+    let z = PostZones {
+        out: inp.out,
+        preview: pv.iter().map(|(k, c)| (*k, ZoneCloud { file: basename(&inp.preview_ply[k]), cloud: c })).collect(),
+        refined: rf.iter().map(|(k, c)| (*k, ZoneCloud { file: basename(&inp.refined_ply[k]), cloud: c })).collect(),
+        preview_models: inp.previews.iter().map(|(k, m)| (*k, m)).collect(),
+        refined_models: inp.refined.iter().map(|(k, m)| (*k, m)).collect(),
+        times,
+        windows,
+        position: inp.position,
+    };
+    run_zones(&z, log)
+}
+
+/// 후처리 본체(메모리 입력): 초벌 정렬 → aligned/ → 사건별 스냅샷·manifest → 재고정(final_frame/).
+pub fn run_zones(z: &PostZones, log: &Logger) -> Result<(), String> {
+    let out = z.out;
+    let pv: BTreeMap<usize, &PointCloud> = z.preview.iter().map(|(k, c)| (*k, c.cloud)).collect();
+    let rf: BTreeMap<usize, &PointCloud> = z.refined.iter().map(|(k, c)| (*k, c.cloud)).collect();
+    let tm = |k: &usize| z.times.get(k).copied().unwrap_or_default();
+    let t_p: BTreeMap<usize, Option<f64>> = pv.keys().map(|k| (*k, tm(k).preview_ready)).collect();
+    let t_r: BTreeMap<usize, Option<f64>> = rf.keys().map(|k| (*k, tm(k).refined_ready)).collect();
+    let t_rp: BTreeMap<usize, Option<f64>> = rf.keys().map(|k| (*k, tm(k).refined_pose)).collect();
+    let t_a: BTreeMap<usize, Option<f64>> = pv.keys().map(|k| (*k, tm(k).arrived)).collect();
 
     // --- 초벌 정렬: 그 시점에 자세가 준비된 최신 정밀 모델(없으면 GPS 정렬된 preview_0)에 공유 점으로.
     let mut align_rows: Vec<Json> = Vec::new();
     let mut pframe: BTreeMap<usize, String> = BTreeMap::new();
     let mut pv_aligned: BTreeMap<usize, PointCloud> = BTreeMap::new();
     for (&k, cloud) in &pv {
-        let start = k * inp.span;
         let (s, med, nk, reference, t): (f64, f64, usize, String, Sim3);
         if k == 0 {
             (s, med, nk, reference, t) = (1.0, 0.0, 0, "GPS(preview_0)".into(), Sim3::identity());
@@ -122,16 +205,15 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
         } else {
             let tpk = t_p[&k].unwrap_or(f64::INFINITY);
             let cand = rf.keys().copied().filter(|j| t_rp.get(j).copied().flatten().is_some_and(|x| x <= tpk)).max();
-            let (b, refname, frame) = match cand.and_then(|j| inp.refined.get(&j).map(|m| (m, j))) {
+            let (b, refname, frame) = match cand.and_then(|j| z.refined_models.get(&j).copied().map(|m| (m, j))) {
                 Some((m, j)) => (Some(m), format!("refined_{j}"), format!("refined_{j}")),
-                None => (inp.previews.get(&0), "preview_0(GPS)".to_string(), "preview_0".to_string()),
+                None => (z.preview_models.get(&0).copied(), "preview_0(GPS)".to_string(), "preview_0".to_string()),
             };
-            let a = inp.previews.get(&k);
+            let a = z.preview_models.get(&k).copied();
             let res = match (a, b) {
                 (Some(a), Some(b)) => {
-                    let lo = start.saturating_sub(inp.ovl);
-                    let hi = start + inp.ovl;
-                    let pos = inp.position;
+                    let (lo, hi) = z.windows.get(&k).copied().unwrap_or((0, 0));
+                    let pos = z.position;
                     // 위치 함수는 'static 이 아니라서 구간 이름 집합을 미리 만든다.
                     let names: BTreeSet<String> =
                         a.images().map(|im| im.name.clone()).filter(|n| pos(n).is_some_and(|p| p >= lo && p < hi)).collect();
@@ -165,11 +247,11 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
             ("scale", Json::f(s, 3)),
         ]));
         let c = transformed(cloud, &t);
-        write(&out.join("aligned/preview").join(basename(&pv_paths[&k])), &c)?;
+        write(&out.join("aligned/preview").join(z.preview[&k].file.clone()), &c)?;
         pv_aligned.insert(k, c);
     }
     for (k, c) in &rf {
-        write(&out.join("aligned/refined").join(basename(&rf_paths[k])), c)?;
+        write(&out.join("aligned/refined").join(z.refined[k].file.clone()), c)?;
     }
 
     // --- 사건 순서별 스냅샷.
@@ -204,7 +286,7 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
         } else {
             shown_r.insert(k);
         }
-        let fine: Vec<&PointCloud> = shown_r.iter().map(|j| &rf[j]).collect();
+        let fine: Vec<&PointCloud> = shown_r.iter().map(|j| rf[j]).collect();
         let po: Vec<usize> = shown_p.difference(&shown_r).copied().collect();
         let coarse: Vec<&PointCloud> = po.iter().map(|j| &pv_aligned[j]).collect();
         let a = compose_snapshot(&fine, &coarse, &snap_opts);
@@ -269,7 +351,7 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
     }
     let ks: Vec<usize> = rf.keys().copied().collect();
     for w in ks.windows(2) {
-        match overlap_median(&rf[&w[0]], &rf[&w[1]]) {
+        match overlap_median(rf[&w[0]], rf[&w[1]]) {
             Some((m, _)) => log.line(&format!("정밀 {}-{} 겹침 차 중앙 {m:.2}m", w[0], w[1])),
             None => log.line(&format!("정밀 {}-{} 겹침 없음", w[0], w[1])),
         }
@@ -280,10 +362,10 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
         return Ok(());
     }
     let mut models: BTreeMap<String, &Reconstruction> = BTreeMap::new();
-    if let Some(m) = inp.previews.get(&0) {
+    if let Some(m) = z.preview_models.get(&0).copied() {
         models.insert("preview_0".into(), m);
     }
-    for (k, m) in inp.refined {
+    for (k, m) in &z.refined_models {
         models.insert(format!("refined_{k}"), m);
     }
     let mut cache: HashMap<(String, String), Sim3> = HashMap::new();
@@ -334,7 +416,7 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
         if e.kind == "refined" {
             cur = format!("refined_{}", e.k);
         }
-        let rs: Vec<PointCloud> = e.refined.iter().map(|j| transformed(&rf[j], &tf(&format!("refined_{j}"), &cur))).collect();
+        let rs: Vec<PointCloud> = e.refined.iter().map(|j| transformed(rf[j], &tf(&format!("refined_{j}"), &cur))).collect();
         let ps: Vec<PointCloud> = e
             .preview_only
             .iter()
@@ -349,12 +431,12 @@ pub fn run(inp: &PostInput, log: &Logger) -> Result<(), String> {
     let mut final_rf: BTreeMap<usize, PointCloud> = BTreeMap::new();
     for (k, c) in &rf {
         let c2 = transformed(c, &tf(&format!("refined_{k}"), &last));
-        write(&out.join("final_frame/refined").join(basename(&rf_paths[k])), &c2)?;
+        write(&out.join("final_frame/refined").join(z.refined[k].file.clone()), &c2)?;
         final_rf.insert(*k, c2);
     }
     for (k, c) in &pv_aligned {
         let fr = pframe.get(k).cloned().unwrap_or_else(|| "preview_0".into());
-        write(&out.join("final_frame/preview").join(basename(&pv_paths[k])), &transformed(c, &tf(&fr, &last)))?;
+        write(&out.join("final_frame/preview").join(z.preview[k].file.clone()), &transformed(c, &tf(&fr, &last)))?;
     }
     for w in ks.windows(2) {
         match overlap_median(&final_rf[&w[0]], &final_rf[&w[1]]) {

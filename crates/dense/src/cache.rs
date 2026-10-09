@@ -7,11 +7,17 @@ use std::sync::{Arc, Mutex};
 /// 캐시된 뷰 하나(최종 스케일): 필터 전 깊이(다른 뷰의 기하 실행 입력)와 최종 깊이·법선·비용(융합 입력).
 #[derive(Clone, Debug)]
 pub struct CachedDepth {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
+    /// 필터 전 최종 깊이(다른 뷰의 기하 실행 입력).
     pub raw_depth: Vec<f32>,
+    /// 필터 통과 깊이(무효 0).
     pub depth: Vec<f32>,
+    /// 기준 카메라 좌표 법선.
     pub normal: Vec<[f32; 3]>,
+    /// 최종 집계 비용.
     pub cost: Vec<f32>,
 }
 
@@ -34,12 +40,15 @@ impl DepthMapCache {
     pub fn new() -> Self {
         Self::with_capacity(512)
     }
+    /// 용량을 정해 만든다(최소 1).
     pub fn with_capacity(capacity: usize) -> Self {
         Self { inner: Mutex::new((HashMap::new(), VecDeque::new())), capacity: capacity.max(1) }
     }
+    /// 열쇠 (영상 기하 해시, 설정 해시) 로 찾는다.
     pub fn get(&self, key: (u64, u64)) -> Option<Arc<CachedDepth>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner()).0.get(&key).cloned()
     }
+    /// 넣는다. 용량을 넘으면 가장 오래된 항목부터 버린다.
     pub fn insert(&self, key: (u64, u64), v: Arc<CachedDepth>) {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if g.0.insert(key, v).is_none() {
@@ -51,9 +60,11 @@ impl DepthMapCache {
             }
         }
     }
+    /// 저장된 뷰 수.
     pub fn len(&self) -> usize {
         self.inner.lock().unwrap_or_else(|e| e.into_inner()).0.len()
     }
+    /// 비어 있는지.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

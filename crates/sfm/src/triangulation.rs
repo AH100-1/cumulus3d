@@ -94,6 +94,7 @@ pub struct TriObservation {
 }
 
 impl TriObservation {
+    /// world_to_cam 자세와 카메라 좌표 광선으로 관측을 만든다.
     pub fn new(pose: &Rigid3, ray: Vec3) -> Self {
         Self { proj: pose.matrix(), center: pose.center(), ray }
     }
@@ -106,8 +107,11 @@ pub struct TriangulationRansacParams {
     pub max_angle_error_deg: f64,
     /// 최소 삼각측량 각(도).
     pub min_tri_angle_deg: f64,
+    /// RANSAC 신뢰도.
     pub confidence: f64,
+    /// 최소 인라이어 비율.
     pub min_inlier_ratio: f64,
+    /// 최대 반복 횟수.
     pub max_trials: usize,
     /// 관측 수가 이 이하이면 모든 2점 조합을 전수 탐색.
     pub exhaustive_max_num_obs: usize,

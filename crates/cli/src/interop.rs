@@ -35,28 +35,40 @@ pub fn parse_flag(s: &str) -> Result<bool, String> {
     }
 }
 
+/// 단계별 하위 명령(명령 이름은 `feature_extractor` 등 밑줄 형식).
 #[derive(Subcommand, Debug)]
 pub enum InteropCmd {
+    /// 영상 폴더 → 특징 저장소(SIFT 추출, 카메라 초기화).
     #[command(name = "feature_extractor")]
     FeatureExtractor(FeatureExtractorArgs),
+    /// 짝 목록 파일 → 기술자 매칭 + 두 뷰 기하 검증.
     #[command(name = "matches_importer")]
     MatchesImporter(MatchesImporterArgs),
+    /// 특징 저장소 → 전역 SfM 모델(`output_path/0`).
     #[command(name = "global_mapper")]
     GlobalMapper(GlobalMapperArgs),
+    /// 기존 모델에 아직 등록되지 않은 영상을 등록.
     #[command(name = "image_registrator")]
     ImageRegistrator(ImageRegistratorArgs),
+    /// 등록된 자세로 3D 점 삼각측량.
     #[command(name = "point_triangulator")]
     PointTriangulator(PointTriangulatorArgs),
+    /// 모델 번들 조정.
     #[command(name = "bundle_adjuster")]
     BundleAdjuster(BundleAdjusterArgs),
+    /// 모델을 GPS ENU 좌표계로 정렬.
     #[command(name = "model_aligner")]
     ModelAligner(ModelAlignerArgs),
+    /// 모델 통계 출력.
     #[command(name = "model_analyzer")]
     ModelAnalyzer(ModelAnalyzerArgs),
+    /// 모델 형식 변환(BIN/TXT/PLY).
     #[command(name = "model_converter")]
     ModelConverter(ModelConverterArgs),
+    /// 모델에서 영상 삭제.
     #[command(name = "image_deleter")]
     ImageDeleter(ImageDeleterArgs),
+    /// 왜곡 보정 작업 폴더 생성.
     #[command(name = "image_undistorter")]
     ImageUndistorter(ImageUndistorterArgs),
     /// 조밀화: image_undistorter 출력 폴더 → dense.ply.
@@ -64,170 +76,242 @@ pub enum InteropCmd {
     Densify(Box<DensifyArgs>),
 }
 
+/// `feature_extractor` 인자.
 #[derive(Args, Debug)]
 pub struct FeatureExtractorArgs {
+    /// 특징 저장소 파일 경로(없으면 새로 만든다).
     #[arg(long = "database_path")]
     pub database_path: PathBuf,
+    /// 입력 영상 폴더.
     #[arg(long = "image_path")]
     pub image_path: PathBuf,
+    /// 처리할 영상 이름 목록 파일(없으면 폴더 전체).
     #[arg(long = "image_list_path")]
     pub image_list_path: Option<PathBuf>,
+    /// 카메라 모델 이름.
     #[arg(long = "ImageReader.camera_model", default_value = "SIMPLE_RADIAL")]
     pub camera_model: String,
+    /// 모든 영상이 카메라 하나를 공유.
     #[arg(long = "ImageReader.single_camera", default_value = "0", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub single_camera: bool,
+    /// 폴더마다 카메라 하나.
     #[arg(long = "ImageReader.single_camera_per_folder", default_value = "0", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub single_camera_per_folder: bool,
+    /// 기존 카메라 id 사용(≥ 0 일 때).
     #[arg(long = "ImageReader.existing_camera_id")]
     pub existing_camera_id: Option<i64>,
+    /// 카메라 파라미터 직접 지정(쉼표 구분).
     #[arg(long = "ImageReader.camera_params")]
     pub camera_params: Option<String>,
+    /// EXIF 초점이 없을 때 초점 = 계수 × max(w, h).
     #[arg(long = "ImageReader.default_focal_length_factor", default_value_t = 1.2)]
     pub default_focal_length_factor: f64,
+    /// 영상당 최대 특징 수.
     #[arg(long = "SiftExtraction.max_num_features", default_value_t = 8192)]
     pub max_num_features: usize,
+    /// SIFT 입력 최대 크기(픽셀).
     #[arg(long = "SiftExtraction.max_image_size", default_value_t = 3200)]
     pub max_image_size: usize,
+    /// GPU 사용 여부(받기만 하고 무시).
     #[arg(long = "FeatureExtraction.use_gpu", value_parser = parse_flag)]
     pub use_gpu: Option<bool>,
+    /// GPU 사용 여부(받기만 하고 무시).
     #[arg(long = "SiftExtraction.use_gpu", value_parser = parse_flag)]
     pub sift_use_gpu: Option<bool>,
 }
 
+/// `matches_importer` 인자.
 #[derive(Args, Debug)]
 pub struct MatchesImporterArgs {
+    /// 특징 저장소 파일 경로.
     #[arg(long = "database_path")]
     pub database_path: PathBuf,
+    /// 짝 목록 파일(줄마다 `이름1 이름2`).
     #[arg(long = "match_list_path")]
     pub match_list_path: PathBuf,
+    /// 매칭 종류(`pairs` 만 지원).
     #[arg(long = "match_type", default_value = "pairs")]
     pub match_type: String,
+    /// GPU 사용 여부(받기만 하고 무시).
     #[arg(long = "FeatureMatching.use_gpu", value_parser = parse_flag)]
     pub use_gpu: Option<bool>,
+    /// GPU 사용 여부(받기만 하고 무시).
     #[arg(long = "SiftMatching.use_gpu", value_parser = parse_flag)]
     pub sift_use_gpu: Option<bool>,
+    /// 짝당 최대 매칭 수.
     #[arg(long = "SiftMatching.max_num_matches", default_value_t = 32768)]
     pub max_num_matches: usize,
 }
 
+/// `global_mapper` 인자.
 #[derive(Args, Debug)]
 pub struct GlobalMapperArgs {
+    /// 특징 저장소 파일 경로.
     #[arg(long = "database_path")]
     pub database_path: PathBuf,
+    /// 영상 폴더(주면 점 색 추출).
     #[arg(long = "image_path")]
     pub image_path: Option<PathBuf>,
+    /// 출력 폴더(모델은 `0/` 아래).
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 전역 BA 반복 횟수.
     #[arg(long = "GlobalMapper.ba_num_iterations")]
     pub ba_num_iterations: Option<usize>,
+    /// 재삼각측량 생략.
     #[arg(long = "GlobalMapper.skip_retriangulation", value_parser = parse_flag)]
     pub skip_retriangulation: Option<bool>,
+    /// 유지할 최대 트랙 수.
     #[arg(long = "GlobalMapper.keep_max_num_tracks")]
     pub keep_max_num_tracks: Option<usize>,
 }
 
+/// `image_registrator` 인자.
 #[derive(Args, Debug)]
 pub struct ImageRegistratorArgs {
+    /// 특징 저장소 파일 경로.
     #[arg(long = "database_path")]
     pub database_path: PathBuf,
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 모델 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
 }
 
+/// `point_triangulator` 인자.
 #[derive(Args, Debug)]
 pub struct PointTriangulatorArgs {
+    /// 특징 저장소 파일 경로.
     #[arg(long = "database_path")]
     pub database_path: PathBuf,
+    /// 영상 폴더(주면 점 색 추출).
     #[arg(long = "image_path")]
     pub image_path: Option<PathBuf>,
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 모델 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 기존 3D 점을 지우고 다시 삼각측량.
     #[arg(long = "clear_points", default_value = "1", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub clear_points: bool,
 }
 
+/// `bundle_adjuster` 인자.
 #[derive(Args, Debug)]
 pub struct BundleAdjusterArgs {
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 모델 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 최대 반복 수.
     #[arg(long = "BundleAdjustment.max_num_iterations", default_value_t = 100)]
     pub max_num_iterations: usize,
+    /// 초점 거리 정제.
     #[arg(long = "BundleAdjustment.refine_focal_length", default_value = "1", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub refine_focal_length: bool,
+    /// 주점 정제.
     #[arg(long = "BundleAdjustment.refine_principal_point", default_value = "0", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub refine_principal_point: bool,
+    /// 왜곡 등 추가 파라미터 정제.
     #[arg(long = "BundleAdjustment.refine_extra_params", default_value = "1", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub refine_extra_params: bool,
 }
 
+/// `model_aligner` 인자.
 #[derive(Args, Debug)]
 pub struct ModelAlignerArgs {
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 모델 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 기준 GPS 파일(줄: `이름 위도 경도 고도`).
     #[arg(long = "ref_images_path")]
     pub ref_images_path: PathBuf,
+    /// 기준이 GPS 인지(1 만 지원).
     #[arg(long = "ref_is_gps", default_value = "1", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub ref_is_gps: bool,
+    /// 정렬 좌표계(`enu` 만 지원).
     #[arg(long = "alignment_type", default_value = "enu")]
     pub alignment_type: String,
+    /// 견고 추정 최대 오차(미터, 0 = 견고 추정 없음).
     #[arg(long = "alignment_max_error", default_value_t = 0.0)]
     pub alignment_max_error: f64,
+    /// 정렬에 필요한 최소 공통 영상 수.
     #[arg(long = "min_common_images", default_value_t = 3)]
     pub min_common_images: usize,
 }
 
+/// `model_analyzer` 인자.
 #[derive(Args, Debug)]
 pub struct ModelAnalyzerArgs {
+    /// 모델 폴더.
     #[arg(long = "path")]
     pub path: PathBuf,
+    /// 자세한 통계 출력.
     #[arg(long = "verbose", default_value = "0", value_parser = parse_flag, action = clap::ArgAction::Set)]
     pub verbose: bool,
 }
 
+/// `model_converter` 인자.
 #[derive(Args, Debug)]
 pub struct ModelConverterArgs {
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 폴더 또는 파일.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 출력 형식(BIN|TXT|PLY).
     #[arg(long = "output_type")]
     pub output_type: String,
 }
 
+/// `image_deleter` 인자.
 #[derive(Args, Debug)]
 pub struct ImageDeleterArgs {
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 모델 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 지울 영상 id 목록 파일.
     #[arg(long = "image_ids_path")]
     pub image_ids_path: Option<PathBuf>,
+    /// 지울 영상 이름 목록 파일.
     #[arg(long = "image_names_path")]
     pub image_names_path: Option<PathBuf>,
 }
 
+/// `image_undistorter` 인자.
 #[derive(Args, Debug)]
 pub struct ImageUndistorterArgs {
+    /// 입력 영상 폴더.
     #[arg(long = "image_path")]
     pub image_path: PathBuf,
+    /// 입력 모델 폴더.
     #[arg(long = "input_path")]
     pub input_path: PathBuf,
+    /// 출력 작업 폴더.
     #[arg(long = "output_path")]
     pub output_path: PathBuf,
+    /// 출력 형식(이 값만 지원).
     #[arg(long = "output_type", default_value = "COLMAP")]
     pub output_type: String,
+    /// 왜곡 보정 영상 최대 크기(-1 = 제한 없음).
     #[arg(long = "max_image_size", default_value_t = -1)]
     pub max_image_size: i64,
 }
 
+/// `densify` 인자.
 #[derive(Args, Debug)]
 pub struct DensifyArgs {
     /// image_undistorter 출력 폴더(images/, sparse/). `--image_path` 를 주면 대신 왜곡 있는 모델(`--input_path`)을 메모리에서 보정.
@@ -239,6 +323,7 @@ pub struct DensifyArgs {
     /// 주면 `input_path` 를 왜곡 있는 입력 모델로 보고 이 폴더의 영상을 메모리에서 보정한다.
     #[arg(long = "image_path")]
     pub image_path: Option<PathBuf>,
+    /// 왜곡 보정 최대 크기(메모리 보정 경로).
     #[arg(long = "max_image_size", default_value_t = 960)]
     pub max_image_size: i64,
     /// 기준 뷰당 원천 뷰 수(≤ 32).
@@ -538,6 +623,7 @@ fn list_images(root: &Path) -> Vec<String> {
     v
 }
 
+/// 하위 명령 하나를 실행한다.
 pub fn run(cmd: InteropCmd) -> R {
     let t = Instant::now();
     match cmd {

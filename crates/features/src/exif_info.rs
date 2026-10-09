@@ -6,12 +6,19 @@ use std::path::Path;
 /// 영상 EXIF 요약. 없는 값은 None.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ExifInfo {
+    /// 제조사(Make).
     pub make: Option<String>,
+    /// 모델(Model).
     pub model: Option<String>,
+    /// 초점거리(mm).
     pub focal_mm: Option<f64>,
+    /// 35mm 환산 초점거리(mm).
     pub focal_35mm: Option<f64>,
+    /// 초점면 x 해상도(FocalPlaneXResolution).
     pub focal_plane_x_resolution: Option<f64>,
+    /// 초점면 해상도 단위(2 = 인치, 3 = cm, 4 = mm …).
     pub focal_plane_resolution_unit: Option<u32>,
+    /// EXIF Orientation 값(1~8).
     pub orientation: Option<u32>,
     /// (위도, 경도, 고도) [도, 도, m]. 셋 다 있을 때만.
     pub gps: Option<(f64, f64, f64)>,

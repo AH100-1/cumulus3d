@@ -190,14 +190,20 @@ pub(crate) fn adjugate3(m: &Matrix3<f64>) -> Matrix3<f64> {
 /// 행 압축(CSR) 희소 행렬. 회전 평균의 계수 행렬처럼 행마다 원소가 몇 개뿐인 경우용.
 #[derive(Clone, Debug, Default)]
 pub struct CsrMatrix {
+    /// 행 수.
     pub nrows: usize,
+    /// 열 수.
     pub ncols: usize,
+    /// 행 시작 위치(길이 nrows+1).
     pub row_ptr: Vec<usize>,
+    /// 원소별 열 인덱스.
     pub col_idx: Vec<usize>,
+    /// 원소 값.
     pub values: Vec<f64>,
 }
 
 impl CsrMatrix {
+    /// 열 수만 정한 빈 행렬.
     pub fn new(ncols: usize) -> Self {
         Self { nrows: 0, ncols, row_ptr: vec![0], col_idx: Vec::new(), values: Vec::new() }
     }
@@ -211,6 +217,7 @@ impl CsrMatrix {
         self.row_ptr.push(self.col_idx.len());
         self.nrows += 1;
     }
+    /// 밀집 행렬에서 0 아닌 원소만 담아 만든다.
     pub fn from_dense(m: &DMatrix<f64>) -> Self {
         let mut s = Self::new(m.ncols());
         for r in 0..m.nrows() {
@@ -219,6 +226,7 @@ impl CsrMatrix {
         }
         s
     }
+    /// y = A x.
     pub fn mul_vec(&self, x: &DVector<f64>) -> DVector<f64> {
         let mut y = DVector::zeros(self.nrows);
         for r in 0..self.nrows {
@@ -230,6 +238,7 @@ impl CsrMatrix {
         }
         y
     }
+    /// x = Aᵀ y.
     pub fn tr_mul_vec(&self, y: &DVector<f64>) -> DVector<f64> {
         let mut x = DVector::zeros(self.ncols);
         for r in 0..self.nrows {

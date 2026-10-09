@@ -12,11 +12,17 @@ pub const DESCRIPTOR_DIM: usize = 128;
 /// A 의 열은 키포인트 국소 좌표축을 영상 좌표로 보낸 벡터.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Keypoint {
+    /// x 픽셀 좌표.
     pub x: f32,
+    /// y 픽셀 좌표.
     pub y: f32,
+    /// 아핀 형상 A 의 (1,1) 원소.
     pub a11: f32,
+    /// 아핀 형상 A 의 (1,2) 원소.
     pub a12: f32,
+    /// 아핀 형상 A 의 (2,1) 원소.
     pub a21: f32,
+    /// 아핀 형상 A 의 (2,2) 원소.
     pub a22: f32,
 }
 
@@ -39,21 +45,27 @@ impl Keypoint {
             n => Err(Error::Format(format!("키포인트 열 수 {n} 는 지원하지 않음"))),
         }
     }
+    /// 6열 행 `[x, y, a11, a12, a21, a22]`.
     pub fn to_row(&self) -> [f32; 6] {
         [self.x, self.y, self.a11, self.a12, self.a21, self.a22]
     }
+    /// 첫 축 스케일 ‖(a11, a21)‖.
     pub fn scale_x(&self) -> f32 {
         (self.a11 * self.a11 + self.a21 * self.a21).sqrt()
     }
+    /// 둘째 축 스케일 ‖(a12, a22)‖.
     pub fn scale_y(&self) -> f32 {
         (self.a12 * self.a12 + self.a22 * self.a22).sqrt()
     }
+    /// 평균 스케일.
     pub fn scale(&self) -> f32 {
         0.5 * (self.scale_x() + self.scale_y())
     }
+    /// 방향(라디안).
     pub fn orientation(&self) -> f32 {
         self.a21.atan2(self.a11)
     }
+    /// 전단 각(라디안).
     pub fn shear(&self) -> f32 {
         (-self.a12).atan2(self.a22) - self.orientation()
     }
@@ -75,9 +87,11 @@ pub struct Descriptors {
 }
 
 impl Descriptors {
+    /// 빈 묶음.
     pub fn new() -> Self {
         Self::default()
     }
+    /// n 개 용량으로 생성.
     pub fn with_capacity(n: usize) -> Self {
         Self { data: Vec::with_capacity(n * DESCRIPTOR_DIM) }
     }
@@ -88,24 +102,31 @@ impl Descriptors {
         }
         Ok(Self { data })
     }
+    /// 기술자 개수.
     pub fn len(&self) -> usize {
         self.data.len() / DESCRIPTOR_DIM
     }
+    /// 비었는지.
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
+    /// i 번째 기술자(128 바이트).
     pub fn row(&self, i: usize) -> &[u8] {
         &self.data[i * DESCRIPTOR_DIM..(i + 1) * DESCRIPTOR_DIM]
     }
+    /// i 번째 기술자(가변).
     pub fn row_mut(&mut self, i: usize) -> &mut [u8] {
         &mut self.data[i * DESCRIPTOR_DIM..(i + 1) * DESCRIPTOR_DIM]
     }
+    /// 기술자 하나 추가.
     pub fn push(&mut self, d: &[u8; DESCRIPTOR_DIM]) {
         self.data.extend_from_slice(d);
     }
+    /// 행 우선 바이트 전체.
     pub fn as_slice(&self) -> &[u8] {
         &self.data
     }
+    /// 바이트 벡터로 변환.
     pub fn into_vec(self) -> Vec<u8> {
         self.data
     }
@@ -118,14 +139,18 @@ impl Descriptors {
 /// 두 영상 키포인트 인덱스 쌍 (영상1 idx, 영상2 idx).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct FeatureMatch {
+    /// 영상1 키포인트 인덱스.
     pub idx1: u32,
+    /// 영상2 키포인트 인덱스.
     pub idx2: u32,
 }
 
 impl FeatureMatch {
+    /// 인덱스 쌍으로 생성.
     pub fn new(idx1: u32, idx2: u32) -> Self {
         Self { idx1, idx2 }
     }
+    /// 두 인덱스를 맞바꾼 매칭.
     pub fn swapped(&self) -> Self {
         Self { idx1: self.idx2, idx2: self.idx1 }
     }
@@ -135,19 +160,30 @@ impl FeatureMatch {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum TwoViewGeometryConfig {
     #[default]
+    /// 미정(검증 안 됨·실패).
     Undefined = 0,
+    /// 퇴화(쓸 수 없음).
     Degenerate = 1,
+    /// 보정됨(E 모델).
     Calibrated = 2,
+    /// 비보정(F 모델).
     Uncalibrated = 3,
+    /// 평면(H 모델, 기선 있음).
     Planar = 4,
+    /// 순수 회전(H 모델, 기선 없음).
     Panoramic = 5,
+    /// 평면 또는 순수 회전.
     PlanarOrRotation = 6,
+    /// 워터마크(영상 테두리 고정 패턴).
     Watermark = 7,
+    /// 여러 모델.
     Multiple = 8,
+    /// rig 보정.
     CalibratedRig = 9,
 }
 
 impl TwoViewGeometryConfig {
+    /// 정수 값 → 종류.
     pub fn from_i32(v: i32) -> Option<Self> {
         use TwoViewGeometryConfig::*;
         Some(match v {
@@ -164,6 +200,7 @@ impl TwoViewGeometryConfig {
             _ => return None,
         })
     }
+    /// 저장용 정수 값.
     pub fn as_i32(self) -> i32 {
         self as i32
     }
@@ -172,11 +209,17 @@ impl TwoViewGeometryConfig {
 /// 짝 하나의 두 뷰 기하. 행렬은 "영상1 → 영상2" 방향(x2ᵀ F x1 = 0, x2 ~ H x1).
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TwoViewGeometry {
+    /// 구성 종류.
     pub config: TwoViewGeometryConfig,
+    /// 본질 행렬 E.
     pub e: Option<Mat3>,
+    /// 기초 행렬 F.
     pub f: Option<Mat3>,
+    /// 호모그래피 H.
     pub h: Option<Mat3>,
+    /// 상대 자세(영상1 카메라 → 영상2 카메라).
     pub cam1_to_cam2: Option<Rigid3>,
+    /// 인라이어 매칭.
     pub inlier_matches: Vec<FeatureMatch>,
     /// 삼각측량 각 중앙값(라디안). 저장되지 않는 부가 정보.
     pub tri_angle: Option<f64>,
@@ -195,6 +238,7 @@ impl TwoViewGeometry {
             tri_angle: self.tri_angle,
         }
     }
+    /// 제자리 방향 반전(`inverted` 참고).
     pub fn invert(&mut self) {
         *self = self.inverted();
     }

@@ -29,6 +29,7 @@ impl BufferPool {
         v
     }
 
+    /// 버퍼를 풀에 돌려준다.
     pub fn give(&self, v: Vec<f32>) {
         if v.capacity() == 0 {
             return;
@@ -142,8 +143,11 @@ pub fn decimate2(src: &[f32], w: usize, dst: &mut [f32], w2: usize) {
 pub struct Octave {
     /// 옥타브 번호 o (첫 옥타브 −1 이면 −1부터).
     pub o: i32,
+    /// 옥타브 너비.
     pub w: usize,
+    /// 옥타브 높이.
     pub h: usize,
+    /// 가우시안 레벨 영상들(l = −1..=S+1 순).
     pub gauss: Vec<Vec<f32>>,
 }
 
@@ -158,12 +162,16 @@ impl Octave {
 /// 스케일 공간 상수.
 #[derive(Clone, Copy, Debug)]
 pub struct ScaleSpace {
+    /// 옥타브당 검출 레벨 수 S.
     pub s: usize,
+    /// 레벨 간 배율 k = 2^(1/S).
     pub k: f32,
+    /// 기준 σ₀.
     pub sigma0: f32,
 }
 
 impl ScaleSpace {
+    /// 검출 레벨 수 S 로 상수를 계산.
     pub fn new(s: usize) -> Self {
         let k = 2f32.powf(1.0 / s as f32);
         Self { s, k, sigma0: 1.6 * k }

@@ -8,26 +8,32 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 /// 뷰 그래프 간선(상대 자세가 있는 영상 짝). `image_id1 < image_id2`.
 #[derive(Clone, Debug)]
 pub struct ViewGraphEdge {
+    /// 작은 쪽 영상 id.
     pub image_id1: ImageId,
+    /// 큰 쪽 영상 id.
     pub image_id2: ImageId,
     /// 영상2 ← 영상1 상대 자세(평행이동은 단위 길이 또는 0, 이후 단계에서 쓰지 않음).
     pub cam1_to_cam2: Rigid3,
     /// 대응 그래프의 (중복 제거 후) 매칭 수.
     pub num_matches: usize,
+    /// 회전 평균·필터에 쓰이는 유효 간선인지.
     pub valid: bool,
 }
 
 /// 뷰 그래프. 간선은 (id1, id2) 오름차순으로 유지한다(결정적 순회).
 #[derive(Clone, Debug, Default)]
 pub struct ViewGraph {
+    /// 간선 목록((id1, id2) 오름차순).
     pub edges: Vec<ViewGraphEdge>,
 }
 
 impl ViewGraph {
+    /// 간선을 정렬해 뷰 그래프를 만든다.
     pub fn new(mut edges: Vec<ViewGraphEdge>) -> Self {
         edges.sort_by_key(|e| (e.image_id1, e.image_id2));
         Self { edges }
     }
+    /// 유효 간선 수.
     pub fn num_valid_edges(&self) -> usize {
         self.edges.iter().filter(|e| e.valid).count()
     }
@@ -112,14 +118,23 @@ pub enum IrlsWeight {
 /// 회전 평균 옵션(내부 고정값).
 #[derive(Clone, Debug)]
 pub struct RotationAveragingOptions {
+    /// 최대 신장 트리로 초기 회전을 정할지.
     pub use_mst_init: bool,
+    /// L1 단계 최대 외부 반복.
     pub l1_max_iterations: usize,
+    /// L1 단계 수렴 임계(라디안).
     pub l1_convergence_rad: f64,
+    /// IRLS 단계 최대 반복.
     pub irls_max_iterations: usize,
+    /// IRLS 단계 수렴 임계(라디안).
     pub irls_convergence_rad: f64,
+    /// IRLS 가중치 척도 σ(도).
     pub irls_sigma_deg: f64,
+    /// IRLS 가중치 함수.
     pub irls_weight: IrlsWeight,
+    /// 정규 행렬 대각 정칙화 값.
     pub ridge: f64,
+    /// L1 ADMM 옵션.
     pub admm: AdmmOptions,
 }
 
@@ -142,12 +157,17 @@ impl Default for RotationAveragingOptions {
 /// ADMM 최소 절대 편차 옵션.
 #[derive(Clone, Debug)]
 pub struct AdmmOptions {
+    /// ADMM 벌점 계수 ρ.
     pub rho: f64,
+    /// 과완화 계수 α.
     pub alpha: f64,
+    /// 절대 수렴 허용오차.
     pub abs_tol: f64,
+    /// 상대 수렴 허용오차.
     pub rel_tol: f64,
     /// 첫 외부 반복의 내부 최대 반복(이후 2배씩, 상한 `max_inner_iterations`).
     pub initial_inner_iterations: usize,
+    /// 내부 반복 상한.
     pub max_inner_iterations: usize,
 }
 
@@ -244,7 +264,9 @@ pub fn mst_initialization(nodes: &BTreeSet<ImageId>, edges: &[&ViewGraphEdge]) -
 /// 회전 평균 결과 통계.
 #[derive(Clone, Debug, Default)]
 pub struct RotationAveragingSummary {
+    /// L1 단계 반복 횟수.
     pub num_l1_iterations: usize,
+    /// IRLS 단계 반복 횟수.
     pub num_irls_iterations: usize,
 }
 

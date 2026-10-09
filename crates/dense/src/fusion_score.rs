@@ -43,6 +43,7 @@ pub struct ScoreFusionOptions {
     pub inverse_variance: bool,
     /// 역분산 가중의 정합 불확실성 σ_px = sigma_px0 + sigma_px_slope·비용 (픽셀).
     pub sigma_px0: f64,
+    /// 역분산 가중 σ_px 의 비용 기울기.
     pub sigma_px_slope: f64,
 }
 

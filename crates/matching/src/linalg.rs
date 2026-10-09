@@ -91,7 +91,7 @@ pub fn null_vector3(m: &Mat3) -> Vec3 {
 }
 
 /// 하틀리 정규화: 무게중심 c, 무게중심까지 거리 RMS = s, k = √2/s.
-/// T = [[k,0,−k cx],[0,k,−k cy],[0,0,1]]. 정규화 점과 T 를 돌려준다.
+/// `T = [[k,0,−k cx],[0,k,−k cy],[0,0,1]]`. 정규화 점과 T 를 돌려준다.
 pub fn hartley_normalize(pts: &[Vec2]) -> (Vec<Vec2>, Mat3) {
     let n = pts.len().max(1) as f64;
     let c = pts.iter().fold(Vec2::zeros(), |a, p| a + p) / n;

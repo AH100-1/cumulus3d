@@ -11,11 +11,14 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 /// 대응 하나: (영상 id, 2D 점 인덱스).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Correspondence {
+    /// 영상 id.
     pub image_id: ImageId,
+    /// 2D 점 인덱스.
     pub point2d_idx: Point2DIdx,
 }
 
 impl Correspondence {
+    /// (영상, 2D 점)으로 생성.
     pub fn new(image_id: ImageId, point2d_idx: Point2DIdx) -> Self {
         Self { image_id, point2d_idx }
     }
@@ -40,7 +43,9 @@ struct GraphPair {
 /// 저장소로부터 구성할 때의 옵션.
 #[derive(Clone, Debug)]
 pub struct MatchGraphOptions {
+    /// 짝으로 쓰기 위한 최소 인라이어 매칭 수.
     pub min_num_matches: usize,
+    /// 워터마크 짝을 무시할지.
     pub ignore_watermarks: bool,
     /// 비면 전체 영상.
     pub image_names: HashSet<String>,
@@ -57,9 +62,13 @@ impl Default for MatchGraphOptions {
 /// 짝 추가 결과 통계(경고 수).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AddPairStats {
+    /// 추가한 대응 수.
     pub num_added: usize,
+    /// 인덱스가 범위를 벗어나 버린 매칭 수.
     pub num_out_of_range: usize,
+    /// 중복이라 버린 매칭 수.
     pub num_duplicates: usize,
+    /// 자기 자신과의 짝이었는지.
     pub self_pair: bool,
 }
 
@@ -73,6 +82,7 @@ pub struct MatchGraph {
 }
 
 impl MatchGraph {
+    /// 빈 그래프.
     pub fn new() -> Self {
         Self::default()
     }
@@ -84,32 +94,41 @@ impl MatchGraph {
             ..Default::default()
         });
     }
+    /// 영상 노드가 있는지.
     pub fn exists_image(&self, image_id: ImageId) -> bool {
         self.images.contains_key(&image_id)
     }
+    /// 영상 노드 수.
     pub fn num_images(&self) -> usize {
         self.images.len()
     }
+    /// 짝 수.
     pub fn pair_count(&self) -> usize {
         self.pairs.len()
     }
+    /// 영상 id 목록(오름차순).
     pub fn image_ids(&self) -> Vec<ImageId> {
         let mut v: Vec<_> = self.images.keys().copied().collect();
         v.sort();
         v
     }
+    /// 영상의 2D 점 수.
     pub fn num_points2d(&self, image_id: ImageId) -> usize {
         self.images.get(&image_id).map_or(0, |i| i.corrs.len())
     }
+    /// 대응이 하나라도 있는 2D 점 수.
     pub fn observation_count_of(&self, image_id: ImageId) -> usize {
         self.images.get(&image_id).map_or(0, |i| i.num_observations)
     }
+    /// 영상이 속한 짝들의 매칭 수 합.
     pub fn match_count_of(&self, image_id: ImageId) -> usize {
         self.images.get(&image_id).map_or(0, |i| i.num_correspondences)
     }
+    /// 두 영상 사이 매칭 수.
     pub fn match_count_between(&self, id1: ImageId, id2: ImageId) -> usize {
         pair_id_of(id1, id2).ok().and_then(|p| self.pairs.get(&p)).map_or(0, |p| p.num_correspondences)
     }
+    /// 두 영상 사이 짝이 있는지.
     pub fn exists_image_pair(&self, id1: ImageId, id2: ImageId) -> bool {
         pair_id_of(id1, id2).is_ok_and(|p| self.pairs.contains_key(&p))
     }
@@ -233,6 +252,7 @@ impl MatchGraph {
             .and_then(|i| i.corrs.get(point2d_idx as usize))
             .map_or(&[], |v| v.as_slice())
     }
+    /// (영상, 2D 점)에 대응이 있는지.
     pub fn has_correspondences(&self, image_id: ImageId, point2d_idx: Point2DIdx) -> bool {
         !self.find_correspondences(image_id, point2d_idx).is_empty()
     }

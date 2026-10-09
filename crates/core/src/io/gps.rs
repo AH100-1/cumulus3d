@@ -4,10 +4,13 @@ use crate::error::{Error, Result};
 use std::path::Path;
 
 #[derive(Clone, Debug, PartialEq)]
+/// GPS 참조 파일의 한 줄(영상 이름과 위치).
 pub struct GpsRecord {
+    /// 영상 이름(상대 경로).
     pub name: String,
     /// 도(십진).
     pub lat: f64,
+    /// 경도, 도(십진).
     pub lon: f64,
     /// 미터.
     pub alt: f64,

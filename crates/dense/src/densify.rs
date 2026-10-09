@@ -32,6 +32,7 @@ pub struct DenseTimings {
     pub fusion: Duration,
     /// 그중 일치 융합 1차·2차 시간(2차 융합을 했을 때만 2차가 0 이 아니다).
     pub fusion_pass1: Duration,
+    /// 일치 융합 2차 시간.
     pub fusion_pass2: Duration,
 }
 
@@ -40,6 +41,7 @@ impl DenseTimings {
     pub fn depth(&self) -> Duration {
         self.levels.iter().sum()
     }
+    /// 전체 시간(이웃 + 준비 + 깊이 + 필터 + 융합).
     pub fn total(&self) -> Duration {
         self.neighbors + self.prepare + self.depth() + self.filter + self.fusion
     }
@@ -48,12 +50,15 @@ impl DenseTimings {
 /// 최종 깊이맵 한 장(뷰 해상도).
 #[derive(Clone, Debug)]
 pub struct DepthMapResult {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
     /// 필터 전 최종 깊이.
     pub raw_depth: Vec<f32>,
     /// 필터 통과 깊이(무효 0).
     pub depth: Vec<f32>,
+    /// 기준 카메라 좌표 법선.
     pub normal: Vec<[f32; 3]>,
     /// 최종 집계 비용(신뢰도).
     pub cost: Vec<f32>,
@@ -64,23 +69,30 @@ pub struct DepthMapResult {
 /// 깊이맵 계산 결과.
 #[derive(Clone, Debug, Default)]
 pub struct DepthMapSet {
+    /// 뷰별 깊이맵(깊이맵을 만들지 못한 뷰는 None).
     pub maps: Vec<Option<Arc<DepthMapResult>>>,
     /// 뷰별 원천 뷰.
     pub sources: Vec<Vec<usize>>,
     /// 뷰별 대표 기준선(원천 중심 거리 중앙값).
     pub baselines: Vec<f64>,
+    /// 캐시 적중 뷰 수.
     pub cache_hits: usize,
+    /// 사용한 스케일 수.
     pub num_levels: usize,
+    /// 단계별 시간.
     pub timings: DenseTimings,
 }
 
 /// 조밀화 결과.
 #[derive(Clone, Debug, Default)]
 pub struct DenseOutput {
+    /// 조밀 점군(위치·법선·색).
     pub cloud: PointCloud,
     /// 점마다 기여 뷰 색인.
     pub visibility: Vec<Vec<u32>>,
+    /// 단계별 시간.
     pub timings: DenseTimings,
+    /// 캐시 적중 뷰 수.
     pub cache_hits: usize,
     /// 깊이맵을 만든 뷰 수.
     pub depth_views: usize,

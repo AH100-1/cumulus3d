@@ -11,10 +11,15 @@ use nalgebra::{Matrix2, Matrix2x3};
 /// 지원 카메라 모델. 숫자 id 는 모델 파일 형식의 모델 번호.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CameraModelKind {
+    /// 단일 초점 핀홀(f, cx, cy).
     SingleFocalPinhole = 0,
+    /// 핀홀(fx, fy, cx, cy).
     Pinhole = 1,
+    /// 단일 초점 + 방사 왜곡 1항(f, cx, cy, k).
     SingleFocalRadial = 2,
+    /// 단일 초점 + 방사 왜곡 2항(f, cx, cy, k1, k2).
     Radial = 3,
+    /// 방사 2항 + 접선 2항(fx, fy, cx, cy, k1, k2, p1, p2).
     OpenCv = 4,
 }
 
@@ -27,6 +32,7 @@ pub const UNDISTORT_STEP_SQ_TOL: f64 = 1e-10;
 const MODEL_NAMES: [&str; 5] = ["SIMPLE_PINHOLE", "PINHOLE", "SIMPLE_RADIAL", "RADIAL", "OPENCV"];
 
 impl CameraModelKind {
+    /// 모델 번호 → 종류.
     pub fn from_id(id: i32) -> Result<Self> {
         match id {
             0 => Ok(Self::SingleFocalPinhole),
@@ -37,18 +43,22 @@ impl CameraModelKind {
             _ => Err(Error::Unsupported(format!("카메라 모델 id {id}"))),
         }
     }
+    /// 모델 번호.
     pub fn id(self) -> i32 {
         self as i32
     }
+    /// 파일 형식 모델 이름(예: `PINHOLE`).
     pub fn name(self) -> &'static str {
         MODEL_NAMES[self as usize]
     }
+    /// 파일 형식 모델 이름 → 종류.
     pub fn from_name(name: &str) -> Result<Self> {
         match MODEL_NAMES.iter().position(|n| *n == name) {
             Some(i) => Self::from_id(i as i32),
             None => Err(Error::Format(format!("알 수 없는 카메라 모델 이름 {name}"))),
         }
     }
+    /// 파라미터 개수.
     pub fn num_params(self) -> usize {
         match self {
             Self::SingleFocalPinhole => 3,
@@ -68,18 +78,21 @@ impl CameraModelKind {
             Self::OpenCv => "fx, fy, cx, cy, k1, k2, p1, p2",
         }
     }
+    /// `params` 안 초점 파라미터 위치.
     pub fn focal_slots(self) -> &'static [usize] {
         match self {
             Self::SingleFocalPinhole | Self::SingleFocalRadial | Self::Radial => &[0],
             Self::Pinhole | Self::OpenCv => &[0, 1],
         }
     }
+    /// `params` 안 주점 파라미터 위치.
     pub fn pp_slots(self) -> &'static [usize] {
         match self {
             Self::SingleFocalPinhole | Self::SingleFocalRadial | Self::Radial => &[1, 2],
             Self::Pinhole | Self::OpenCv => &[2, 3],
         }
     }
+    /// `params` 안 왜곡(추가) 파라미터 위치.
     pub fn extra_param_slots(self) -> &'static [usize] {
         match self {
             Self::SingleFocalPinhole | Self::Pinhole => &[],
@@ -93,11 +106,17 @@ impl CameraModelKind {
 /// 카메라(내부 파라미터). `focal_from_prior` 는 메모리 전용(모델 파일에 저장 안 됨).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
+    /// 카메라 id.
     pub camera_id: CameraId,
+    /// 카메라 모델.
     pub model: CameraModelKind,
+    /// 영상 너비(픽셀).
     pub width: u64,
+    /// 영상 높이(픽셀).
     pub height: u64,
+    /// 모델 파라미터(순서는 `CameraModelKind::params_info`).
     pub params: Vec<f64>,
+    /// 초점이 EXIF 등 사전 정보에서 왔는지(보정 경로 선택용).
     pub focal_from_prior: bool,
 }
 
@@ -127,6 +146,7 @@ impl Camera {
         Self { camera_id: INVALID_CAMERA_ID, model, width, height, params, focal_from_prior: false }
     }
 
+    /// 파라미터 개수가 모델과 맞는지.
     pub fn verify_params(&self) -> bool {
         self.params.len() == self.model.num_params()
     }
@@ -136,29 +156,36 @@ impl Camera {
         let idx = self.model.focal_slots();
         idx.iter().map(|&i| self.params[i]).sum::<f64>() / idx.len() as f64
     }
+    /// x 초점거리.
     pub fn focal_length_x(&self) -> f64 {
         self.params[self.model.focal_slots()[0]]
     }
+    /// y 초점거리(단일 초점 모델이면 x 와 같음).
     pub fn focal_length_y(&self) -> f64 {
         let idx = self.model.focal_slots();
         self.params[idx[idx.len() - 1]]
     }
+    /// 모든 초점 파라미터를 f 로 설정.
     pub fn set_focal_length(&mut self, f: f64) {
         for &i in self.model.focal_slots() {
             self.params[i] = f;
         }
     }
+    /// 주점 x.
     pub fn principal_point_x(&self) -> f64 {
         self.params[self.model.pp_slots()[0]]
     }
+    /// 주점 y.
     pub fn principal_point_y(&self) -> f64 {
         self.params[self.model.pp_slots()[1]]
     }
+    /// 주점 설정.
     pub fn set_principal_point(&mut self, cx: f64, cy: f64) {
         let pp = self.model.pp_slots();
         self.params[pp[0]] = cx;
         self.params[pp[1]] = cy;
     }
+    /// 왜곡(추가) 파라미터 복사본.
     pub fn extra_params(&self) -> Vec<f64> {
         self.model.extra_param_slots().iter().map(|&i| self.params[i]).collect()
     }

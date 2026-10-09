@@ -6,6 +6,7 @@ use skyrecon_core::{Camera, CameraModelKind, Error, Result};
 /// 초점거리 결정 결과.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FocalEstimate {
+    /// 초점거리(화소).
     pub focal: f64,
     /// EXIF 에서 정해졌으면 참.
     pub prior: bool,

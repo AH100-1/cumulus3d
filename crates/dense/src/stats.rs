@@ -10,6 +10,7 @@ use std::collections::HashMap;
 /// 점군 통계.
 #[derive(Clone, Debug, Default)]
 pub struct CloudStats {
+    /// 점 수.
     pub points: usize,
     /// 표본 점 수.
     pub sampled: usize,

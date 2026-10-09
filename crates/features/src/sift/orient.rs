@@ -9,6 +9,7 @@ const TWO_PI: f32 = 2.0 * PI;
 pub struct Gradient<'a> {
     g: &'a [f32],
     w: usize,
+    /// 영상 높이.
     pub h: usize,
     pre: Option<(Vec<f32>, Vec<f32>)>,
 }
@@ -36,6 +37,7 @@ impl<'a> Gradient<'a> {
         Self { g, w, h, pre: Some((mag, ang)) }
     }
 
+    /// 영상 너비.
     pub fn width(&self) -> usize {
         self.w
     }
@@ -61,6 +63,7 @@ fn grad_at(g: &[f32], w: usize, x: usize, y: usize) -> (f32, f32) {
 /// 방향 할당 매개변수.
 #[derive(Clone, Copy, Debug)]
 pub struct OrientParams {
+    /// 키포인트당 최대 방향 수.
     pub max_num_orientations: usize,
     /// CPU 경로식 인접 빈 선형 보간(개선 옵션).
     pub bin_interpolation: bool,
@@ -75,6 +78,7 @@ pub fn quantize_angle(theta: f32) -> u16 {
 
 // 설계 결정: 16비트 값의 복원 배율은 저장과 같은 65535 사용.
 #[inline]
+/// 양자화 각 → 라디안([`quantize_angle`] 의 역).
 pub fn dequantize_angle(q: u16) -> f32 {
     q as f32 / 65535.0 * TWO_PI
 }
@@ -156,6 +160,7 @@ pub enum DescriptorNormalization {
     /// L1 정규화 후 제곱근(RootSIFT). 기본.
     #[default]
     L1Root,
+    /// L2 정규화.
     L2,
 }
 
@@ -215,7 +220,7 @@ pub fn descriptor(grad: &Gradient, x: f32, y: f32, sigma: f32, theta: f32, norm:
     normalize_quantize(&mut d, norm)
 }
 
-/// L2 → 0.2 절단 → L2, 이어서 L1-ROOT(또는 L2), ×512 반올림 후 [0,255] 포화.
+/// L2 → 0.2 절단 → L2, 이어서 L1-ROOT(또는 L2), ×512 반올림 후 `[0,255]` 포화.
 pub fn normalize_quantize(d: &mut [f32; 128], norm: DescriptorNormalization) -> [u8; 128] {
     let l2 = |d: &mut [f32; 128]| {
         let n = d.iter().map(|v| v * v).sum::<f32>().sqrt();

@@ -11,20 +11,33 @@ use skyrecon_core::{Camera, FeatureMatch, Keypoint, Mat3, TwoViewGeometry, TwoVi
 /// 두 뷰 기하 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TwoViewOptions {
+    /// 유효 기하로 인정할 최소 인라이어 수.
     pub min_num_inliers: usize,
     /// 판정용 최소 인라이어 비율(0 = 꺼짐). 0 보다 크면 RANSAC 사전 비율도 덮어씀.
     pub min_inlier_ratio: f64,
+    /// E 인라이어 / F 인라이어 비율이 이보다 크면 E(보정) 쪽 판정.
     pub min_e_f_inliers_ratio: f64,
+    /// H 인라이어 / E(또는 F) 인라이어 비율이 이보다 크면 평면·회전 구성으로 판정.
     pub max_h_inliers_ratio: f64,
+    /// 워터마크(영상 가장자리 고정 매칭) 검출 여부.
     pub detect_watermark: bool,
+    /// 가장자리 인라이어 비율과 평행이동 인라이어 비율이 이보다 크면 워터마크로 판정.
     pub watermark_inlier_ratio: f64,
+    /// 가장자리 띠 폭(영상 대각선 길이 대비 비율).
     pub watermark_band: f64,
+    /// 워터마크 평행이동 RANSAC 오차 임계(px).
     pub watermark_detection_max_error: f64,
+    /// 인라이어를 제거하며 여러 기하를 반복 추정.
     pub multiple_models: bool,
+    /// 다중 모델 모드에서 워터마크 기하를 결과에서 제외.
     pub multiple_ignore_watermark: bool,
+    /// 거의 움직이지 않는 매칭을 사전 제거.
     pub filter_stationary_matches: bool,
+    /// 정지 매칭 판정 이동량 임계(px).
     pub stationary_matches_max_error: f64,
+    /// H 만 추정하는 경로 사용(평면 구성 강제).
     pub force_h_use: bool,
+    /// 기하 확정 후 상대 자세·삼각측량 각도도 계산.
     pub compute_relative_pose: bool,
     /// 하틀리 정규화 DLT(개선; 결과가 미세하게 달라지므로 기본 끔).
     pub normalize_homography: bool,
@@ -85,22 +98,29 @@ const SALT_T: u64 = 4;
 /// 선택된 인라이어 마스크.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MaskChoice {
+    /// 본질 행렬 인라이어.
     E,
+    /// 기초 행렬 인라이어.
     F,
+    /// 호모그래피 인라이어.
     H,
 }
 
 /// 판정 결과: 구성과 사용할 마스크(DEGENERATE 이면 None).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Decision {
+    /// 판정된 기하 구성.
     pub config: TwoViewGeometryConfig,
+    /// 사용할 인라이어 마스크(DEGENERATE 이면 None).
     pub mask: Option<MaskChoice>,
 }
 
 /// 한 RANSAC 의 (성공 여부, 인라이어 수).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct ModelOutcome {
+    /// RANSAC 성공 여부.
     pub success: bool,
+    /// 인라이어 수.
     pub num_inliers: usize,
 }
 

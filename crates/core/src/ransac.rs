@@ -7,8 +7,11 @@ use rand_pcg::Pcg64;
 
 /// 추정기: 최소/비최소 해법 + 잔차.
 pub trait Estimator {
+    /// 입력 자료 1(예: 영상1 좌표).
     type X: Clone;
+    /// 입력 자료 2(예: 영상2 좌표).
     type Y: Clone;
+    /// 추정 모델 타입.
     type Model: Clone;
     /// 해법에 필요한 최소 표본 수.
     fn min_num_samples(&self) -> usize;
@@ -36,6 +39,7 @@ pub struct RandomSubsetSampler {
 }
 
 impl RandomSubsetSampler {
+    /// 표본 크기 k 로 생성.
     pub fn new(num_samples: usize) -> Self {
         Self { k: num_samples, perm: Vec::new() }
     }
@@ -69,6 +73,7 @@ pub struct ExhaustiveSampler {
 }
 
 impl ExhaustiveSampler {
+    /// 표본 크기 k 로 생성.
     pub fn new(num_samples: usize) -> Self {
         Self { k: num_samples, n: 0, cur: Vec::new(), first: true }
     }
@@ -133,9 +138,13 @@ pub struct RansacParams {
     pub max_error: f64,
     /// 사전 인라이어 비율(정적 반복 상한 계산용).
     pub min_inlier_ratio: f64,
+    /// 성공 확률 목표(동적 반복 상한 계산용).
     pub confidence: f64,
+    /// 동적 반복 상한 배수.
     pub dyn_trials_factor: f64,
+    /// 최소 반복 수.
     pub min_trials: usize,
+    /// 최대 반복 수.
     pub max_trials: usize,
     /// None = 비결정적.
     pub random_seed: Option<u64>,
@@ -158,7 +167,9 @@ impl Default for RansacParams {
 /// 지지도: 인라이어 수 많을수록, 같으면 잔차 합 작을수록 우수.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Support {
+    /// 인라이어 수.
     pub num_inliers: usize,
+    /// 인라이어 제곱 잔차 합.
     pub residual_sum: f64,
 }
 
@@ -180,6 +191,7 @@ impl Support {
         }
         s
     }
+    /// `self` 가 `other` 보다 나은지(인라이어 수 → 잔차 합 순).
     pub fn is_better(&self, other: &Support) -> bool {
         if self.num_inliers != other.num_inliers {
             self.num_inliers > other.num_inliers
@@ -192,10 +204,15 @@ impl Support {
 /// RANSAC 결과.
 #[derive(Clone, Debug)]
 pub struct RansacReport<M> {
+    /// 모델을 찾았는지.
     pub success: bool,
+    /// 수행한 반복 수.
     pub num_trials: usize,
+    /// 최종 모델의 지지도.
     pub support: Support,
+    /// 자료별 인라이어 여부.
     pub inlier_mask: Vec<bool>,
+    /// 최종 모델(실패 시 None).
     pub model: Option<M>,
 }
 

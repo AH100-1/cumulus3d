@@ -11,6 +11,7 @@ use crate::math::plane_transfer;
 /// 후처리 매개변수.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostParams {
+    /// 작은 조각 제거를 할지.
     pub remove_speckles: bool,
     /// 같은 성분으로 볼 상대 깊이 차.
     pub speckle_rel_depth: f32,
@@ -18,10 +19,11 @@ pub struct PostParams {
     pub speckle_min_area_frac: f64,
     /// 비용 중앙값이 이 값 이하인 성분은 작아도 남긴다.
     pub speckle_keep_cost: f32,
+    /// 경계 인식 틈 메우기를 할지.
     pub fill_holes: bool,
     /// 최대 채움 거리(영상 대각선 비율).
     pub fill_max_frac: f64,
-    /// 걷기를 멈추는 인접 밝기 차([0,1]).
+    /// 걷기를 멈추는 인접 밝기 차(\[0,1\]).
     pub fill_edge_step: f32,
     /// 채울 픽셀의 자기 비용 상한.
     pub fill_max_cost: f32,

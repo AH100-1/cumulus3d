@@ -460,11 +460,17 @@ impl Estimator for EPnPEstimator<'_> {
 pub struct AbsolutePoseOptions {
     /// 최대 재투영 오차(픽셀).
     pub max_error: f64,
+    /// 최소 인라이어 비율(동적 반복 횟수 계산용).
     pub min_inlier_ratio: f64,
+    /// RANSAC 신뢰도(동적 반복 횟수 계산용).
     pub confidence: f64,
+    /// 최소 반복 횟수.
     pub min_trials: usize,
+    /// 최대 반복 횟수.
     pub max_trials: usize,
+    /// 동적 반복 횟수에 곱하는 배율.
     pub dyn_trials_factor: f64,
+    /// 난수 시드. `None` 이면 비결정적.
     pub random_seed: Option<u64>,
 }
 
@@ -485,9 +491,13 @@ impl Default for AbsolutePoseOptions {
 /// 절대 자세 추정 결과.
 #[derive(Clone, Debug)]
 pub struct AbsolutePoseResult {
+    /// 추정한 세계 → 카메라 자세.
     pub world_to_cam: Rigid3,
+    /// 입력 대응별 인라이어 여부.
     pub inlier_mask: Vec<bool>,
+    /// 인라이어 수.
     pub num_inliers: usize,
+    /// 수행한 RANSAC 반복 횟수.
     pub num_trials: usize,
 }
 

@@ -93,6 +93,7 @@ pub fn umeyama(src: &[Vec3], dst: &[Vec3], estimate_scale: bool) -> Option<Sim3>
 /// RANSAC 용 Sim3 추정기(최소 3쌍, 잔차 = ‖y − T x‖²).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Sim3Estimator {
+    /// 최소 표본 퇴화 판정 방식.
     pub rank_check: RankCheck,
 }
 
@@ -127,10 +128,13 @@ pub fn estimate_sim3_ransac(src: &[Vec3], dst: &[Vec3], opts: &RansacParams, ran
 /// 견고 Umeyama(사용자 후처리) 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RobustUmeyamaOptions {
+    /// 재적합 반복 수.
     pub iterations: usize,
-    /// 임계 = max(factor · median(r[keep]), min_threshold).
+    /// 임계 = `max(factor · median(r[keep]), min_threshold)`.
     pub factor: f64,
+    /// 인라이어 임계의 하한(거리).
     pub min_threshold: f64,
+    /// 스케일 추정 여부(거짓이면 강체 변환).
     pub estimate_scale: bool,
 }
 
@@ -147,7 +151,9 @@ pub struct RobustUmeyamaResult {
     pub sim3: Sim3,
     /// 최종 인라이어의 잔차(거리) 중앙값.
     pub median_residual: f64,
+    /// 최종 인라이어 수.
     pub num_inliers: usize,
+    /// 쌍별 인라이어 여부.
     pub inlier_mask: Vec<bool>,
     /// 모든 쌍의 최종 잔차(거리).
     pub residuals: Vec<f64>,
@@ -167,7 +173,7 @@ pub(crate) fn median(v: &mut [f64]) -> f64 {
     }
 }
 
-/// 반복 재적합: 매 회 keep 으로 Umeyama → 전체 잔차 r → keep = r < max(factor·median(r[keep]), min_threshold).
+/// 반복 재적합: 매 회 keep 으로 Umeyama → 전체 잔차 r → `keep = r < max(factor·median(r[keep]), min_threshold)`.
 /// 반환 Sim3 는 마지막 적합, 인라이어·중앙값은 마지막 갱신된 keep 기준.
 pub fn robust_umeyama(src: &[Vec3], dst: &[Vec3], opts: &RobustUmeyamaOptions) -> Option<RobustUmeyamaResult> {
     let n = src.len();

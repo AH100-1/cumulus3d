@@ -13,19 +13,27 @@ use std::collections::BTreeMap;
 /// 위치 추정 옵션.
 #[derive(Clone, Debug)]
 pub struct PositionSolverOptions {
+    /// 프레임 중심 위치를 변수로 둘지.
     pub optimize_positions: bool,
+    /// 3D 점을 변수로 둘지.
     pub optimize_points: bool,
+    /// 관측별 스케일을 변수로 둘지.
     pub optimize_scales: bool,
     /// Huber 척도 a.
     pub loss_scale: f64,
+    /// LM 최대 반복 횟수.
     pub max_num_iterations: usize,
+    /// 비용 상대 변화 수렴 임계.
     pub function_tolerance: f64,
+    /// 기울기 수렴 임계.
     pub gradient_tolerance: f64,
+    /// 파라미터 변화 수렴 임계.
     pub parameter_tolerance: f64,
     /// 초기화 난수 시드(기본 0).
     pub random_seed: u64,
     /// 초점 사전값 없는 카메라 관측의 손실 배율.
     pub uncalibrated_weight: f64,
+    /// 관측 스케일 하한.
     pub min_scale: f64,
 }
 
@@ -50,12 +58,19 @@ impl Default for PositionSolverOptions {
 /// 위치 추정 결과 통계.
 #[derive(Clone, Debug, Default)]
 pub struct PositioningSummary {
+    /// 최적화한 프레임 수.
     pub num_frames: usize,
+    /// 최적화한 점 수.
     pub num_points: usize,
+    /// 방향 관측 수.
     pub num_observations: usize,
+    /// LM 반복 횟수.
     pub num_iterations: usize,
+    /// 초기 비용.
     pub initial_cost: f64,
+    /// 최종 비용.
     pub final_cost: f64,
+    /// 수렴 여부.
     pub converged: bool,
 }
 

@@ -21,11 +21,13 @@ fn pack(d: &[u8], n: usize) -> Vec<u32> {
 }
 
 impl CudaMatcher {
+    /// 장치 `dev` 에 매칭 커널을 컴파일해 만든다.
     pub fn new(dev: Arc<CudaDevice>) -> Result<Self, GpuError> {
         let module = dev.compile(SRC, true, &[])?;
         Ok(Self { f: module.load_function("top2_rows")?, dev, lock: Mutex::new(()) })
     }
 
+    /// 장치 0 으로 만든다.
     pub fn try_default() -> Result<Self, GpuError> {
         Self::new(CudaDevice::new(0)?)
     }

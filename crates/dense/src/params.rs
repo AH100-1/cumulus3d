@@ -11,6 +11,7 @@ pub enum MvsProfile {
 }
 
 impl MvsProfile {
+    /// 이름("fast" / "quality", 대소문자 무시)으로 찾는다.
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "fast" => Some(Self::Fast),
@@ -18,6 +19,7 @@ impl MvsProfile {
             _ => None,
         }
     }
+    /// 프로파일 이름.
     pub fn name(self) -> &'static str {
         match self {
             Self::Fast => "fast",
@@ -48,10 +50,11 @@ pub struct PmParams {
     pub window_step: i32,
     /// 양방향 가중치 공간 σ(픽셀). ≤ 0 이면 창 반경.
     pub sigma_spatial: f32,
-    /// 양방향 가중치 밝기 σ([0,1] 밝기).
+    /// 양방향 가중치 밝기 σ(\[0,1\] 밝기).
     pub sigma_color: f32,
     /// 좋은 비용 경계 τ(t) = tau0·exp(−t²/tau_alpha).
     pub tau0: f32,
+    /// 좋은 비용 경계의 감쇠 상수 α.
     pub tau_alpha: f32,
     /// 나쁜 비용 경계.
     pub tau1: f32,
@@ -59,6 +62,7 @@ pub struct PmParams {
     pub beta: f32,
     /// 뷰 채택: 좋은 비용 수 > n1 이고 나쁜 비용 수 < n2.
     pub n1: u32,
+    /// 뷰 채택의 나쁜 비용 수 상한 n2.
     pub n2: u32,
     /// 채택되지 않은 직전 최중요 뷰의 가중치.
     pub prev_view_weight: f32,
@@ -68,17 +72,23 @@ pub struct PmParams {
     pub incident_angle_sigma: f32,
     /// 기하 항 가중치 λ 와 상한 δ(픽셀).
     pub geom_lambda: f32,
+    /// 기하 항 상한 δ(픽셀).
     pub geom_max_cost: f32,
     /// 가중치 합이 0 일 때 쓰는 상위 K 평균의 K.
     pub top_k: u32,
     /// 정제 섭동 시작 크기(역깊이 상대, 법선 각 도): 광도/기하.
     pub eps0_photometric: f32,
+    /// 정제 섭동 시작 크기(역깊이 상대): 기하 실행.
     pub eps0_geometric: f32,
+    /// 정제 법선 섭동 시작 각(도): 광도 실행.
     pub phi0_photometric_deg: f32,
+    /// 정제 법선 섭동 시작 각(도): 기하 실행.
     pub phi0_geometric_deg: f32,
+    /// 역깊이 섭동 하한.
     pub eps_min: f32,
+    /// 법선 섭동 각 하한(도).
     pub phi_min_deg: f32,
-    /// 거친 스케일 가설을 후보로 더할 기준 패치 분산 문턱([0,1] 밝기²). 0 이면 끔.
+    /// 거친 스케일 가설을 후보로 더할 기준 패치 분산 문턱(\[0,1\] 밝기²). 0 이면 끔.
     pub weak_texture_var: f32,
 }
 
@@ -169,6 +179,7 @@ pub enum FusionMode {
 }
 
 impl FusionMode {
+    /// 이름("traversal"/"median", "consistency"/"average")으로 찾는다.
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "traversal" | "median" => Some(Self::Traversal),
@@ -191,6 +202,7 @@ pub enum FusionResidual {
 }
 
 impl FusionResidual {
+    /// 이름("none", "release", "second-pass")으로 찾는다.
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().replace('_', "-").as_str() {
             "none" => Some(Self::None),
@@ -199,6 +211,7 @@ impl FusionResidual {
             _ => None,
         }
     }
+    /// 처리 방식 이름.
     pub fn name(self) -> &'static str {
         match self {
             Self::None => "none",
@@ -230,9 +243,11 @@ impl Default for ResidualParams {
 /// 융합 허용치.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FusionParams {
+    /// 융합 방식.
     pub mode: FusionMode,
     /// 일치 융합: 남은 픽셀 처리.
     pub residual: FusionResidual,
+    /// 2차 융합 허용치.
     pub residual_params: ResidualParams,
     /// 일치 융합: 기준 외 일치 뷰 최소 수.
     pub min_consistent_views: usize,
@@ -244,15 +259,23 @@ pub struct FusionParams {
     pub inverse_variance: bool,
     /// 정합 불확실성 σ_px = sigma_px0 + sigma_px_slope·비용 (픽셀).
     pub sigma_px0: f64,
+    /// σ_px 의 비용 기울기.
     pub sigma_px_slope: f64,
     /// 일치 융합: 검사할 겹침 뷰 수(공유 점 순).
     pub consistency_num_images: usize,
+    /// 확장 융합: 점 하나에 필요한 최소 픽셀 수.
     pub min_num_pixels: usize,
+    /// 확장 융합: 점 하나에 모을 최대 픽셀 수.
     pub max_num_pixels: usize,
+    /// 확장 융합: 최대 확장 깊이.
     pub max_traversal_depth: usize,
+    /// 재투영 오차 허용치(픽셀).
     pub max_reproj_error: f64,
+    /// 상대 깊이 허용치.
     pub max_depth_error: f64,
+    /// 법선 허용 각(도).
     pub max_normal_error_deg: f64,
+    /// 확장 융합: 검사할 겹침 뷰 수.
     pub check_num_images: usize,
 }
 
@@ -271,6 +294,7 @@ pub struct NeighborParams {
     pub min_triangulation_angle_deg: f64,
     /// 방향 다양성: 기준선 방위각 구간 수와 같은 구간 반복 선택 감쇠(1 = 끔).
     pub direction_bins: usize,
+    /// 같은 구간 반복 선택 감쇠(1 = 방향 다양성 끔).
     pub diversity_decay: f64,
 }
 
@@ -283,11 +307,17 @@ impl Default for NeighborParams {
 /// `densify` 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DensifyOptions {
+    /// 반복 일정 프로파일.
     pub profile: MvsProfile,
+    /// 이웃 뷰 선택.
     pub neighbors: NeighborParams,
+    /// PatchMatch 상수.
     pub pm: PmParams,
+    /// 깊이맵 필터 허용치.
     pub filter: FilterParams,
+    /// 융합 허용치.
     pub fusion: FusionParams,
+    /// 필터 뒤 후처리.
     pub post: crate::postproc::PostParams,
     /// 스케일 수 상한(축소율 0.5).
     pub max_levels: usize,
@@ -295,6 +325,7 @@ pub struct DensifyOptions {
     pub min_level_size: usize,
     /// 결합 양방향 상향 표본 매개변수: 공간 σ(저해상 픽셀), 밝기 σ.
     pub jbu_sigma_spatial: f32,
+    /// 결합 양방향 상향 표본 밝기 σ.
     pub jbu_sigma_color: f32,
     /// 세부 복원기 교체 문턱 ξ.
     pub restorer_threshold: f32,
@@ -302,6 +333,7 @@ pub struct DensifyOptions {
     pub seed: u64,
     /// 일정 덮어쓰기(측정용): 기하 실행 반복 수, 회차 수.
     pub geometric_iters_override: Option<u32>,
+    /// 일정 덮어쓰기: 기하 실행 회차 수.
     pub geometric_rounds_override: Option<u32>,
 }
 

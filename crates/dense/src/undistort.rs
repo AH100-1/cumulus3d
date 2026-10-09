@@ -12,14 +12,21 @@ use std::sync::{Arc, Mutex};
 /// 왜곡 보정 옵션(파이프라인은 `max_image_size = 960`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct UndistortOptions {
+    /// 가장자리 빈 픽셀 허용 비율(0 = 빈 픽셀 없음, 1 = 입력 전체 포함).
     pub blank_pixels: f64,
+    /// 출력 크기 배율 하한.
     pub min_scale: f64,
+    /// 출력 크기 배율 상한.
     pub max_scale: f64,
     /// ≤ 0 이면 제한 없음(관례상 −1).
     pub max_image_size: i64,
+    /// 관심 영역 왼쪽(영상 너비 비율).
     pub roi_min_x: f64,
+    /// 관심 영역 위쪽(영상 높이 비율).
     pub roi_min_y: f64,
+    /// 관심 영역 오른쪽(영상 너비 비율).
     pub roi_max_x: f64,
+    /// 관심 영역 아래쪽(영상 높이 비율).
     pub roi_max_y: f64,
     /// patch-match.cfg 에 쓰는 원천(이웃) 영상 수.
     pub num_patch_match_src_images: usize,
@@ -172,7 +179,9 @@ fn apply_max_image_size(cam: &mut Camera, max_size: i64) {
 /// 카메라 하나의 보정 결과: PINHOLE 카메라 + 입력 해상도 재표본 맵.
 #[derive(Debug)]
 pub struct CameraUndistortion {
+    /// 입력(왜곡 있는) 카메라.
     pub source: Camera,
+    /// 보정된 PINHOLE 카메라.
     pub pinhole: Camera,
     /// 보조 카메라(입력 크기) 픽셀마다 입력 영상 표본 위치 (sx−0.5, sy−0.5). 실패는 NaN.
     lut: Vec<[f32; 2]>,
@@ -274,6 +283,7 @@ pub struct UndistortCache {
 }
 
 impl UndistortCache {
+    /// 빈 캐시.
     pub fn new() -> Self {
         Self::default()
     }
@@ -287,9 +297,11 @@ impl UndistortCache {
         self.map.lock().unwrap_or_else(|e| e.into_inner()).insert(key, v.clone());
         Ok(v)
     }
+    /// 캐시된 카메라 수.
     pub fn len(&self) -> usize {
         self.map.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
+    /// 비어 있는지.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

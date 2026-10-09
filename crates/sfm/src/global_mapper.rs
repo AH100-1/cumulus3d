@@ -17,33 +17,59 @@ use std::collections::HashSet;
 /// 전역 매퍼 옵션. 기본값은 일반 항공 영상 기준으로 정한 값.
 #[derive(Clone, Debug)]
 pub struct GlobalSfmOptions {
+    /// 상대 자세가 없는 짝은 E/F/H 를 다시 맞춰 상대 자세를 분해할지.
     pub decompose_relative_pose: bool,
+    /// BA 단계 반복 횟수(0 이면 끝 필터만 실행).
     pub ba_num_iterations: usize,
+    /// 회전 평균 단계 생략.
     pub skip_rotation_averaging: bool,
+    /// 트랙 구성 단계 생략.
     pub skip_track_establishment: bool,
+    /// 전역 위치 추정 단계 생략.
     pub skip_global_positioning: bool,
+    /// BA 단계 생략.
     pub skip_bundle_adjustment: bool,
+    /// 재삼각측량 단계 생략.
     pub skip_retriangulation: bool,
+    /// 트랙 구성 옵션.
     pub tracks: TrackOptions,
+    /// 위치 추정 후 필터의 최대 각도 재투영 오차(도).
     pub max_angular_reproj_error_deg: f64,
+    /// 정규 좌표 재투영 오차 필터 임계.
     pub max_normalized_reproj_error: f64,
+    /// 점 필터의 최소 삼각측량 각(도).
     pub min_tri_angle_deg: f64,
+    /// 회전 평균 후 간선을 무효화하는 상대 회전 오차 상한(도).
     pub ra_max_rotation_error_deg: f64,
+    /// 회전 평균 옵션.
     pub rotation_averaging: RotationAveragingOptions,
+    /// 전역 위치 추정 옵션.
     pub positioning: PositionSolverOptions,
     /// BA 공통 설정(정제 대상).
     pub ba_refine_focal_length: bool,
+    /// BA 에서 주점 정제 여부.
     pub ba_refine_principal_point: bool,
+    /// BA 에서 왜곡 등 추가 파라미터 정제 여부.
     pub ba_refine_extra_params: bool,
+    /// BA Huber 손실 척도.
     pub ba_loss_scale: f64,
+    /// BA 한 번의 최대 반복 횟수.
     pub ba_max_num_iterations: usize,
+    /// 회전 고정 BA 하위 단계 생략.
     pub ba_skip_fixed_rotation_stage: bool,
+    /// 전체 변수 BA 하위 단계 생략.
     pub ba_skip_joint_optimization_stage: bool,
+    /// 재삼각측량 트랙 완성 재투영 오차 상한(픽셀).
     pub tri_complete_max_reproj_error: f64,
+    /// 재삼각측량 트랙 병합 재투영 오차 상한(픽셀).
     pub tri_merge_max_reproj_error: f64,
+    /// 재삼각측량 최소 삼각측량 각(도).
     pub tri_min_angle: f64,
+    /// 재삼각측량 후 점 정제 최대 횟수.
     pub retri_max_refinements: usize,
+    /// 정제 반복을 멈추는 변경 관측 비율.
     pub retri_max_refinement_change: f64,
+    /// 재삼각측량 점 정제 BA 최대 반복.
     pub retri_ba_max_num_iterations: usize,
 }
 
@@ -94,22 +120,34 @@ impl GlobalSfmOptions {
 /// 단계별 통계.
 #[derive(Clone, Debug, Default)]
 pub struct GlobalMapperSummary {
+    /// 뷰 그래프 간선 수.
     pub num_view_graph_edges: usize,
+    /// 회전 평균 후 유효 간선 수.
     pub num_valid_edges_after_ra: usize,
+    /// 트랙 구성 통계.
     pub tracks: TrackSummary,
+    /// 위치 추정 통계.
     pub positioning: PositioningSummary,
+    /// 위치 추정 후 필터가 지운 관측 수.
     pub num_filtered_after_positioning: usize,
+    /// BA 단계 필터가 지운 관측 수.
     pub num_filtered_after_ba: usize,
+    /// 최종 등록 영상 수.
     pub registered_image_count: usize,
+    /// 최종 3D 점 수.
     pub num_points3d: usize,
 }
 
 /// 결과. 실패해도 그때까지의 재구성을 쓸 수 있도록 `failure` 와 함께 돌려준다.
 #[derive(Clone, Debug)]
 pub struct GlobalMapperOutput {
+    /// 만들어진 재구성(실패 시 그 시점까지).
     pub reconstruction: Reconstruction,
+    /// 회전 평균 후 뷰 그래프.
     pub view_graph: ViewGraph,
+    /// 단계별 통계.
     pub summary: GlobalMapperSummary,
+    /// 중간 단계 실패 사유. `None` 이면 끝까지 성공.
     pub failure: Option<String>,
 }
 

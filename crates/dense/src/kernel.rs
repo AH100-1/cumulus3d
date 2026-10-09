@@ -39,8 +39,11 @@ use std::sync::Arc;
 /// 한 스케일의 뷰 영상.
 #[derive(Clone, Debug)]
 pub struct LevelImage {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
+    /// 회색 8비트(행 우선).
     pub gray: Arc<Vec<u8>>,
     /// fx, fy, cx, cy (정수 중심 규약).
     pub k: [f32; 4],
@@ -50,8 +53,11 @@ pub struct LevelImage {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct PairGeometry {
+    /// 기준 → 원천 회전(행 우선 3×3).
     pub r: [f32; 9],
+    /// 기준 → 원천 이동.
     pub t: [f32; 3],
+    /// 원천 카메라 중심(기준 카메라 좌표).
     pub center: [f32; 3],
 }
 
@@ -66,33 +72,46 @@ pub struct KernelView {
     pub sources: Vec<usize>,
     /// 원천별 상대 기하.
     pub pairs: Vec<PairGeometry>,
+    /// 무작위 초기화 깊이 하한.
     pub depth_min: f32,
+    /// 무작위 초기화 깊이 상한.
     pub depth_max: f32,
 }
 
 /// 커널 입력 전체(한 조밀화 호출 동안 고정).
 #[derive(Clone, Debug)]
 pub struct KernelInput {
+    /// 커널 입력 뷰 전체.
     pub views: Vec<KernelView>,
+    /// 스케일 수.
     pub num_levels: usize,
+    /// PatchMatch 상수.
     pub pm: PmParams,
+    /// 판독·필터 허용치.
     pub filter: FilterParams,
+    /// 난수 시드.
     pub seed: u64,
 }
 
 /// 기준 뷰 하나의 픽셀 상태(한 스케일).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ViewState {
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
+    /// 픽셀별 깊이(카메라 z).
     pub depth: Vec<f32>,
+    /// 픽셀별 법선(기준 카메라 좌표).
     pub normal: Vec<[f32; 3]>,
+    /// 픽셀별 저장 비용.
     pub cost: Vec<f32>,
     /// 거친 스케일 가설(nx, ny, nz, d). 비어 있지 않으면 무늬 약한 픽셀에서 후보로 쓴다.
     pub prior: Vec<[f32; 4]>,
 }
 
 impl ViewState {
+    /// 깊이·법선 0, 비용 2(최대)로 채운 상태.
     pub fn new(width: usize, height: usize) -> Self {
         let n = width * height;
         Self { width, height, depth: vec![0.0; n], normal: vec![[0.0; 3]; n], cost: vec![2.0; n], prior: Vec::new() }
@@ -102,17 +121,24 @@ impl ViewState {
 /// 기하 실행이 읽는 깊이 스냅숏(뷰 색인 → 그 스케일 깊이맵). `id` 가 같으면 내용도 같다.
 #[derive(Clone, Debug)]
 pub struct DepthSnapshot {
+    /// 스냅숏 식별자.
     pub id: u64,
+    /// 깊이맵의 스케일.
     pub level: usize,
+    /// 뷰 색인별 깊이맵(없으면 None).
     pub maps: Vec<Option<Arc<Vec<f32>>>>,
 }
 
 /// 실행 하나의 매개변수.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RunParams {
+    /// 스케일 번호(0 = 최저).
     pub level: usize,
+    /// 기하 일관성 실행인지.
     pub geometric: bool,
+    /// 시작 전에 무작위 초기화할지.
     pub random_init: bool,
+    /// 적·흑 반복 수.
     pub iterations: u32,
     /// 난수 열쇠용 실행 번호.
     pub run_id: u32,
@@ -146,6 +172,7 @@ pub trait PatchMatchSession {
 
 /// PatchMatch 백엔드.
 pub trait PatchMatchBackend: Send + Sync {
+    /// 백엔드 이름(로그용).
     fn name(&self) -> String;
     /// 입력을 받아 세션을 연다(영상 업로드 등).
     fn begin<'a>(&'a self, input: &'a KernelInput) -> Result<Box<dyn PatchMatchSession + 'a>>;

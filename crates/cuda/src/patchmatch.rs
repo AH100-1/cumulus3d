@@ -197,6 +197,7 @@ fn gerr(e: impl std::fmt::Display) -> Error {
 }
 
 impl CudaPatchMatch {
+    /// 장치 `dev` 와 옵션으로 만든다(커널은 첫 사용 때 컴파일).
     pub fn new(dev: Arc<CudaDevice>, opts: CudaPatchMatchOptions) -> std::result::Result<Self, GpuError> {
         Ok(Self { dev, opts, funcs: Mutex::new(HashMap::new()), lock: Mutex::new(()) })
     }
@@ -204,9 +205,11 @@ impl CudaPatchMatch {
     pub fn try_default() -> std::result::Result<Self, GpuError> {
         Self::new(CudaDevice::new(0)?, CudaPatchMatchOptions::default())
     }
+    /// 사용하는 장치.
     pub fn device(&self) -> &Arc<CudaDevice> {
         &self.dev
     }
+    /// 현재 옵션.
     pub fn options(&self) -> &CudaPatchMatchOptions {
         &self.opts
     }

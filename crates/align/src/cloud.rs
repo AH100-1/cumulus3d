@@ -19,7 +19,7 @@ pub fn transform_cloud(cloud: &mut PointCloud, t: &Sim3) {
     });
 }
 
-/// mask[i] 가 true 인 점만 남긴 새 점군.
+/// `mask[i]` 가 true 인 점만 남긴 새 점군.
 pub fn select(cloud: &PointCloud, keep: &[bool]) -> PointCloud {
     let pick = |v: &Vec<[f32; 3]>| -> Vec<[f32; 3]> {
         if v.is_empty() {
@@ -88,7 +88,7 @@ pub fn merge_clouds(clouds: &[&PointCloud]) -> PointCloud {
 /// 스냅샷 합성 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnapshotOptions {
-    /// 정밀 점과 이 거리 이내의 초벌 점 제거 [m].
+    /// 정밀 점과 이 거리 이내의 초벌 점 제거 (m).
     pub mask_radius: f64,
     /// 최종 1/N 추출.
     pub stride: usize,

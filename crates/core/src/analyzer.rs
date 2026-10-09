@@ -6,22 +6,32 @@ use crate::reconstruction::Reconstruction;
 /// model_analyzer 의 모든 항목.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModelStats {
+    /// rig 수.
     pub num_rigs: usize,
+    /// 카메라 수.
     pub num_cameras: usize,
+    /// 프레임 수.
     pub num_frames: usize,
+    /// 등록된 프레임 수.
     pub registered_frame_count: usize,
+    /// 영상 수.
     pub num_images: usize,
+    /// 등록된 영상 수.
     pub registered_image_count: usize,
+    /// 3D 점 수.
     pub num_points3d: usize,
     /// 등록 영상들의 "3D 점이 연결된 2D 점 수" 합.
     pub num_observations: usize,
+    /// 평균 트랙 길이.
     pub mean_track_length: f64,
+    /// 등록 영상당 평균 관측 수.
     pub mean_observations_per_image: f64,
     /// 저장된 점 error(−1 제외) 평균. 재계산하지 않음.
     pub mean_reprojection_error: f64,
 }
 
 impl ModelStats {
+    /// 재구성에서 통계를 계산한다.
     pub fn compute(rec: &Reconstruction) -> Self {
         Self {
             num_rigs: rec.num_rigs(),

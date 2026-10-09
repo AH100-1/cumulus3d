@@ -28,10 +28,13 @@ pub enum CameraMode {
 /// 영상 읽기·카메라 옵션.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReaderOptions {
+    /// 새 카메라의 모델 종류.
     pub camera_model: CameraModelKind,
+    /// 카메라 묶기 방식.
     pub camera_mode: CameraMode,
     /// 주어지면 새 카메라 파라미터로 그대로 사용(사전 초점 플래그 참).
     pub camera_params: Option<Vec<f64>>,
+    /// EXIF 가 없을 때 초점거리 = 계수 × max(W, H).
     pub default_focal_length_factor: f64,
     /// 최대 영상 크기(축소 기준). SIFT 실효값 3200.
     pub max_image_size: usize,
@@ -58,7 +61,9 @@ impl Default for ReaderOptions {
 /// 추출 옵션 묶음.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ExtractionOptions {
+    /// 영상 읽기·카메라 옵션.
     pub reader: ReaderOptions,
+    /// SIFT 옵션.
     pub sift: SiftOptions,
     /// 여러 영상을 동시에 처리(메모리 ≈ 영상 수 × 피라미드).
     pub sequential_images: bool,
@@ -71,21 +76,40 @@ pub struct ImageSource {
     pub name: String,
     /// 입력 해상도 회색 영상.
     pub gray: GrayImage,
+    /// 영상의 EXIF 요약.
     pub exif: ExifInfo,
 }
 
 /// 영상별 처리 결과.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ImageStatus {
-    Extracted { image_id: ImageId, camera_id: CameraId, num_features: usize },
+    /// 특징을 추출해 저장소에 기록함.
+    Extracted {
+        /// 발급된 영상 id.
+        image_id: ImageId,
+        /// 배정된 카메라 id.
+        camera_id: CameraId,
+        /// 기록한 특징 수.
+        num_features: usize,
+    },
     /// 같은 이름이 이미 있고 특징도 있음 → 건너뜀.
-    AlreadyExists { image_id: ImageId },
-    Failed { error: String },
+    AlreadyExists {
+        /// 기존 영상 id.
+        image_id: ImageId,
+    },
+    /// 읽기·추출 실패(다른 영상 처리는 계속).
+    Failed {
+        /// 실패 사유.
+        error: String,
+    },
 }
 
+/// 영상 하나의 처리 보고.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageReport {
+    /// 저장소 영상 이름.
     pub name: String,
+    /// 처리 결과.
     pub status: ImageStatus,
 }
 
@@ -175,10 +199,12 @@ impl FeatureExtractor {
         Self { backend: Arc::new(CpuSift::new()) }
     }
 
+    /// 지정한 SIFT 백엔드(예: GPU)로 만든다.
     pub fn with_backend(backend: Arc<dyn SiftEngine>) -> Self {
         Self { backend }
     }
 
+    /// 사용 중인 SIFT 백엔드.
     pub fn backend(&self) -> &dyn SiftEngine {
         self.backend.as_ref()
     }

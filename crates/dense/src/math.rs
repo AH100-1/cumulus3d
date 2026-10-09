@@ -38,7 +38,7 @@ pub fn erf(x: f64) -> f64 {
     sum * 2.0 / std::f64::consts::PI.sqrt()
 }
 
-/// 비용 [0,2] 위 절단 반정규 밀도의 정규화 상수 A(σ).
+/// 비용 \[0,2\] 위 절단 반정규 밀도의 정규화 상수 A(σ).
 pub fn emission_norm(sigma: f64) -> f64 {
     2.0 / ((2.0 * std::f64::consts::PI).sqrt() * sigma * erf(2.0 / (sigma * std::f64::consts::SQRT_2)))
 }
@@ -95,7 +95,7 @@ pub fn resolution_prior(h: &[f64; 9], x: f64, y: f64, radius: f64) -> f64 {
     (a_src / a_ref).min(a_ref / a_src)
 }
 
-/// 정렬된 값의 선형 보간 분위수 q∈[0,1] (위치 q·(n−1)).
+/// 정렬된 값의 선형 보간 분위수 q∈\[0,1\] (위치 q·(n−1)).
 pub fn quantile_sorted(v: &[f64], q: f64) -> f64 {
     if v.is_empty() {
         return 0.0;

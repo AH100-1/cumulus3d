@@ -25,14 +25,19 @@ impl Default for SceneOptions {
 /// 조밀화 뷰 하나.
 #[derive(Clone, Debug)]
 pub struct DenseView {
+    /// 모델의 영상 id.
     pub image_id: ImageId,
+    /// 영상 이름(상대 경로).
     pub name: String,
+    /// 너비(픽셀).
     pub width: usize,
+    /// 높이(픽셀).
     pub height: usize,
     /// fx, fy, cx, cy (정수 중심 규약).
     pub k: [f64; 4],
     /// 세계 → 카메라 회전(행 우선)과 이동.
     pub r: [[f64; 3]; 3],
+    /// 세계 → 카메라 이동.
     pub t: [f64; 3],
     /// 회색 8비트(0.2126R + 0.7152G + 0.0722B 반올림).
     pub gray: Arc<Vec<u8>>,
@@ -107,14 +112,18 @@ impl DenseView {
 /// 희소점 하나(세계 좌표와 관측 뷰 색인; 같은 뷰가 두 번 나올 수 있다).
 #[derive(Clone, Debug)]
 pub struct ScenePoint {
+    /// 세계 좌표.
     pub xyz: [f64; 3],
+    /// 관측 뷰 색인.
     pub views: Vec<u32>,
 }
 
 /// 조밀화 장면.
 #[derive(Clone, Debug, Default)]
 pub struct DenseScene {
+    /// 뷰(등록 영상 순서).
     pub views: Vec<DenseView>,
+    /// 희소점.
     pub points: Vec<ScenePoint>,
 }
 

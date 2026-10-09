@@ -48,21 +48,30 @@ pub fn texture(u: f64, v: f64, seed: u64) -> f64 {
 /// 상자(축 정렬).
 #[derive(Clone, Copy, Debug)]
 pub struct SynthBox {
+    /// 최소 꼭짓점.
     pub min: V3,
+    /// 최대 꼭짓점.
     pub max: V3,
 }
 
 /// 합성 장면 설정.
 #[derive(Clone, Debug)]
 pub struct SynthConfig {
+    /// 영상 너비(픽셀).
     pub width: usize,
+    /// 영상 높이(픽셀).
     pub height: usize,
+    /// 초점 거리(픽셀).
     pub focal: f64,
     /// 카메라 격자(가로 × 세로)와 간격(m), 높이(m).
     pub grid: (usize, usize),
+    /// 카메라 격자 간격(m).
     pub spacing: f64,
+    /// 카메라 높이(m).
     pub altitude: f64,
+    /// 장면의 상자들.
     pub boxes: Vec<SynthBox>,
+    /// 무늬·희소점 난수 시드.
     pub seed: u64,
     /// 희소점 수.
     pub num_points: usize,
@@ -86,9 +95,13 @@ impl Default for SynthConfig {
 
 /// 합성 장면과 뷰별 참 깊이·법선(카메라 좌표, 카메라 쪽).
 pub struct SynthScene {
+    /// 조밀화 장면.
     pub scene: DenseScene,
+    /// 뷰별 참 깊이.
     pub depth: Vec<Vec<f32>>,
+    /// 뷰별 참 법선(카메라 좌표).
     pub normal: Vec<Vec<[f32; 3]>>,
+    /// 만들 때 쓴 설정.
     pub config: SynthConfig,
 }
 

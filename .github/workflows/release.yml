@@ -19,7 +19,7 @@ jobs:
   version:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Tag matches workspace version
         run: |
           v=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
@@ -37,7 +37,7 @@ jobs:
           - os: macos-15
             target: aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -49,7 +49,7 @@ jobs:
           cp target/release/cumulus3d LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md CHANGELOG.md "$name"/
           tar czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.target }}
           path: cumulus3d-*.tar.gz*
@@ -60,8 +60,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
@@ -85,7 +85,7 @@ jobs:
           else
             echo "set=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.token.outputs.set == 'true'
       - uses: dtolnay/rust-toolchain@stable
         if: steps.token.outputs.set == 'true'

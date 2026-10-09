@@ -219,6 +219,11 @@ let (_session, summary) = p.finish(); // waits for remaining refinement and drai
 
 To run it right away on a synthetic scene: `cargo run --release -p cumulus3d-cli --example hooks -- <output folder>`.
 
+## Third-party notices
+
+Some algorithms, default parameters and data formats follow permissively licensed open-source projects.
+Their copyright notices and license terms are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## License
 
 Licensed under either of MIT or Apache-2.0, at your option (`LICENSE-MIT`, `LICENSE-APACHE`).

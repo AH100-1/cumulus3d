@@ -215,6 +215,11 @@ let (_session, summary) = p.finish(); // 남은 정밀 작업을 기다리고 �
 
 합성 장면으로 바로 돌려 보는 예: `cargo run --release -p cumulus3d-cli --example hooks -- <출력 폴더>`.
 
+## 제3자 고지
+
+일부 알고리즘·기본값·데이터 형식은 허용 라이선스 오픈소스 프로젝트를 따른다.
+해당 저작권 고지와 라이선스 조항은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 에 있다.
+
 ## 라이선스
 
 MIT 또는 Apache-2.0 중 선택(`LICENSE-MIT`, `LICENSE-APACHE`).

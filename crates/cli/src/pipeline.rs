@@ -18,7 +18,7 @@
 //! 훅이 패닉하면 `catch_unwind` 로 잡아 `Event::Error` 를 구독자에게 보내고 파이프라인은 계속 돈다.
 //! (그 `Error` 는 훅에는 전달하지 않는다. 오류 훅이 다시 패닉해 무한 반복되는 것을 막기 위함.)
 
-use crate::events::{Command, Event, EventKind, Meta, ZoneRange};
+use crate::events::{Command, Event, EventKind, Frame, Meta, ZoneRange};
 use cumulus3d_core::io::ply::PointCloud;
 use std::collections::{HashMap, VecDeque};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -38,6 +38,10 @@ pub trait Reducer {
     type Input;
     /// 입력 하나를 처리하고 그 결과 이벤트를 순서대로 돌려준다.
     fn step(&mut self, input: Self::Input) -> Vec<Event>;
+    /// 입력을 받자마자, `step` 의 처리보다 먼저 내보낼 이벤트(예: 디코딩된 프레임). 기본: 없음.
+    fn prelude(&mut self, _input: &Self::Input) -> Vec<Event> {
+        Vec::new()
+    }
     /// 백그라운드 작업(정밀 처리 등) 중 끝난 것을 수거한다. 기다리지 않는다.
     fn poll(&mut self) -> Vec<Event>;
     /// 명령을 처리한다.
@@ -328,6 +332,19 @@ impl<R: Reducer> Pipeline<R> {
         self
     }
 
+    /// 프레임 훅: 디코딩된 입력 프레임을 카메라 한 장씩, 위치 처리 전에 받는다.
+    /// 세션은 `SessionConfig::decode_frames` 가 켜져 있어야 프레임을 낸다.
+    pub fn on_frame<F>(self, mut f: F) -> Self
+    where
+        F: FnMut(&Arc<Frame>) + Send + 'static,
+    {
+        self.on(EventKind::FrameDecoded, move |e| {
+            if let Event::FrameDecoded { frame, .. } = e {
+                f(frame)
+            }
+        })
+    }
+
     /// 구역 초벌 점군 훅.
     pub fn on_zone_preview<F>(self, mut f: F) -> Self
     where
@@ -408,9 +425,12 @@ impl<R: Reducer> Pipeline<R> {
     }
 
     /// 입력 하나를 리듀서에 넣고 결과 이벤트를 내보낸다. 낸 이벤트 수를 돌려준다.
+    /// [`Reducer::prelude`] 이벤트는 처리 전에 먼저 훅 큐에 들어가므로, 비동기 훅은 처리와 동시에 실행된다.
     pub fn push(&mut self, input: R::Input) -> usize {
+        let pre = self.reducer.prelude(&input);
+        let n = self.dispatch(pre);
         let evs = self.reducer.step(input);
-        self.dispatch(evs)
+        n + self.dispatch(evs)
     }
 
     /// 끝난 백그라운드 작업을 수거해 내보낸다(기다리지 않음).

@@ -74,7 +74,7 @@ Recon::declare()                    빈 계획으로 빌더 생성
 | `plan()` | 지금까지 기록한 계획 조회 |
 
 **훅 함수** — 클로저는 직렬화할 수 없으므로 `Plan` 이 아니라 빌더의 훅 목록에 보관한다:
-`on(EventKind, f)`, `on_any(f)`, `on_zone_preview(f)`, `on_zone_refined(f)`, `on_snapshot(f)`, `on_position_done(f)`, `on_message(f)`, `policy(kind, QueuePolicy)`.
+`on(EventKind, f)`, `on_any(f)`, `on_frame(f)`, `on_zone_preview(f)`, `on_zone_refined(f)`, `on_snapshot(f)`, `on_position_done(f)`, `on_message(f)`, `policy(kind, QueuePolicy)`.
 
 ### 조밀화 설정 `Dense` (체이닝)
 

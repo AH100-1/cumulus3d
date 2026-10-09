@@ -16,6 +16,9 @@
     `.incremental_triangulation`, `.dense(Dense::profile("fast").fusion_min_views(3)…)`, `.no_dense`, `.sinks(Sinks::default_files(out))`,
     `.seed`, `.threads`, 훅 `.on(EventKind, 클로저)`, `.on_any`, `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
     `.on_position_done`, `.on_message`, `.policy`(훅은 계획이 아니라 빌더에 보관).
+- 프레임 훅: `Pipeline`·`ReconBuilder` 의 `on_frame(|frame: &Arc<Frame>| …)` 이 디코딩된 입력 프레임(RGB8, 크기, 카메라, 경로,
+  GPS 기록)을 위치 처리 **전에** 카메라 한 장씩 전달한다. 새 이벤트 `Event::FrameDecoded`, `Reducer::prelude`(`step` 전에 내보내는
+  이벤트), `SessionConfig::decode_frames`(기본 꺼짐; 빌더는 프레임 훅을 등록하면 켠다).
   - `ReconBuilder::build() -> Result<Recon, PlanError>`: 입력·카메라 폴더, 선택된 위치 수, ENU 정렬 시 GPS 파일,
     백엔드 이름과 CUDA 장치(조밀화 포함), 출력 폴더 쓰기 가능, 옵션 값 범위를 검사. 문제를 모두 모아 한 번에 보고.
   - `Recon::run() -> Result<Summary, String>`, `Recon::plan()`.

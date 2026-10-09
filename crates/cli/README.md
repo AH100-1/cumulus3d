@@ -100,7 +100,7 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `session::command` | `ResetFrom(position)` rewind / `InvalidateZone(k)` zone rebuild | `(&Session, Command)` → `(Session, Vec<Event>)` |
 | `session::finish` | Close remaining zones → wait for background jobs → summary | `&Session` → `(Session, Vec<Event>)` |
 | `pipeline::Pipeline::new` | Wraps a reducer to provide hooks, queues, and panic isolation | `R: Reducer` (e.g. `Session`) → `Pipeline<R>` |
-| `Pipeline::on` / `on_any` / `on_zone_preview` / `on_zone_refined` | Register lambda hooks | event kind + closure → `Pipeline` |
+| `Pipeline::on` / `on_any` / `on_frame` / `on_zone_preview` / `on_zone_refined` | Register lambda hooks | event kind + closure → `Pipeline` |
 | `Pipeline::push` / `finish` | Feed input / finish and get the summary | `Input` → number of emitted events / → `(R, Summary)` |
 | `Pipeline::subscribe` | Channel receiving every event | → `Receiver<Event>` |
 | `events::Event` | Per-stage results (`ZonePreview`, `ZoneRefined`, `FrameRegistered` …) | — |
@@ -143,7 +143,7 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `Summary` | struct | Run summary (event count, count per kind, hook calls and panics, dropped events) |
 | `Pipeline` | struct | Reducer + hook executor (asynchronous lanes or synchronous) |
 | `Pipeline::new` / `sync` / `policy` | fn | Create / synchronous mode / per-kind queue policy |
-| `Pipeline::on` / `on_any` / `on_zone_preview` / `on_zone_refined` / `on_snapshot` / `on_position_done` / `on_message` | fn | Register hooks |
+| `Pipeline::on` / `on_any` / `on_frame` / `on_zone_preview` / `on_zone_refined` / `on_snapshot` / `on_position_done` / `on_message` | fn | Register hooks |
 | `Pipeline::subscribe` | fn | Channel receiving every event (including hook-panic errors) |
 | `Pipeline::push` / `poll` / `command` / `flush` | fn | Input / collect background results / command / drain hook queues |
 | `Pipeline::reducer` / `reducer_mut` / `finish` | fn | Reducer reference / mutable reference / `(R, Summary)` after finishing |
@@ -200,7 +200,7 @@ Full reference: [docs/DECLARATIVE.md](https://github.com/AH100-1/cumulus3d/blob/
 | Item | Kind | Role |
 |---|---|---|
 | `Recon` | struct | Checked, runnable reconstruction: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |
-| `ReconBuilder` | struct | Records the plan only. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; hooks `on`, `on_any`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
+| `ReconBuilder` | struct | Records the plan only. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; hooks `on`, `on_any`, `on_frame`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
 | `Plan` | struct | Plan value (Clone/PartialEq/Debug, serde): `seed`, `threads`, `gps`, `pairing`, `input`, `zones`, `align`, `features`, `matching`, `sparse`, `dense`, `sinks`; `to_toml`, `from_toml`, `load`, `from_stream` |
 | `Source`, `Zones`, `Align`/`AlignFrame`, `Features`, `Matching`, `Sparse`, `Pairing` | struct/enum | Plan sections |
 | `Dense`, `Fusion`, `Filter` | struct | Densification plan; `Dense::profile("fast").fusion_min_views(3)…`, `Dense::off()`, `apply`, `config` |

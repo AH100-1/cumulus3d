@@ -127,7 +127,7 @@ Each frame set you feed produces results split by stage, as events. Point clouds
 | When | Events |
 |---|---|
 | Start | `Started` |
-| Per position | `FrameIngested` → `FeaturesExtracted` (per image) → `PairsMatched` → `ModelInitialized` (for the first model) → `FrameRegistered` (per image) → `PositionDone` |
+| Per position | `FrameDecoded` (per camera image, before processing; with a frame hook) → `FrameIngested` → `FeaturesExtracted` (per image) → `PairsMatched` → `ModelInitialized` (for the first model) → `FrameRegistered` (per image) → `PositionDone` |
 | When a zone closes | `ZoneArrived` → `ZonePreview` (preview point cloud, no BA) |
 | Background refinement | `RefineStarted` → `ZoneAdjusted` → `ZoneRefinedPose` (pose statistics after BA and GPS alignment) → `ZoneRefined` (refined point cloud, replaces the preview of the same zone) |
 | Refined result adopted | `BaseAdopted` (registration continues on top of the refined model from then on) |
@@ -141,7 +141,7 @@ An edge client can keep its view up to date by handling just three cases: "add (
 ### 3. Pipeline and hooks (`pipeline`)
 
 - `Pipeline::new(reducer)` wraps a reducer and provides `push(input)` / `poll()` / `command(c)` / `finish()`.
-- Hooks: `.on(EventKind, |e| …)`, `.on_any(…)`, and the convenience methods `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
+- Hooks: `.on(EventKind, |e| …)`, `.on_any(…)`, and the convenience methods `.on_frame` (decoded input frames, delivered before the position is processed), `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
   `.on_position_done`, `.on_message`. To receive events over a channel, use `.subscribe() -> Receiver<Event>`.
 - Execution: asynchronous by default (a worker-thread queue per kind, order preserved within a kind), so slow hooks never block computation. With `.sync(true)` hooks run immediately on the same thread.
 - Queue policy `.policy(kind, …)`: `KeepAll` (default), `LatestPerKey` (drops older unprocessed events for the same zone — for refreshing a preview display), `LatestOnly`.
@@ -162,6 +162,31 @@ A single call, `sinks::attach(pipeline, out, &SinkOptions)`, attaches a set of h
 | `SnapshotSink` | `aligned/`, `snapshots/event_NN_*.ply`, `snapshots/manifest.json`, `final_frame/` |
 
 `cumulus3d stream` itself runs on this architecture: it assembles a session plus the default output hooks, calls `push` for every position, then calls `finish`.
+
+### Frame hook: per-frame input before processing
+
+`on_frame` hands each decoded input frame to a closure as soon as a position arrives, **before** feature extraction, matching and
+registration run, one camera image at a time. Hooks run on their own worker queue, so downstream consumers (for example an object
+detector) work on the frame while reconstruction proceeds. The pixel buffer is shared via `Arc` and is never copied between hooks.
+
+```rust
+use cumulus3d_cli::declare::{Recon, Sinks};
+
+Recon::declare()
+    .input("data")
+    .preset("aerial-formation")
+    .sinks(Sinks::none())
+    .on_frame(|f| {
+        // f.position, f.camera, f.name, f.path, f.width, f.height,
+        // f.rgb: Arc<[u8]> (RGB8, row-major), f.gps: Option<GpsRecord>
+        consume(f.position, &f.camera, f.width, f.height, &f.rgb);
+    })
+    .build()?
+    .run()?;
+```
+
+Frame decoding is off unless a frame hook is registered (`SessionConfig::decode_frames` when using `Pipeline` directly).
+Registration results for the same image follow later as `FrameRegistered` (camera pose `cam_from_world`).
 
 ### Library: pipeline + closure hooks
 

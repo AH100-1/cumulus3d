@@ -25,7 +25,8 @@
 //! - [`Event::Finished`] 의 단계 시간에는 후처리("post") 시간이 없다(후처리는 출력 훅이 한다).
 
 use crate::densewrap::{dense_model, DenseConfig};
-use crate::events::{Command, Event, Meta, ZoneRange};
+use crate::events::{Command, Event, Frame, Meta, ZoneRange};
+use rayon::prelude::*;
 use crate::util::StageTimes;
 use cumulus3d_align::{align_to_gps, EnuOrigin, ModelAlignerOptions};
 use cumulus3d_ba::{bundle_adjust, BaConfig};
@@ -99,6 +100,8 @@ pub struct SessionConfig {
     pub dense: Option<DenseConfig>,
     /// [`Command::ResetFrom`] 용으로 보관할 위치별 되감기 지점 수(0 = 되감기 불가, 메모리 절약).
     pub history: usize,
+    /// 입력 프레임을 RGB 로 디코딩해 처리 전에 [`Event::FrameDecoded`] 로 낸다(기본 꺼짐).
+    pub decode_frames: bool,
 }
 
 impl SessionConfig {
@@ -121,6 +124,7 @@ impl SessionConfig {
             matcher: Arc::new(cumulus3d_matching::CpuMatcher::default()),
             dense: None,
             history: 8,
+            decode_frames: false,
         }
     }
 }
@@ -157,6 +161,16 @@ impl crate::pipeline::Reducer for Session {
     type Input = Input;
     fn step(&mut self, input: Input) -> Vec<Event> {
         self.apply(input)
+    }
+    fn prelude(&mut self, input: &Input) -> Vec<Event> {
+        let Input::Frames(fs) = input else { return Vec::new() };
+        let sh = self.shared.clone();
+        let mut evs = Vec::new();
+        {
+            let mut out = Out { sh: &sh, fg: Some(&mut evs), guard: None };
+            self.announce(fs, &mut out);
+        }
+        evs
     }
     fn poll(&mut self) -> Vec<Event> {
         self.apply(Input::Poll)
@@ -471,6 +485,8 @@ pub struct Session {
     started: bool,
     finished: bool,
     failed: Option<String>,
+    /// 프레임을 이미 먼저 낸 위치(같은 묶음을 두 번 내지 않게).
+    announced: Option<usize>,
 }
 
 /// 다음 프레임 묶음을 처리한 새 상태와 이벤트.
@@ -521,6 +537,7 @@ impl Session {
             previews: Arc::new(BTreeMap::new()),
             checkpoints: VecDeque::new(),
             started: false,
+            announced: None,
             finished: false,
             failed: None,
         }
@@ -559,14 +576,12 @@ impl Session {
                     out.emit(|meta| Event::Warning { meta, message: "세션이 이미 끝남 — 입력 무시".into() });
                 }
             } else {
-                if !self.started && !matches!(input, Input::Poll) {
-                    self.started = true;
-                    *sh.start.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
-                    let positions = sh.cfg.total_positions;
-                    out.emit(|meta| Event::Started { meta, positions });
+                if !matches!(input, Input::Poll) {
+                    self.ensure_started(&mut out);
                 }
                 match input {
                     Input::Frames(fs) => {
+                        self.announce(&fs, &mut out);
                         if let Some(e) = &self.failed {
                             let message = format!("이전 오류로 중단된 세션 — 프레임 무시 ({e})");
                             out.emit(|meta| Event::Warning { meta, message });
@@ -660,6 +675,61 @@ impl Session {
     }
 
     // ------------------------------------------------------------ 처리
+
+    fn ensure_started(&mut self, out: &mut Out) {
+        if self.started {
+            return;
+        }
+        self.started = true;
+        *self.shared.start.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+        let positions = self.shared.cfg.total_positions;
+        out.emit(|meta| Event::Started { meta, positions });
+    }
+
+    /// 다음 위치의 프레임을 RGB 로 디코딩해 [`Event::FrameDecoded`] 로 낸다(위치당 한 번, 카메라 병렬).
+    fn announce(&mut self, fs: &FrameSet, out: &mut Out) {
+        let sh = self.shared.clone();
+        let p = self.frames.len();
+        if !sh.cfg.decode_frames || self.finished || self.failed.is_some() || self.announced == Some(p) {
+            return;
+        }
+        self.ensure_started(out);
+        self.announced = Some(p);
+        let decoded: Vec<Result<Frame, String>> = fs
+            .images
+            .par_iter()
+            .map(|im| {
+                let path = sh.cfg.image_root.join(&im.name);
+                let img = image::ImageReader::open(&path)
+                    .and_then(|r| r.with_guessed_format())
+                    .map_err(|e| format!("{}: {e}", path.display()))?
+                    .decode()
+                    .map_err(|e| format!("{}: 디코딩 실패: {e}", path.display()))?
+                    .into_rgb8();
+                let gps = fs.gps.iter().chain(self.gps.iter()).find(|g| g.name == im.name).cloned();
+                let (width, height) = img.dimensions();
+                Ok(Frame {
+                    position: p,
+                    camera: im.camera.clone(),
+                    name: im.name.clone(),
+                    path,
+                    width,
+                    height,
+                    rgb: Arc::from(img.into_raw()),
+                    gps,
+                })
+            })
+            .collect();
+        for d in decoded {
+            match d {
+                Ok(f) => {
+                    let frame = Arc::new(f);
+                    out.emit(|meta| Event::FrameDecoded { meta, frame });
+                }
+                Err(e) => out.emit(|meta| Event::Warning { meta, message: format!("[frame] {e}") }),
+            }
+        }
+    }
 
     fn process_frames(&mut self, fs: FrameSet, out: &mut Out) -> Result<(), String> {
         let sh = self.shared.clone();

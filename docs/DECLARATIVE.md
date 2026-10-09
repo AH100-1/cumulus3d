@@ -74,7 +74,7 @@ Each method consumes `self`, updates only the plan and returns it, so the pipeli
 | `plan()` | Read the plan recorded so far |
 
 **Hook functions** — closures are not serialisable, so they are kept in the builder's hook list rather than in the `Plan`:
-`on(EventKind, f)`, `on_any(f)`, `on_zone_preview(f)`, `on_zone_refined(f)`, `on_snapshot(f)`, `on_position_done(f)`, `on_message(f)`, `policy(kind, QueuePolicy)`.
+`on(EventKind, f)`, `on_any(f)`, `on_frame(f)`, `on_zone_preview(f)`, `on_zone_refined(f)`, `on_snapshot(f)`, `on_position_done(f)`, `on_message(f)`, `policy(kind, QueuePolicy)`.
 
 ### Densification settings `Dense` (chainable)
 

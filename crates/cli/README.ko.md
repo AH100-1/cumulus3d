@@ -98,7 +98,7 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `session::command` | `ResetFrom(위치)` 되감기 / `InvalidateZone(k)` 구역 재생성 | `(&Session, Command)` → `(Session, Vec<Event>)` |
 | `session::finish` | 남은 구역 닫기 → 배경 작업 대기 → 요약 | `&Session` → `(Session, Vec<Event>)` |
 | `pipeline::Pipeline::new` | 리듀서를 감싸 훅·큐·패닉 격리 제공 | `R: Reducer`(예: `Session`) → `Pipeline<R>` |
-| `Pipeline::on` / `on_any` / `on_zone_preview` / `on_zone_refined` | 람다 훅 등록 | 이벤트 종류 + 클로저 → `Pipeline` |
+| `Pipeline::on` / `on_any` / `on_frame` / `on_zone_preview` / `on_zone_refined` | 람다 훅 등록 | 이벤트 종류 + 클로저 → `Pipeline` |
 | `Pipeline::push` / `finish` | 입력 넣기 / 끝내고 요약 받기 | `Input` → 낸 이벤트 수 / → `(R, Summary)` |
 | `Pipeline::subscribe` | 모든 이벤트를 받는 채널 | → `Receiver<Event>` |
 | `events::Event` | 단계별 결과(`ZonePreview`, `ZoneRefined`, `FrameRegistered` …) | — |
@@ -141,7 +141,7 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `Summary` | struct | 실행 요약(이벤트 수, 종류별 수, 훅 호출·패닉 수, 버린 이벤트 수) |
 | `Pipeline` | struct | 리듀서 + 훅 실행기(비동기 레인 또는 동기) |
 | `Pipeline::new` / `sync` / `policy` | fn | 생성 / 동기 모드 / 종류별 큐 정책 |
-| `Pipeline::on` / `on_any` / `on_zone_preview` / `on_zone_refined` / `on_snapshot` / `on_position_done` / `on_message` | fn | 훅 등록 |
+| `Pipeline::on` / `on_any` / `on_frame` / `on_zone_preview` / `on_zone_refined` / `on_snapshot` / `on_position_done` / `on_message` | fn | 훅 등록 |
 | `Pipeline::subscribe` | fn | 모든 이벤트(훅 패닉 오류 포함) 수신 채널 |
 | `Pipeline::push` / `poll` / `command` / `flush` | fn | 입력 / 배경 결과 수거 / 명령 / 훅 큐 비우기 |
 | `Pipeline::reducer` / `reducer_mut` / `finish` | fn | 리듀서 참조 / 가변 참조 / 종료 후 `(R, Summary)` |
@@ -198,7 +198,7 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | 항목 | 종류 | 역할 |
 |---|---|---|
 | `Recon` | struct | 검사를 마친 실행 가능한 재구성: `declare()`, `from_plan(plan)`, `plan()`, `positions()`, `layout()`, `run() -> Result<Summary, String>` |
-| `ReconBuilder` | struct | 계획만 기록. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; 훅 `on`, `on_any`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
+| `ReconBuilder` | struct | 계획만 기록. `input`, `images`, `cameras`, `preset`, `stride`, `positions`, `pairing`, `zones`, `gps`, `no_gps`, `align`, `fixed_enu_origin`, `features`, `match_backend`, `gpu`, `incremental_triangulation`, `dense`, `no_dense`, `sinks`, `seed`, `threads`; 훅 `on`, `on_any`, `on_frame`, `on_zone_preview`, `on_zone_refined`, `on_snapshot`, `on_position_done`, `on_message`, `policy`; `plan()`, `build() -> Result<Recon, PlanError>` |
 | `Plan` | struct | 계획 값(Clone/PartialEq/Debug, serde): `seed`, `threads`, `gps`, `pairing`, `input`, `zones`, `align`, `features`, `matching`, `sparse`, `dense`, `sinks`; `to_toml`, `from_toml`, `load`, `from_stream` |
 | `Source`, `Zones`, `Align`/`AlignFrame`, `Features`, `Matching`, `Sparse`, `Pairing` | struct/enum | 계획 항목 |
 | `Dense`, `Fusion`, `Filter` | struct | 조밀화 계획; `Dense::profile("fast").fusion_min_views(3)…`, `Dense::off()`, `apply`, `config` |

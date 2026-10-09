@@ -16,6 +16,10 @@ The date of each version is the actual work/commit date.
     `.incremental_triangulation`, `.dense(Dense::profile("fast").fusion_min_views(3)…)`, `.no_dense`, `.sinks(Sinks::default_files(out))`,
     `.seed`, `.threads`, hooks `.on(EventKind, closure)`, `.on_any`, `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
     `.on_position_done`, `.on_message`, `.policy` (hooks are kept in the builder, not in the plan).
+- Frame hook: `on_frame(|frame: &Arc<Frame>| …)` on `Pipeline` and `ReconBuilder` delivers each decoded input frame (RGB8, size,
+  camera, path, GPS record) **before** the position is processed, one camera image at a time. New event `Event::FrameDecoded`,
+  `Reducer::prelude` (events dispatched before `step`), `SessionConfig::decode_frames` (off by default; the builder turns it on
+  when a frame hook is registered).
   - `ReconBuilder::build() -> Result<Recon, PlanError>`: checks input and camera folders, selected position count, GPS file when ENU
     alignment is requested, backend names and CUDA device availability (including densification), output folder writability, and option
     ranges. All problems are collected and reported at once.

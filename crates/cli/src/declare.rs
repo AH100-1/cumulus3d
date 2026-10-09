@@ -42,7 +42,7 @@
 //! 계획 파일의 상대 경로는 실행 위치(현재 폴더) 기준이다.
 
 use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, parse_profile, DenseConfig};
-use crate::events::{EventKind, ZoneRange};
+use crate::events::{EventKind, Frame, ZoneRange};
 use crate::pipeline::{Pipeline, QueuePolicy, Summary};
 use crate::session::{zones_upto, Input, Session, SessionConfig};
 use crate::sinks::{DefaultSinks, SinkSet};
@@ -641,6 +641,7 @@ pub struct ReconBuilder {
     plan: Plan,
     attach: Vec<Attach>,
     pending: Vec<Problem>,
+    frames: bool,
 }
 
 impl fmt::Debug for ReconBuilder {
@@ -799,11 +800,23 @@ impl ReconBuilder {
     }
 
     /// 특정 종류 훅([`Pipeline::on`]).
-    pub fn on<F>(self, kind: EventKind, f: F) -> Self
+    /// `EventKind::FrameDecoded` 를 고르면 프레임 디코딩이 켜진다.
+    pub fn on<F>(mut self, kind: EventKind, f: F) -> Self
     where
         F: FnMut(&crate::events::Event) + Send + 'static,
     {
+        self.frames |= kind == EventKind::FrameDecoded;
         self.hook(move |p| p.on(kind, f))
+    }
+
+    /// 프레임 훅([`Pipeline::on_frame`]): 디코딩된 입력 프레임(RGB)을 카메라 한 장씩, 위치 처리 전에 받는다.
+    /// 등록하면 프레임 디코딩이 켜진다.
+    pub fn on_frame<F>(mut self, f: F) -> Self
+    where
+        F: FnMut(&Arc<Frame>) + Send + 'static,
+    {
+        self.frames = true;
+        self.hook(move |p| p.on_frame(f))
     }
 
     /// 모든 이벤트 훅([`Pipeline::on_any`]).
@@ -864,7 +877,7 @@ impl ReconBuilder {
     /// 검사: 입력·카메라 폴더 존재, 선택된 위치 수, 정렬과 GPS 파일, 백엔드 이름과 장치(CUDA 요청 시),
     /// 출력 폴더 쓰기 가능, 옵션 값 범위. 문제는 모두 모아 [`PlanError`] 로 한 번에 돌려준다.
     pub fn build(self) -> Result<Recon, PlanError> {
-        let ReconBuilder { plan, attach, pending } = self;
+        let ReconBuilder { plan, attach, pending, frames } = self;
         let mut pr = Problems(pending);
         let (layout, gps) = check(&plan, &mut pr);
         if !pr.0.is_empty() {
@@ -873,7 +886,7 @@ impl ReconBuilder {
         let (Some(layout), Some(gps)) = (layout, gps) else {
             unreachable!("문제가 없으면 입력과 GPS 를 읽었다");
         };
-        Ok(Recon { plan, attach, layout, gps })
+        Ok(Recon { plan, attach, layout, gps, frames })
     }
 }
 
@@ -1054,6 +1067,7 @@ pub struct Recon {
     attach: Vec<Attach>,
     layout: Layout,
     gps: Vec<GpsRecord>,
+    frames: bool,
 }
 
 impl fmt::Debug for Recon {
@@ -1070,7 +1084,7 @@ impl Recon {
 
     /// 주어진 계획으로 기록을 시작한다(TOML 에서 읽은 계획 등).
     pub fn from_plan(plan: Plan) -> ReconBuilder {
-        ReconBuilder { plan, attach: Vec::new(), pending: Vec::new() }
+        ReconBuilder { plan, attach: Vec::new(), pending: Vec::new(), frames: false }
     }
 
     /// 계획.
@@ -1091,7 +1105,7 @@ impl Recon {
     /// 실행: 출력 폴더 준비 → 세션 + 파이프라인 + 기본 출력 훅 + 사용자 훅 → 위치 반복 → 배경 작업 대기·종료.
     /// 치명 오류(세션 실패)면 후처리 없이 그 오류를 돌려준다.
     pub fn run(self) -> Result<Summary, String> {
-        let Recon { plan, attach, layout, gps } = self;
+        let Recon { plan, attach, layout, gps, frames } = self;
         if plan.threads > 0 {
             // 이미 만들어졌으면(테스트 등) 무시.
             let _ = rayon::ThreadPoolBuilder::new().num_threads(plan.threads).build_global();
@@ -1124,6 +1138,7 @@ impl Recon {
         sc.dense = dense;
         // 되감지 않는다(메모리 절약).
         sc.history = 0;
+        sc.decode_frames = frames;
 
         let mut pl = Pipeline::new(Session::new(sc));
         if let Some(sinks) = sinks {

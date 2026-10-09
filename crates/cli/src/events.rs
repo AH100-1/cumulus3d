@@ -26,6 +26,27 @@ pub struct ZoneRange {
     pub hi: usize,
 }
 
+/// 디코딩된 입력 프레임(카메라 한 장). 처리(특징·매칭·등록) 전에 [`Event::FrameDecoded`] 로 먼저 전달된다.
+#[derive(Clone, Debug)]
+pub struct Frame {
+    /// 위치 번호.
+    pub position: usize,
+    /// 카메라 이름(예: `camF`).
+    pub camera: String,
+    /// 영상 이름(`image_root` 기준 상대 경로).
+    pub name: String,
+    /// 영상 파일 경로.
+    pub path: std::path::PathBuf,
+    /// 가로 화소 수.
+    pub width: u32,
+    /// 세로 화소 수.
+    pub height: u32,
+    /// RGB8 화소(행 우선, 길이 `width * height * 3`). 훅 사이에서 복사 없이 공유된다.
+    pub rgb: Arc<[u8]>,
+    /// 이 영상의 GPS 기록(있으면).
+    pub gps: Option<cumulus3d_core::io::GpsRecord>,
+}
+
 /// 파이프라인 이벤트(단계별 결과). 모든 변형에 [`Meta`] 가 붙는다.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -37,6 +58,13 @@ pub enum Event {
         position: usize,
         /// 이 위치의 영상 이름들.
         images: Vec<String>,
+    },
+    /// 입력 프레임 한 장 디코딩 완료. 위치 처리 전에 먼저 나온다(`SessionConfig::decode_frames` 가 켜졌을 때만).
+    FrameDecoded {
+        /// 공통 머리말.
+        meta: Meta,
+        /// 디코딩된 프레임.
+        frame: Arc<Frame>,
     },
     /// 세션 시작(첫 입력 때 한 번). `positions` = 알려진 전체 위치 수. (session 추가)
     Started {
@@ -272,6 +300,8 @@ pub enum Event {
 pub enum EventKind {
     /// [`Event::FrameIngested`].
     FrameIngested,
+    /// [`Event::FrameDecoded`].
+    FrameDecoded,
     /// [`Event::Started`].
     Started,
     /// [`Event::Log`].
@@ -326,6 +356,7 @@ impl Event {
         use Event::*;
         match self {
             FrameIngested { .. } => EventKind::FrameIngested,
+            FrameDecoded { .. } => EventKind::FrameDecoded,
             Started { .. } => EventKind::Started,
             Log { .. } => EventKind::Log,
             RefineStarted { .. } => EventKind::RefineStarted,
@@ -359,7 +390,7 @@ impl Event {
             | FrameRegistered { meta, .. } | PositionDone { meta, .. } | ZoneArrived { meta, .. } | ZonePreview { meta, .. }
             | ZoneRefinedPose { meta, .. } | ZoneRefined { meta, .. } | BaseAdopted { meta, .. } | Reanchored { meta, .. }
             | Snapshot { meta, .. } | AllPositionsDone { meta } | AllRefinedDone { meta, .. }
-            | Started { meta, .. } | Log { meta, .. } | RefineStarted { meta, .. } | ZoneAdjusted { meta, .. } | Finished { meta, .. }
+            | FrameDecoded { meta, .. } | Started { meta, .. } | Log { meta, .. } | RefineStarted { meta, .. } | ZoneAdjusted { meta, .. } | Finished { meta, .. }
             | Reset { meta, .. } | ZoneInvalidated { meta, .. } | Warning { meta, .. } | Error { meta, .. } => meta,
         }
     }

@@ -123,7 +123,7 @@ target/release/cumulus3d run plan.toml                      # 검사 후 실행
 | 시점 | 이벤트 |
 |---|---|
 | 시작 | `Started` |
-| 위치마다 | `FrameIngested` → `FeaturesExtracted`(영상마다) → `PairsMatched` → `ModelInitialized`(첫 모델일 때) → `FrameRegistered`(영상마다) → `PositionDone` |
+| 위치마다 | `FrameDecoded`(카메라 영상마다, 처리 전; 프레임 훅이 있을 때) → `FrameIngested` → `FeaturesExtracted`(영상마다) → `PairsMatched` → `ModelInitialized`(첫 모델일 때) → `FrameRegistered`(영상마다) → `PositionDone` |
 | 구역이 닫힐 때 | `ZoneArrived` → `ZonePreview`(초벌 점군, BA 없음) |
 | 배경 정밀 작업 | `RefineStarted` → `ZoneAdjusted` → `ZoneRefinedPose`(BA·GPS 정렬 후 자세 통계) → `ZoneRefined`(정밀 점군, 같은 구역 초벌을 대체) |
 | 정밀본 채택 | `BaseAdopted`(다음 등록부터 정밀 모델 위에서 이어 감) |
@@ -137,7 +137,7 @@ target/release/cumulus3d run plan.toml                      # 검사 후 실행
 ### 3. 파이프라인과 훅 (`pipeline`)
 
 - `Pipeline::new(reducer)` 가 리듀서를 감싸 `push(input)` / `poll()` / `command(c)` / `finish()` 를 제공한다.
-- 훅: `.on(EventKind, |e| …)`, `.on_any(…)`, 편의 메서드 `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
+- 훅: `.on(EventKind, |e| …)`, `.on_any(…)`, 편의 메서드 `.on_frame`(디코딩된 입력 프레임, 위치 처리 전에 전달), `.on_zone_preview`, `.on_zone_refined`, `.on_snapshot`,
   `.on_position_done`, `.on_message`. 채널로 받으려면 `.subscribe() -> Receiver<Event>`.
 - 실행: 기본은 비동기(종류별 작업 스레드 큐, 종류 안 순서 보존)라 느린 훅이 계산을 막지 않는다. `.sync(true)` 면 같은 스레드에서 즉시 실행.
 - 큐 정책 `.policy(kind, …)`: `KeepAll`(기본), `LatestPerKey`(같은 구역의 처리 전 이전 이벤트 버림 — 초벌 화면 갱신용), `LatestOnly`.
@@ -158,6 +158,31 @@ target/release/cumulus3d run plan.toml                      # 검사 후 실행
 | `SnapshotSink` | `aligned/`, `snapshots/event_NN_*.ply`, `snapshots/manifest.json`, `final_frame/` |
 
 `cumulus3d stream` 자체도 이 구조 위에서 돈다: 세션 + 기본 출력 훅을 조립하고 위치마다 `push` 한 뒤 `finish` 한다.
+
+### 프레임 훅: 처리 전 프레임 단위 입력
+
+`on_frame` 은 위치가 들어오는 즉시, 특징 추출·매칭·등록이 돌기 **전에** 디코딩된 입력 프레임을 카메라 한 장씩 클로저에 넘긴다.
+훅은 별도 작업 큐에서 실행되므로, 후속 소비자(예: 객체 검출기)는 재구성이 진행되는 동안 프레임을 처리한다.
+화소 버퍼는 `Arc` 로 공유되어 훅 사이에서 복사되지 않는다.
+
+```rust
+use cumulus3d_cli::declare::{Recon, Sinks};
+
+Recon::declare()
+    .input("data")
+    .preset("aerial-formation")
+    .sinks(Sinks::none())
+    .on_frame(|f| {
+        // f.position, f.camera, f.name, f.path, f.width, f.height,
+        // f.rgb: Arc<[u8]>(RGB8, 행 우선), f.gps: Option<GpsRecord>
+        consume(f.position, &f.camera, f.width, f.height, &f.rgb);
+    })
+    .build()?
+    .run()?;
+```
+
+프레임 디코딩은 프레임 훅을 등록했을 때만 켜진다(`Pipeline` 을 직접 쓰면 `SessionConfig::decode_frames`).
+같은 영상의 등록 결과는 이후 `FrameRegistered`(카메라 자세 `cam_from_world`)로 이어서 온다.
 
 ### 라이브러리: 파이프라인 + 람다 훅
 

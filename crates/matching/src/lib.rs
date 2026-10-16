@@ -31,6 +31,7 @@
 //!   in via [`MatcherBackend`].
 //! - [`estimators`], [`essential`]: 5-point E, 7/8-point F, DLT H, translation solver and residuals (core RANSAC estimators).
 //! - [`two_view`]: E/F/H LO-RANSAC, configuration decision, watermark.
+//! - [`batched`]: batched pair verification backend ([`TwoViewBackend`]) and batched hypothesis scoring (for GPU swap-in).
 //! - [`pose`]: E/H decomposition, midpoint triangulation cheirality, relative pose (shared with sfm).
 //! - [`pairs`], [`pipeline`]: pair list file and FeatureStore writes.
 //!
@@ -74,6 +75,7 @@
 
 #![warn(missing_docs)]
 
+pub mod batched;
 pub mod descriptor;
 pub mod essential;
 pub mod estimators;
@@ -84,6 +86,7 @@ pub mod poly;
 pub mod pose;
 pub mod two_view;
 
+pub use batched::{verify_pairs_batched, BatchScorer, CpuBatchScorer, CpuTwoView, ResidualSet, ScoreRequest, TwoViewBackend, VerifyJob};
 pub use descriptor::{AcceptRule, CpuMatcher, DescriptorMatchOptions, MatcherBackend, Top2};
 pub use essential::{essential_eight_point, essential_five_point};
 pub use estimators::{
@@ -91,7 +94,7 @@ pub use estimators::{
     EssentialFivePointEstimator, Fundamental7PtEstimator, FundamentalEightPointEstimator, HomographyEstimator, TranslationEstimator,
 };
 pub use pairs::{parse_pair_list, read_pair_list, PairList};
-pub use pipeline::{match_pair_list_file, match_pairs, verify_pair, MatchingStats, PairMatchingOptions};
+pub use pipeline::{match_pair_list_file, match_pairs, match_pairs_with, verify_pair, MatchingStats, PairMatchingOptions};
 pub use pose::{
     decompose_essential, decompose_homography, pose_from_essential, pose_from_homography, recover_two_view_pose,
     refit_and_estimate_relative_pose, triangulate_midpoint,

@@ -70,7 +70,10 @@
 //! Relative paths in a plan file are relative to the working location (current folder).
 
 use crate::blocks::LiveStream;
-use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, make_undistort_backend, parse_profile, DenseConfig};
+use crate::densewrap::{
+    make_ba_backend, make_match_backend, make_pm_backend, make_sift_backend, make_sparse_backend, make_undistort_backend, parse_profile,
+    DenseConfig,
+};
 use crate::events::{EventKind, Frame, ZoneRange};
 use crate::intrinsics::IntrinsicsPrior;
 use crate::pipeline::{Pipeline, QueuePolicy, Summary};
@@ -255,6 +258,10 @@ impl Default for Matching {
 pub struct Sparse {
     /// Triangulate only newly registered images (an improvement that can change the result).
     pub incremental_triangulation: bool,
+    /// Two-view geometric verification, registration and triangulation backend (cpu|cuda).
+    pub backend: String,
+    /// Bundle adjustment backend (cpu|cuda). cuda falls back to the CPU with a warning if it fails at run time.
+    pub ba_backend: String,
     /// Stable display (see [`SessionConfig::stable_display`]).
     pub stable_display: bool,
     /// Stable display: settle tolerance (see [`SessionConfig::settle_tol`]).
@@ -274,6 +281,8 @@ impl Default for Sparse {
     fn default() -> Self {
         Self {
             incremental_triangulation: false,
+            backend: "cpu".into(),
+            ba_backend: "cpu".into(),
             stable_display: false,
             settle_tol: 0.01,
             settle_max_zone: 3,
@@ -801,6 +810,7 @@ impl Plan {
                 intrinsics_prior: c.intrinsics_prior.clone(),
                 intrinsics_prior_sigma: c.intrinsics_prior_sigma,
                 intrinsics_prior_dist_sigma: c.intrinsics_prior_dist_sigma,
+                ..Default::default()
             },
             dense: Dense {
                 enabled: !c.no_dense,
@@ -995,11 +1005,13 @@ impl ReconBuilder {
         self
     }
 
-    /// Set the SIFT, matching and PatchMatch backends all to cuda.
+    /// Set the SIFT, matching, sparse-stage, PatchMatch, undistortion and bundle adjustment backends all to cuda.
     pub fn gpu(mut self) -> Self {
         self.plan.features.backend = "cuda".into();
         self.plan.matching.backend = "cuda".into();
+        self.plan.sparse.backend = "cuda".into();
         self.plan.dense.backend = "cuda".into();
+        self.plan.sparse.ba_backend = "cuda".into();
         self.plan.dense.undistort_backend = "cuda".into();
         self
     }
@@ -1213,6 +1225,8 @@ fn check(plan: &Plan, pr: &mut Problems) -> (Option<Layout>, Option<Vec<GpsRecor
     pr.check(f.max_num_features >= 1, "features.max_num_features", || "1 이상이어야 함".into());
     pr.check(f.max_image_size >= 16, "features.max_image_size", || "16 이상이어야 함".into());
     backend_ok(pr, "matching.backend", &plan.matching.backend, &["cpu", "cuda"]);
+    backend_ok(pr, "sparse.backend", &plan.sparse.backend, &["cpu", "cuda"]);
+    backend_ok(pr, "sparse.ba_backend", &plan.sparse.ba_backend, &["cpu", "cuda"]);
     backend_ok(pr, "dense.undistort_backend", &plan.dense.undistort_backend, &["cpu", "cuda"]);
 
     let d = &plan.dense;
@@ -1451,6 +1465,8 @@ impl Recon {
         sc.extraction.reader.max_image_size = plan.features.max_image_size;
         sc.sift = make_sift_backend(&plan.features.backend)?;
         sc.matcher = Arc::from(make_match_backend(&plan.matching.backend)?);
+        sc.sparse = make_sparse_backend(&plan.sparse.backend)?;
+        sc.ba_backend = make_ba_backend(&plan.sparse.ba_backend)?;
         sc.dense = dense;
         // Do not rewind (saves memory).
         sc.history = 0;
@@ -1480,7 +1496,7 @@ impl Recon {
         )));
         let d = &plan.dense;
         pl.push(Input::Log(format!(
-            "설정: span {span} overlap {ovl} stride {} 증분삼각측량 {} 깊이캐시 {} 고정원점 {} pm {}({})/sift {}/match {} 직렬조밀화 {} 왜곡보정최대 {} 뷰 {} 스레드 {}",
+            "설정: span {span} overlap {ovl} stride {} 증분삼각측량 {} 깊이캐시 {} 고정원점 {} pm {}({})/sift {}/match {}/ba {} 직렬조밀화 {} 왜곡보정최대 {} 뷰 {} 스레드 {}",
             plan.input.stride,
             plan.sparse.incremental_triangulation,
             d.depth_cache,
@@ -1489,6 +1505,7 @@ impl Recon {
             d.profile,
             plan.features.backend,
             plan.matching.backend,
+            plan.sparse.ba_backend,
             d.serialize,
             d.max_image_size,
             d.views,

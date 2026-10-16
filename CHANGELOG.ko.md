@@ -8,6 +8,20 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### Added
+- `cumulus3d-cuda` 의 SIFT 전 과정을 GPU 에서 수행(`CudaSift`): DoG, 부분화소 보정·엣지·대비 억제 극값 검출, 다중 방향 할당, 상위 K·공간 격자 선택, 128차원 기술자(L1-root/L2, 0.2 절단, x512)를 커널로 처리하고 최종 특징·기술자·레벨별 개수만 내려받는다. CUDA 가 실패하면 경고 후 `CpuSift` 로 계산한다. SkyLens 팀의 기여.
+- CUDA 번들 조정: `cumulus3d_ba::BaBackend` 트레이트, `CpuBaBackend`(기본), `bundle_adjust_with`; `cumulus3d_cuda::CudaBundleAdjuster`(`kernels/ba.cu`: 잔차·야코비안·견고 손실·정규방정식·Schur 축소·축소 계통 풀이·점 역대입을 f64 로, LM 루프는 CPU). 계획 키 `[sparse] ba_backend = "cpu" | "cuda"`, 세션의 구역 BA 와 전역 매퍼가 사용한다. CUDA 실패 시 CPU 로 다시 푼다. GPS 위치 사전항이나 내부값 사전항이 있는 문제는 GPU 풀이에 사전항이 없어 항상 CPU 로 푼다.
+- CUDA 희소 단계: `TwoViewBackend`(matching), `AbsPoseBackend`·`TriangulationBackend`(sfm, 기본 CPU), `core::ransac::BatchedRansac`, `cumulus3d_cuda::CudaSparse`(`kernels/sparse.cu`)가 E/F/H·P3P 가설을 묶어 채점하고 트랙별 RANSAC 삼각측량을 GPU 에서 한다. 계획 키 `[sparse] backend = "cpu" | "cuda"`, `gpu()` 가 켠다(`sparse.ba_backend` 도).
+- `CudaDevice::new_high_priority`, 고정 메모리 스테이징과 늘기만 하는 장치 버퍼, `device::SyncedCopy`(장치에서 내려받는 모든 복사가 스트림을 먼저 기다려, 긴 커널이 다른 스레드의 드라이버 호출을 막지 않음), `examples/bench_contention.rs`.
+- `SessionConfig::ba_backend`, `SessionConfig::sparse`(`SparseBackends`); 계획의 `Sparse::backend`, `Sparse::ba_backend`.
+
+### Changed
+- `CudaSift` 는 더 이상 `CpuSift` 와 비트 단위로 같지 않다: 식·매개변수·좌표 규칙·출력 순서는 같지만 합산 순서와 초월함수 구현이 다르다(같은 품질, 실행마다 같은 결과). 비트 동일 시험 `tests/sift_gpu.rs` 는 `crates/cuda/src/sift.rs` 의 CPU 동등성·회전 사본 매칭 시험으로 대체했다.
+- `ReconBuilder::gpu()` / `NodeBuilder::gpu()` 가 CUDA 희소 단계·번들 조정 백엔드(와 CUDA 왜곡 보정)도 고른다.
+- `_with` 변형 추가: `match_pairs_with`, `register_images_with`, `triangulate_points_with`; `GlobalSfmOptions::ba_backend`.
+
+### Breaking
+- `declare::Sparse`, `SessionConfig`, `GlobalSfmOptions` 에 공개 필드가 늘었다(`..Default::default()` 없는 구조체 리터럴은 컴파일되지 않는다).
 
 ## [0.6.0] — 2026-10-16
 ### Added

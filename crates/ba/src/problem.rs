@@ -50,30 +50,46 @@ const CHUNK: usize = 8192;
 const MAX_CAM_DIM: usize = 16;
 
 /// Problem input (built from the reconstruction by lib.rs). Observations must be sorted in point order.
-pub(crate) struct ProblemInput {
+///
+/// Every [`crate::BaBackend`] implementation (CPU, CUDA) receives the same input.
+#[derive(Clone, Debug)]
+pub struct ProblemInput {
+    /// Frame (world_to_rig) poses. Quaternions are normalized.
     pub poses: Vec<Rigid3>,
+    /// 자세 고정 여부.
     pub pose_const: Vec<bool>,
     /// true = that tangent-space component is constant (rotation 0..3, translation 3..6).
     pub pose_mask: Vec<[bool; 6]>,
+    /// 카메라(내부 파라미터).
     pub cams: Vec<Camera>,
     /// Indices of parameters to refine (empty = constant camera).
     pub cam_var: Vec<Vec<usize>>,
+    /// 영상별 자세 순번.
     pub img_pose: Vec<u32>,
+    /// 영상별 카메라 순번.
     pub img_cam: Vec<u32>,
     /// rig_to_sensor if not the reference sensor.
     pub img_sensor: Vec<Option<Rigid3>>,
+    /// 3D 점.
     pub points: Vec<Vec3>,
+    /// 점 고정 여부.
     pub point_const: Vec<bool>,
+    /// 관측별 영상 순번.
     pub obs_img: Vec<u32>,
+    /// 관측별 점 순번(오름차순).
     pub obs_pt: Vec<u32>,
+    /// 관측 픽셀 좌표.
     pub obs_xy: Vec<Vec2>,
     /// Camera position priors: (pose index, target center, σ).
     pub pose_priors: Vec<(usize, Vec3, f64)>,
     /// Intrinsics priors: (camera index, parameter slot in the camera's parameter vector, target value, 1/σ).
     /// Only slots listed in `cam_var` of that camera take part.
     pub cam_priors: Vec<(usize, usize, f64, f64)>,
+    /// Robust loss.
     pub loss: Loss,
+    /// 축소 계통 풀이기(CPU 기준 선택).
     pub solver: LinearSolverType,
+    /// 반복 풀이기 최대 반복.
     pub max_linear_solver_iterations: usize,
 }
 
@@ -157,7 +173,7 @@ pub(crate) struct BaProblem {
 }
 
 /// ⊞ of the library quaternion manifold: Exp_q(δ) ⊗ q.
-pub(crate) fn quat_plus(q: &Quat, d: &[f64]) -> Quat {
+pub fn quat_plus(q: &Quat, d: &[f64]) -> Quat {
     let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     if n == 0.0 {
         return *q;
@@ -438,9 +454,6 @@ impl BaProblem {
 
     pub fn num_obs(&self) -> usize {
         self.obs_img.len()
-    }
-    pub fn num_var_points(&self) -> usize {
-        self.v_pt.len()
     }
 
     /// (Corrected) residual and ρ of observation k. If `jac` is given, fills the Jacobian with correction and scaling applied.

@@ -64,15 +64,16 @@ use crate::post::fit_shared_points;
 use crate::util::StageTimes;
 use cumulus3d_align::shared::NameFilter;
 use cumulus3d_align::{align_to_gps, EnuOrigin, ModelAlignerOptions};
-use cumulus3d_ba::{bundle_adjust, BaConfig};
+use cumulus3d_ba::{bundle_adjust_with, BaBackend, BaBackendRef, BaConfig};
 use cumulus3d_core::analyzer::ModelStats;
 use cumulus3d_core::io::ply::PointCloud;
 use cumulus3d_core::io::GpsRecord;
 use cumulus3d_core::{Camera, CameraId, FeatureStore, ImageId, MatchGraph, MatchGraphOptions, Reconstruction, Rigid3};
 use cumulus3d_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
-use cumulus3d_matching::{match_pairs, MatcherBackend, PairMatchingOptions};
+use cumulus3d_matching::{match_pairs_with, MatcherBackend, PairMatchingOptions, TwoViewBackend};
 use cumulus3d_sfm::{
-    global_mapper, register_images, triangulate_points, GlobalSfmOptions, PointTriangulatorOptions, RegistrationOptions, TriangulationScope,
+    global_mapper, register_images_with, triangulate_points_with, AbsPoseBackend, GlobalSfmOptions, PointTriangulatorOptions,
+    RegistrationOptions, TriangulationBackend, TriangulationScope,
 };
 use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -106,6 +107,27 @@ impl FrameSet {
     }
 }
 
+/// Backends of the sparse stages that run per position. All CPU by default.
+#[derive(Clone)]
+pub struct SparseBackends {
+    /// Two-view geometric verification.
+    pub two_view: Arc<dyn TwoViewBackend>,
+    /// Absolute pose RANSAC of registration.
+    pub abs_pose: Arc<dyn AbsPoseBackend>,
+    /// Triangulation (creation RANSAC, depth and reprojection checks).
+    pub triangulation: Arc<dyn TriangulationBackend>,
+}
+
+impl Default for SparseBackends {
+    fn default() -> Self {
+        Self {
+            two_view: Arc::new(cumulus3d_matching::CpuTwoView),
+            abs_pose: Arc::new(cumulus3d_sfm::CpuAbsPose),
+            triangulation: Arc::new(cumulus3d_sfm::CpuTriangulation),
+        }
+    }
+}
+
 /// Session settings.
 #[derive(Clone)]
 pub struct SessionConfig {
@@ -131,6 +153,10 @@ pub struct SessionConfig {
     pub sift: Arc<dyn SiftEngine>,
     /// Descriptor matching backend.
     pub matcher: Arc<dyn MatcherBackend>,
+    /// Bundle adjustment backend (zone refinement BA, BA of the first model's global mapper).
+    pub ba_backend: Arc<dyn BaBackend>,
+    /// Sparse-stage backends (geometric verification, registration, triangulation).
+    pub sparse: SparseBackends,
     /// Densification settings (None = skip densification, point-cloud events carry `dense: false`).
     pub dense: Option<DenseConfig>,
     /// Number of per-position rewind points kept for [`Command::ResetFrom`] (0 = no rewind, saves memory).
@@ -174,6 +200,8 @@ impl SessionConfig {
             extraction,
             sift: Arc::new(cumulus3d_features::CpuSift::default()),
             matcher: Arc::new(cumulus3d_matching::CpuMatcher::default()),
+            ba_backend: Arc::new(cumulus3d_ba::CpuBaBackend),
+            sparse: SparseBackends::default(),
             dense: None,
             history: 8,
             decode_frames: false,
@@ -638,7 +666,7 @@ impl Shared {
             }
         }
         let t0 = Instant::now();
-        let r = bundle_adjust(&mut rec, &ba);
+        let r = bundle_adjust_with(&mut rec, &ba, &*sh.cfg.ba_backend);
         out.stage("ba", &format!("refined {k}"), t0);
         match r {
             Ok(s) => out.log(format!(
@@ -1088,7 +1116,7 @@ impl Session {
         let mut mopts = PairMatchingOptions::default();
         mopts.geometry.ransac.random_seed = cfg.seed;
         let t0 = Instant::now();
-        let st = match_pairs(&self.store, &pairs, &mopts, cfg.matcher.as_ref());
+        let st = match_pairs_with(&self.store, &pairs, &mopts, cfg.matcher.as_ref(), cfg.sparse.two_view.as_ref());
         out.stage("matching", &format!("pos {p} ({} pairs)", pairs.len()), t0);
         let st = st.map_err(|e| e.to_string())?;
         Arc::make_mut(&mut self.graph).update_from_store(&self.store, &MatchGraphOptions::default());
@@ -1110,7 +1138,8 @@ impl Session {
         }
         if p + 1 == span + ovl {
             let t0 = Instant::now();
-            let o = global_mapper(&self.store, &self.graph, &GlobalSfmOptions::script());
+            let gopts = GlobalSfmOptions { ba_backend: BaBackendRef::new(cfg.ba_backend.clone()), ..GlobalSfmOptions::script() };
+            let o = global_mapper(&self.store, &self.graph, &gopts);
             out.stage("mapper", &format!("pos {p}"), t0);
             let o = o.map_err(|e| e.to_string())?;
             if let Some(f) = &o.failure {
@@ -1138,7 +1167,8 @@ impl Session {
             if let Some(base) = &self.chain {
                 let mut reg = base.clone();
                 let t0 = Instant::now();
-                let rr = register_images(&mut reg, &self.store, &self.graph, &RegistrationOptions::default());
+                let rr =
+                    register_images_with(&mut reg, &self.store, &self.graph, &RegistrationOptions::default(), cfg.sparse.abs_pose.as_ref());
                 out.stage("registration", &format!("pos {p}"), t0);
                 match rr {
                     Ok(rep) => {
@@ -1151,7 +1181,7 @@ impl Session {
                         };
                         let topts = PointTriangulatorOptions { clear_points: false, scope, ..Default::default() };
                         let t0 = Instant::now();
-                        let tr = triangulate_points(&mut reg, &self.graph, &topts);
+                        let tr = triangulate_points_with(&mut reg, &self.graph, &topts, cfg.sparse.triangulation.as_ref());
                         out.stage("triangulation", &format!("pos {p}"), t0);
                         match tr {
                             Ok(t) => {

@@ -64,6 +64,17 @@ pub fn parse_profile(s: &str) -> Result<MvsProfile, String> {
     MvsProfile::parse(s).ok_or_else(|| format!("알 수 없는 --mvs-profile {s} (fast|quality)"))
 }
 
+/// Bundle adjustment backend selection (cpu|cuda). cuda prints a warning and solves again on the CPU if it fails at run time.
+pub fn make_ba_backend(name: &str) -> Result<Arc<dyn cumulus3d_ba::BaBackend>, String> {
+    match name {
+        "cpu" => Ok(Arc::new(cumulus3d_ba::CpuBaBackend)),
+        "cuda" => cumulus3d_cuda::CudaBundleAdjuster::try_default()
+            .map(|b| Arc::new(b) as Arc<dyn cumulus3d_ba::BaBackend>)
+            .map_err(|e| format!("--ba-backend cuda: {e}")),
+        other => Err(format!("알 수 없는 --ba-backend {other} (cpu|cuda)")),
+    }
+}
+
 /// SIFT backend selection (cpu|cuda).
 pub fn make_sift_backend(name: &str) -> Result<Arc<dyn cumulus3d_features::SiftEngine>, String> {
     match name {
@@ -83,6 +94,21 @@ pub fn make_match_backend(name: &str) -> Result<Box<dyn cumulus3d_matching::Matc
             .map(|b| Box::new(b) as Box<dyn cumulus3d_matching::MatcherBackend>)
             .map_err(|e| format!("--match-backend cuda: {e}")),
         other => Err(format!("알 수 없는 --match-backend {other} (cpu|cuda)")),
+    }
+}
+
+/// Sparse-stage (two-view geometric verification, registration, triangulation) backend selection (cpu|cuda). With cuda the
+/// three stages share one device.
+pub fn make_sparse_backend(name: &str) -> Result<crate::session::SparseBackends, String> {
+    match name {
+        "cpu" => Ok(crate::session::SparseBackends::default()),
+        "cuda" => cumulus3d_cuda::CudaSparse::try_default()
+            .map(|b| {
+                let b = Arc::new(b);
+                crate::session::SparseBackends { two_view: b.clone(), abs_pose: b.clone(), triangulation: b }
+            })
+            .map_err(|e| format!("--sparse-backend cuda: {e}")),
+        other => Err(format!("알 수 없는 --sparse-backend {other} (cpu|cuda)")),
     }
 }
 

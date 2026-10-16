@@ -37,7 +37,7 @@ Recon::declare()                    빈 계획으로 빌더 생성
 | `align` | `frame`(`enu`/`none`), `fixed_origin` | `enu`, false |
 | `features` | `backend`(`cpu`/`cuda`), `max_num_features`, `max_image_size` | `cpu`, 8192, 3200 |
 | `matching` | `backend` | `cpu` |
-| `sparse` | `incremental_triangulation` | false |
+| `sparse` | `incremental_triangulation`, `backend`(`cpu`/`cuda`: 두 뷰 검증·정합·삼각측량), `ba_backend`(`cpu`/`cuda`: 번들 조정) | false, `cpu`, `cpu` |
 | `dense` | `enabled`, `backend`, `profile`(`fast`/`quality`), `max_image_size`, `views`, `serialize`, `depth_cache` | true, `cuda`, `fast`, 960, 10, false, false |
 | `dense.fusion` | `mode`, `min_views`, `depth_error`, `normal_error`, `reproj_error`, `residual` | 프로필 기본값 |
 | `dense.filter` | `min_views`, `geom_error`, `min_ncc`, `median` | 프로필 기본값 |
@@ -66,7 +66,7 @@ Recon::declare()                    빈 계획으로 빌더 생성
 | `zones(span, overlap)` | `zones` |
 | `gps(path)`, `no_gps()` | `gps` |
 | `align(AlignFrame::Enu \| None)`, `fixed_enu_origin(bool)` | `align` |
-| `features(..)`, `match_backend(..)`, `gpu()` | `features`, `matching` (`gpu()` 는 특징·매칭·조밀화 백엔드를 모두 `cuda` 로) |
+| `features(..)`, `match_backend(..)`, `gpu()` | `features`, `matching` (`gpu()` 는 특징·매칭·희소 단계·번들 조정·조밀화·왜곡 보정 백엔드를 모두 `cuda` 로) |
 | `incremental_triangulation(bool)` | `sparse` |
 | `dense(Dense)`, `no_dense()` | `dense` |
 | `sinks(Sinks)` | `sinks` |

@@ -32,7 +32,8 @@
 //!
 //! Components: trust-region LM (`tr`), Schur complement assembly and back-substitution (`problem`), reduced camera system solvers
 //! (`linsolve`),
-//! single-pose refinement (`abspose`), robust losses (`loss`).
+//! single-pose refinement (`abspose`), robust losses (`loss`), solver backends (`backend`: CPU by default, GPU implemented by
+//! another crate).
 //!
 //! # Usage example
 //!
@@ -70,15 +71,18 @@
 #![allow(clippy::needless_range_loop)]
 
 mod abspose;
+mod backend;
 mod linsolve;
 mod loss;
 mod problem;
 mod tr;
 
+pub use backend::{BaBackend, BaBackendRef, BaSolution, CpuBaBackend};
+pub use problem::{quat_plus, ProblemInput};
+pub use tr::{minimize, StepInfo, TrOptions, TrProblem, TrResult};
+
 use cumulus3d_core::{CameraId, Error, FrameId, ImageId, Point3DId, Reconstruction, Rigid3, SensorKey, Vec2, Vec3};
-use problem::{BaProblem, ProblemInput};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use tr::TrOptions;
 
 /// Robust loss function. The scale is in residual (pixel) units.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -314,14 +318,21 @@ pub fn filter_negative_depth_observations(rec: &mut Reconstruction, images: &[Im
 /// (check via `summary.termination`). A non-trivial rig keeps the frame poses as variables
 /// and rig_to_sensor as constants.
 pub fn bundle_adjust(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_core::Result<BaSummary> {
+    bundle_adjust_with(rec, config, &CpuBaBackend)
+}
+
+/// [`bundle_adjust`] 와 같되 풀이를 `backend` 에 맡긴다(예: cumulus3d-cuda 의 GPU 백엔드).
+///
+/// 문제 구성(관측 수집·게이지 고정)과 결과 써 넣기는 백엔드와 무관하게 같다.
+pub fn bundle_adjust_with(rec: &mut Reconstruction, config: &BaConfig, backend: &dyn BaBackend) -> cumulus3d_core::Result<BaSummary> {
     if config.num_threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(config.num_threads)
             .build()
             .map_err(|e| Error::InvalidArgument(format!("스레드 풀: {e}")))?;
-        pool.install(|| bundle_adjust_impl(rec, config))
+        pool.install(|| bundle_adjust_impl(rec, config, backend))
     } else {
-        bundle_adjust_impl(rec, config)
+        bundle_adjust_impl(rec, config, backend)
     }
 }
 
@@ -333,7 +344,7 @@ struct Built {
     num_images: usize,
 }
 
-fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_core::Result<BaSummary> {
+fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig, backend: &dyn BaBackend) -> cumulus3d_core::Result<BaSummary> {
     let mut images: Vec<ImageId> = if config.images.is_empty() {
         rec.registered_images()
     } else {
@@ -355,11 +366,15 @@ fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_
     summary.num_images = num_images;
     summary.num_points = point_ids.len();
     summary.num_residuals = 2 * input.obs_img.len();
-    let mut prob = BaProblem::new(input).ok_or_else(|| Error::Invariant("BA 선형 풀이기 구조 생성 실패".into()))?;
-    summary.linear_solver = prob.solver_kind;
-    summary.free_point_count = prob.num_var_points();
+    summary.free_point_count = input.point_const.iter().filter(|&&c| !c).count();
     let opts = TrOptions::new(config.max_num_iterations, config.function_tolerance, config.gradient_tolerance, config.parameter_tolerance);
-    let r = tr::minimize(&mut prob, &opts);
+    // Backends other than the CPU one (e.g. the CUDA bundle adjuster) only evaluate reprojection residuals and do not know
+    // the position / intrinsics prior terms. Silently dropping those terms would change the problem, so when any prior is
+    // present the problem is solved on the CPU regardless of the requested backend.
+    let has_priors = !input.pose_priors.is_empty() || !input.cam_priors.is_empty();
+    let sol = if has_priors { CpuBaBackend.solve(&input, &opts)? } else { backend.solve(&input, &opts)? };
+    summary.linear_solver = sol.linear_solver;
+    let r = &sol.result;
     summary.num_iterations = r.num_iterations;
     summary.num_successful_steps = r.num_successful_steps;
     summary.initial_cost = r.initial_cost;
@@ -368,18 +383,18 @@ fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig) -> cumulus3d_
     summary.converged = r.termination == Termination::Convergence;
     // Write back: all poses (reflecting the prior normalization), only the variable cameras and points.
     for (p, fid) in frame_ids.iter().enumerate() {
-        rec.set_frame_pose(*fid, Some(prob.cur.poses[p]))?;
+        rec.set_frame_pose(*fid, Some(sol.poses[p]))?;
     }
     for (c, cid) in cam_ids.iter().enumerate() {
-        if prob.cam_e[c] != problem::NONE {
+        if !input.cam_var[c].is_empty() {
             if let Some(cam) = rec.camera_mut(*cid) {
-                cam.params.clone_from(&prob.cur.cams[c].params);
+                cam.params.clone_from(&sol.cams[c].params);
             }
         }
     }
     for (j, pid) in point_ids.iter().enumerate() {
-        if prob.pt_v[j] != problem::NONE {
-            rec.set_point3d_xyz(*pid, prob.cur.pts[j])?;
+        if !input.point_const[j] {
+            rec.set_point3d_xyz(*pid, sol.points[j])?;
         }
     }
     if config.update_point_errors {

@@ -8,6 +8,20 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Added
+- Full-GPU SIFT in `cumulus3d-cuda` (`CudaSift`): DoG, extrema with sub-pixel refinement and edge/contrast rejection, multi-orientation assignment, top-K / spatial-grid selection and the 128-D descriptor (L1-root/L2, 0.2 clip, x512) all run as kernels; only the final features, descriptors and per-level counts are read back. Falls back to `CpuSift` with a warning if CUDA fails. Contributed by the SkyLens team.
+- CUDA bundle adjustment: `cumulus3d_ba::BaBackend` trait, `CpuBaBackend` (default) and `bundle_adjust_with`; `cumulus3d_cuda::CudaBundleAdjuster` (`kernels/ba.cu`: residuals, Jacobians, robust loss, normal equations, Schur reduction, reduced-system solve, point back-substitution in f64; the LM loop stays on the CPU). Plan key `[sparse] ba_backend = "cpu" | "cuda"`; the session's zone BA and the global mapper use it. A CUDA failure re-solves on the CPU. Problems with GPS position priors or intrinsics priors are always solved on the CPU (the GPU problem has no prior terms).
+- CUDA sparse stages: `TwoViewBackend` (matching), `AbsPoseBackend` and `TriangulationBackend` (sfm) with CPU defaults, `core::ransac::BatchedRansac`, and `cumulus3d_cuda::CudaSparse` (`kernels/sparse.cu`) scoring E/F/H and P3P hypotheses in batches and running RANSAC triangulation per track on the GPU. Plan key `[sparse] backend = "cpu" | "cuda"`; `gpu()` enables it (and `sparse.ba_backend`).
+- `CudaDevice::new_high_priority`, pinned staging buffers with grow-only device buffers, `device::SyncedCopy` (every device-to-host copy waits for the stream first, so a long kernel does not hold the driver lock against other threads), `examples/bench_contention.rs`.
+- `SessionConfig::ba_backend` and `SessionConfig::sparse` (`SparseBackends`); `Sparse::backend` and `Sparse::ba_backend` in the plan.
+
+### Changed
+- `CudaSift` is no longer bit-identical to `CpuSift`: formulas, parameters, coordinate conventions and output order are the same, but summation order and transcendental functions differ (same quality, deterministic per run). `tests/sift_gpu.rs` (bit-identical) is replaced by CPU-equivalence and rotated-copy matching tests in `crates/cuda/src/sift.rs`.
+- `ReconBuilder::gpu()` / `NodeBuilder::gpu()` also select the CUDA sparse-stage and bundle adjustment backends (and the CUDA undistortion backend).
+- New `_with` variants taking a backend: `match_pairs_with`, `register_images_with`, `triangulate_points_with`; `GlobalSfmOptions::ba_backend`.
+
+### Breaking
+- `declare::Sparse`, `SessionConfig` and `GlobalSfmOptions` gained public fields (struct literals without `..Default::default()` stop compiling).
 
 ## [0.6.0] — 2026-10-16
 ### Added

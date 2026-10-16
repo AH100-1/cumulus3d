@@ -32,12 +32,16 @@
 //! Triangulation that keeps existing points (point_triangulator): extension, creation, completion, merging, re-triangulation,
 //! the pose-fixed point refinement loop, and the filters.
 
-use crate::triangulation::{angular_error, estimate_triangulation, has_positive_depth, TriObservation, TriangulationRansacParams};
+use crate::triangulation::{
+    angular_error, estimate_triangulation, CpuTriangulation, ObsQuery, TriObservation, TriProblem, TriangulationBackend,
+    TriangulationRansacParams,
+};
 use cumulus3d_ba::{BaConfig, Loss};
 use cumulus3d_core::graph::Correspondence;
+use cumulus3d_core::reconstruction::FilterErrorUpdate;
 use cumulus3d_core::{
-    images_of_pair, Camera, Error, ImageId, Mat3x4, MatchGraph, Point2DIdx, Point3DId, Reconstruction, Result, Rigid3, TrackEntry, Vec3,
-    INVALID_POINT3D_ID,
+    images_of_pair, Camera, CameraId, Error, ImageId, Mat3x4, MatchGraph, Point2DIdx, Point3DId, Reconstruction, Result, Rigid3,
+    TrackEntry, Vec3, INVALID_POINT3D_ID,
 };
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -191,9 +195,24 @@ enum Action {
     Create(Vec3, Vec<TrackEntry>),
 }
 
+/// RANSAC triangulation result (point, inlier mask).
+type TriResult = Option<(Vec3, Vec<bool>)>;
+
+/// Read-only preparation of one 2D point (continuation applied, just before the first creation RANSAC).
+struct Prepared {
+    snapshot: Vec<(Correspondence, Point3DId)>,
+    state: HashMap<Correspondence, Point3DId>,
+    actions: Vec<Action>,
+    input: Vec<Correspondence>,
+    /// Observations for the first creation RANSAC (None if the point does not reach the creation step).
+    first: Option<Vec<TriObservation>>,
+}
+
 /// Incremental triangulator. At creation it caches the poses and back-projection rays of the registered images (assumes poses are fixed).
 pub struct TrackTriangulator<'a> {
     graph: &'a MatchGraph,
+    /// Backend that solves the creation RANSAC in batches.
+    backend: &'a dyn TriangulationBackend,
     /// Triangulation options.
     pub opts: TrackTriangulatorOptions,
     poses: HashMap<ImageId, PoseInfo>,
@@ -206,8 +225,18 @@ pub struct TrackTriangulator<'a> {
 }
 
 impl<'a> TrackTriangulator<'a> {
-    /// Builds a triangulator by caching the poses and rays of the registered images of the reconstruction.
+    /// Builds a triangulator by caching the poses and rays of the registered images of the reconstruction (CPU backend).
     pub fn new(rec: &Reconstruction, graph: &'a MatchGraph, opts: TrackTriangulatorOptions) -> Self {
+        Self::with_backend(rec, graph, opts, &CpuTriangulation)
+    }
+
+    /// [`new`](Self::new) 와 같되 생성 RANSAC 을 `backend` 로 묶어 푼다.
+    pub fn with_backend(
+        rec: &Reconstruction,
+        graph: &'a MatchGraph,
+        opts: TrackTriangulatorOptions,
+        backend: &'a dyn TriangulationBackend,
+    ) -> Self {
         let ids = rec.registered_images();
         let infos: Vec<(ImageId, PoseInfo)> = ids
             .par_iter()
@@ -224,6 +253,7 @@ impl<'a> TrackTriangulator<'a> {
             .collect();
         Self {
             graph,
+            backend,
             opts,
             poses: infos.into_iter().collect(),
             merge_trials: HashSet::new(),
@@ -252,6 +282,13 @@ impl<'a> TrackTriangulator<'a> {
 
     /// Plans one 2D point of one image read-only (extend, then create). Returns: (referenced state, action).
     fn plan_point(&self, rec: &Reconstruction, image_id: ImageId, idx: Point2DIdx) -> Option<PointPlan> {
+        let Prepared { snapshot, mut state, mut actions, input, .. } = self.prepare_point(rec, image_id, idx)?;
+        self.plan_create(&input, &mut state, &mut actions, self.opts.create_angle_tol);
+        Some((snapshot, actions))
+    }
+
+    /// [`plan_point`](Self::plan_point) 의 앞부분: 연장까지 계획하고 첫 생성 RANSAC 의 관측을 모은다.
+    fn prepare_point(&self, rec: &Reconstruction, image_id: ImageId, idx: Point2DIdx) -> Option<Prepared> {
         let corrs = self.corrs(image_id, idx);
         if corrs.is_empty() {
             return None;
@@ -286,8 +323,39 @@ impl<'a> TrackTriangulator<'a> {
                 }
             }
         }
-        self.plan_create(&input, &mut state, &mut actions, self.opts.create_angle_tol);
-        Some((snapshot, actions))
+        let first = self.create_round(&input, &state).map(|(_, obs)| obs);
+        Some(Prepared { snapshot, state, actions, input, first })
+    }
+
+    fn create_params(&self, angle_limit_deg: f64) -> TriangulationRansacParams {
+        TriangulationRansacParams { max_angle_error_deg: angle_limit_deg, min_tri_angle_deg: self.opts.min_angle, ..Default::default() }
+    }
+
+    /// 생성 한 차례의 입력: 아직 점이 없는 대응과 그 관측. 생성으로 가지 않으면 None.
+    fn create_round(
+        &self,
+        input: &[Correspondence],
+        state: &HashMap<Correspondence, Point3DId>,
+    ) -> Option<(Vec<Correspondence>, Vec<TriObservation>)> {
+        let sel: Vec<Correspondence> =
+            input.iter().filter(|c| state.get(c).copied().unwrap_or(INVALID_POINT3D_ID) == INVALID_POINT3D_ID).copied().collect();
+        if sel.len() < 2 {
+            return None;
+        }
+        if self.opts.skip_two_view_tracks && sel.len() == 2 && self.graph.in_two_view_track(sel[0].image_id, sel[0].point2d_idx) {
+            return None;
+        }
+        let mut obs = Vec::with_capacity(sel.len());
+        let mut elems = Vec::with_capacity(sel.len());
+        for c in &sel {
+            let (Some(pi), Some(r)) = (self.poses.get(&c.image_id), self.ray(c)) else { continue };
+            obs.push(TriObservation { proj: pi.proj, center: pi.center, ray: r });
+            elems.push(*c);
+        }
+        if obs.len() < 2 {
+            return None;
+        }
+        Some((elems, obs))
     }
 
     /// Dry-run of creation: marks a new point in `state` with a virtual id.
@@ -298,31 +366,26 @@ impl<'a> TrackTriangulator<'a> {
         actions: &mut Vec<Action>,
         angle_limit_deg: f64,
     ) {
+        self.plan_create_with(input, state, actions, angle_limit_deg, None);
+    }
+
+    /// [`plan_create`](Self::plan_create) 와 같되 첫 차례 RANSAC 결과가 `first` 로 미리 주어질 수 있다
+    /// (백엔드가 묶음으로 푼 값). 다음 차례(드묾)는 CPU 로 푼다.
+    fn plan_create_with(
+        &self,
+        input: &[Correspondence],
+        state: &mut HashMap<Correspondence, Point3DId>,
+        actions: &mut Vec<Action>,
+        angle_limit_deg: f64,
+        mut first: Option<TriResult>,
+    ) {
         loop {
-            let sel: Vec<Correspondence> =
-                input.iter().filter(|c| state.get(c).copied().unwrap_or(INVALID_POINT3D_ID) == INVALID_POINT3D_ID).copied().collect();
-            if sel.len() < 2 {
-                return;
-            }
-            if self.opts.skip_two_view_tracks && sel.len() == 2 && self.graph.in_two_view_track(sel[0].image_id, sel[0].point2d_idx) {
-                return;
-            }
-            let mut obs = Vec::with_capacity(sel.len());
-            let mut elems = Vec::with_capacity(sel.len());
-            for c in &sel {
-                let (Some(pi), Some(r)) = (self.poses.get(&c.image_id), self.ray(c)) else { continue };
-                obs.push(TriObservation { proj: pi.proj, center: pi.center, ray: r });
-                elems.push(*c);
-            }
-            if obs.len() < 2 {
-                return;
-            }
-            let ro = TriangulationRansacParams {
-                max_angle_error_deg: angle_limit_deg,
-                min_tri_angle_deg: self.opts.min_angle,
-                ..Default::default()
+            let Some((elems, obs)) = self.create_round(input, state) else { return };
+            let res = match first.take() {
+                Some(r) => r,
+                None => estimate_triangulation(&obs, &self.create_params(angle_limit_deg)),
             };
-            let Some((x, mask)) = estimate_triangulation(&obs, &ro) else { return };
+            let Some((x, mask)) = res else { return };
             let track: Vec<TrackEntry> =
                 elems.iter().zip(&mask).filter(|(_, m)| **m).map(|(c, _)| TrackEntry::new(c.image_id, c.point2d_idx)).collect();
             let len = track.len();
@@ -362,6 +425,21 @@ impl<'a> TrackTriangulator<'a> {
         Ok(n)
     }
 
+    /// Solves the first creation RANSAC of the prepared points in one backend call
+    /// (in preparation order; None for points that do not reach the creation step).
+    fn estimate_firsts(&self, preps: &[Option<Prepared>]) -> Vec<Option<TriResult>> {
+        let params = self.create_params(self.opts.create_angle_tol);
+        let problems: Vec<TriProblem<'_>> =
+            preps.iter().filter_map(|p| p.as_ref()?.first.as_deref()).map(|obs| TriProblem { obs, params: params.clone() }).collect();
+        if problems.is_empty() {
+            return preps.iter().map(|_| None).collect();
+        }
+        let results = self.backend.estimate_batch(&problems);
+        assert_eq!(results.len(), problems.len(), "삼각측량 백엔드 결과 수");
+        let mut it = results.into_iter();
+        preps.iter().map(|p| p.as_ref().and_then(|p| p.first.as_ref()).map(|_| it.next().expect("결과 수"))).collect()
+    }
+
     /// Triangulates one image. Per-2D-point planning is parallel, application is sequential with state validation
     /// (re-plan if the referenced state changed after planning) so the result equals the sequential run.
     pub fn triangulate_image(&mut self, rec: &mut Reconstruction, image_id: ImageId) -> Result<usize> {
@@ -371,7 +449,20 @@ impl<'a> TrackTriangulator<'a> {
         let n = rec.image(image_id).map_or(0, |im| im.num_points2d());
         let plans: Vec<Option<PointPlan>> = {
             let rec_ref: &Reconstruction = rec;
-            (0..n as Point2DIdx).into_par_iter().map(|i| self.plan_point(rec_ref, image_id, i)).collect()
+            let this: &Self = self;
+            let preps: Vec<Option<Prepared>> =
+                (0..n as Point2DIdx).into_par_iter().map(|i| this.prepare_point(rec_ref, image_id, i)).collect();
+            // 첫 생성 RANSAC 은 모든 2D 점을 백엔드 호출 한 번으로.
+            let firsts = this.estimate_firsts(&preps);
+            preps
+                .into_par_iter()
+                .zip(firsts.into_par_iter())
+                .map(|(p, f)| {
+                    let Prepared { snapshot, mut state, mut actions, input, .. } = p?;
+                    this.plan_create_with(&input, &mut state, &mut actions, this.opts.create_angle_tol, f);
+                    Some((snapshot, actions))
+                })
+                .collect()
         };
         let mut total = 0;
         for (i, plan) in plans.into_iter().enumerate() {
@@ -524,7 +615,36 @@ impl<'a> TrackTriangulator<'a> {
                 continue;
             }
             *trials += 1;
-            for m in matches {
+            // 두 쪽 모두 점이 없는 매칭의 생성 RANSAC 을 짝 단위로 한꺼번에(모델 상태와 무관한 계산이라
+            // 미리 풀어 둔 값을 순차 처리에서 그대로 쓴다).
+            let mut pre: HashMap<usize, TriResult> = HashMap::new();
+            {
+                let rec_ref: &Reconstruction = rec;
+                let empty: HashMap<Correspondence, Point3DId> = HashMap::new();
+                let cand: Vec<(usize, Vec<TriObservation>)> = matches
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(k, m)| {
+                        let ca = Correspondence::new(a, m.idx1);
+                        let cb = Correspondence::new(b, m.idx2);
+                        if Self::point_of(rec_ref, &ca) != INVALID_POINT3D_ID || Self::point_of(rec_ref, &cb) != INVALID_POINT3D_ID {
+                            return None;
+                        }
+                        let (_, obs) = self.create_round(&[ca, cb], &empty)?;
+                        Some((k, obs))
+                    })
+                    .collect();
+                if !cand.is_empty() {
+                    let params = self.create_params(self.opts.create_angle_tol);
+                    let problems: Vec<TriProblem<'_>> = cand.iter().map(|(_, o)| TriProblem { obs: o, params: params.clone() }).collect();
+                    let res = self.backend.estimate_batch(&problems);
+                    assert_eq!(res.len(), problems.len(), "삼각측량 백엔드 결과 수");
+                    for ((k, _), r) in cand.iter().zip(res) {
+                        pre.insert(*k, r);
+                    }
+                }
+            }
+            for (k, m) in matches.iter().enumerate() {
                 let ca = Correspondence::new(a, m.idx1);
                 let cb = Correspondence::new(b, m.idx2);
                 let (pa, pb) = (Self::point_of(rec, &ca), Self::point_of(rec, &cb));
@@ -544,7 +664,7 @@ impl<'a> TrackTriangulator<'a> {
                         let input = [ca, cb];
                         let mut state: HashMap<Correspondence, Point3DId> = HashMap::new();
                         let mut actions = Vec::new();
-                        self.plan_create(&input, &mut state, &mut actions, self.opts.create_angle_tol);
+                        self.plan_create_with(&input, &mut state, &mut actions, self.opts.create_angle_tol, pre.remove(&k));
                         total += self.apply(rec, actions)?;
                     }
                 }
@@ -565,20 +685,56 @@ fn depth_and_filter_ids(touched: &HashSet<Point3DId>, rec: &Reconstruction, scop
     }
 }
 
+/// Observation-check table: (camera, pose) of images that have a pose, and image id -> (camera index, pose index).
+struct PoseTable {
+    cameras: Vec<Camera>,
+    poses: Vec<Rigid3>,
+    index: HashMap<ImageId, (u32, u32)>,
+}
+
+fn pose_table(rec: &Reconstruction) -> PoseTable {
+    let mut cameras: Vec<Camera> = Vec::new();
+    let mut poses = Vec::new();
+    let mut index = HashMap::new();
+    let mut cam_index: HashMap<CameraId, u32> = HashMap::new();
+    for id in rec.image_ids() {
+        let Some(pose) = rec.world_to_cam(id) else { continue };
+        let Some(im) = rec.image(id) else { continue };
+        let Some(cam) = rec.camera(im.camera_id) else { continue };
+        let ci = *cam_index.entry(im.camera_id).or_insert_with(|| {
+            cameras.push(cam.clone());
+            (cameras.len() - 1) as u32
+        });
+        poses.push(pose);
+        index.insert(id, (ci, (poses.len() - 1) as u32));
+    }
+    PoseTable { cameras, poses, index }
+}
+
 /// Removes observations whose depth relative to the registered image is not positive (BA preprocessing).
-fn delete_negative_depth(rec: &mut Reconstruction, ids: Option<&[Point3DId]>) -> Result<usize> {
+/// Depths are computed in one batch by `backend`.
+fn delete_negative_depth(rec: &mut Reconstruction, ids: Option<&[Point3DId]>, backend: &dyn TriangulationBackend) -> Result<usize> {
     let ids: Vec<Point3DId> = ids.map_or_else(|| rec.point3d_ids(), |v| v.to_vec());
-    let mut del = Vec::new();
+    let table = pose_table(rec);
+    let mut queries = Vec::new();
+    let mut entries = Vec::new();
     for id in ids {
         let Some(p) = rec.point3d(id) else { continue };
         for t in &p.track {
-            if let Some(pose) = rec.world_to_cam(t.image_id) {
-                if rec.is_image_registered(t.image_id) && !has_positive_depth(&pose.matrix(), &p.xyz) {
-                    del.push(*t);
-                }
+            let Some(&(camera, pose)) = table.index.get(&t.image_id) else { continue };
+            if !rec.is_image_registered(t.image_id) {
+                continue;
             }
+            let Some(im) = rec.image(t.image_id) else { continue };
+            queries.push(ObsQuery { camera, pose, xy: im.point2d(t.point2d_idx).xy, xyz: p.xyz });
+            entries.push(*t);
         }
     }
+    let checks = if queries.is_empty() { Vec::new() } else { backend.check_observations(&table.cameras, &table.poses, &queries) };
+    assert_eq!(checks.len(), queries.len(), "관측 검사 결과 수");
+    // has_positive_depth: 깊이 ≥ ε (NaN 은 음수 취급).
+    let positive = |d: f64| d >= f64::EPSILON;
+    let del: Vec<TrackEntry> = entries.into_iter().zip(&checks).filter(|(_, c)| !positive(c.depth)).map(|(t, _)| t).collect();
     let mut n = 0;
     for t in del {
         if rec.image(t.image_id).is_some_and(|im| im.point2d(t.point2d_idx).has_point3d()) {
@@ -587,6 +743,45 @@ fn delete_negative_depth(rec: &mut Reconstruction, ids: Option<&[Point3DId]>) ->
         }
     }
     Ok(n)
+}
+
+/// Pixel reprojection error filter (same rule as `Reconstruction::filter_observations_with_large_reprojection_error`).
+/// Errors are computed in one batch by `backend`. Returns: number of removed observations.
+fn filter_large_reprojection_error(
+    rec: &mut Reconstruction,
+    max_reproj_error_px: f64,
+    ids: Option<&[Point3DId]>,
+    backend: &dyn TriangulationBackend,
+) -> usize {
+    let ids: Vec<Point3DId> = match ids {
+        Some(v) => v.iter().copied().filter(|i| rec.exists_point3d(*i)).collect(),
+        None => rec.point3d_ids(),
+    };
+    let table = pose_table(rec);
+    let mut queries = Vec::new();
+    // Per point, the query index of each observation (None for an image without a pose -> error +inf).
+    let mut layout: Vec<(Point3DId, Vec<Option<usize>>)> = Vec::with_capacity(ids.len());
+    for id in ids {
+        let Some(p) = rec.point3d(id) else { continue };
+        let mut slots = Vec::with_capacity(p.track.len());
+        for t in &p.track {
+            match (table.index.get(&t.image_id), rec.image(t.image_id)) {
+                (Some(&(camera, pose)), Some(im)) => {
+                    queries.push(ObsQuery { camera, pose, xy: im.point2d(t.point2d_idx).xy, xyz: p.xyz });
+                    slots.push(Some(queries.len() - 1));
+                }
+                _ => slots.push(None),
+            }
+        }
+        layout.push((id, slots));
+    }
+    let checks = if queries.is_empty() { Vec::new() } else { backend.check_observations(&table.cameras, &table.poses, &queries) };
+    assert_eq!(checks.len(), queries.len(), "관측 검사 결과 수");
+    let evals: Vec<(Point3DId, Vec<f64>)> = layout
+        .into_iter()
+        .map(|(id, slots)| (id, slots.into_iter().map(|s| s.map_or(f64::INFINITY, |k| checks[k].sq_reproj_error.sqrt())).collect()))
+        .collect();
+    rec.apply_observation_filter(evals, max_reproj_error_px, FilterErrorUpdate::SumOverOriginalLength)
 }
 
 /// Pose- and intrinsics-fixed point refinement. `ids` None = all points.
@@ -704,13 +899,24 @@ fn refine_one_point(rec: &Reconstruction, id: Point3DId, max_iterations: usize) 
 
 /// point_triangulator. Returns: statistics.
 pub fn triangulate_points(rec: &mut Reconstruction, graph: &MatchGraph, opts: &PointTriangulatorOptions) -> Result<TriangulationReport> {
+    triangulate_points_with(rec, graph, opts, &CpuTriangulation)
+}
+
+/// [`triangulate_points`] 와 같되 생성 RANSAC·깊이 검사·재투영 오차 필터를 `backend` 로 묶어 계산한다.
+/// 모델을 바꾸는 일(점 추가·연장·병합·삭제)은 CPU 가 같은 순서로 한다.
+pub fn triangulate_points_with(
+    rec: &mut Reconstruction,
+    graph: &MatchGraph,
+    opts: &PointTriangulatorOptions,
+    backend: &dyn TriangulationBackend,
+) -> Result<TriangulationReport> {
     if rec.registered_image_count() < 2 {
         return Err(Error::InvalidArgument("point_triangulator: 등록 영상 2장 미만".into()));
     }
     if opts.clear_points {
         rec.delete_all_points3d();
     }
-    let mut tri = TrackTriangulator::new(rec, graph, opts.tri.clone());
+    let mut tri = TrackTriangulator::with_backend(rec, graph, opts.tri.clone(), backend);
     let (images, scoped): (Vec<ImageId>, bool) = match &opts.scope {
         TriangulationScope::AllRegistered => (rec.registered_images(), false),
         TriangulationScope::Images(v) => (v.iter().copied().filter(|i| rec.is_image_registered(*i)).collect(), true),
@@ -739,7 +945,7 @@ pub fn triangulate_points(rec: &mut Reconstruction, graph: &MatchGraph, opts: &P
         tri.report.num_refinements += 1;
         let num_obs = rec.total_observations().max(1);
         let ids = scope_ids(&tri, rec);
-        delete_negative_depth(rec, ids.as_deref())?;
+        delete_negative_depth(rec, ids.as_deref(), backend)?;
         let ids = scope_ids(&tri, rec);
         refine_points(rec, ids.as_deref(), opts.refiner, opts.ba_global_max_num_iterations)?;
         let ids = scope_ids(&tri, rec);
@@ -747,7 +953,7 @@ pub fn triangulate_points(rec: &mut Reconstruction, graph: &MatchGraph, opts: &P
         let ids = scope_ids(&tri, rec);
         changed += tri.merge_tracks(rec, ids.as_deref())?;
         let ids = scope_ids(&tri, rec);
-        let f = rec.filter_observations_with_large_reprojection_error(opts.filter_max_reproj_error, ids.as_deref());
+        let f = filter_large_reprojection_error(rec, opts.filter_max_reproj_error, ids.as_deref(), backend);
         let ids = scope_ids(&tri, rec);
         let g = rec.filter_points3d_with_small_triangulation_angle(opts.filter_min_tri_angle, ids.as_deref());
         tri.report.num_filtered += f + g;

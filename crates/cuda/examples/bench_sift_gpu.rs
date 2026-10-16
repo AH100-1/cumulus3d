@@ -25,7 +25,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//! Real-image SIFT timing: CpuSift vs CudaSift (also checks the results are the same).
+//! Real-image SIFT timing: CpuSift vs CudaSift (also prints whether results are bit-identical; GPU detection/descriptors have the
+//! same quality but usually differ bit-wise).
 //! Run: cargo run --release -p cumulus3d-cuda --example bench_sift -- <image folder> [N=6]
 
 use cumulus3d_cuda::{CudaMatcher, CudaSift};

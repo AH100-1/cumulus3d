@@ -37,7 +37,7 @@ A value type with no execution logic: it can be cloned, compared and serialised 
 | `align` | `frame` (`enu`/`none`), `fixed_origin` | `enu`, false |
 | `features` | `backend` (`cpu`/`cuda`), `max_num_features`, `max_image_size` | `cpu`, 8192, 3200 |
 | `matching` | `backend` | `cpu` |
-| `sparse` | `incremental_triangulation` | false |
+| `sparse` | `incremental_triangulation`, `backend` (`cpu`/`cuda`: two-view verification, registration, triangulation), `ba_backend` (`cpu`/`cuda`: bundle adjustment) | false, `cpu`, `cpu` |
 | `dense` | `enabled`, `backend`, `profile` (`fast`/`quality`), `max_image_size`, `views`, `serialize`, `depth_cache` | true, `cuda`, `fast`, 960, 10, false, false |
 | `dense.fusion` | `mode`, `min_views`, `depth_error`, `normal_error`, `reproj_error`, `residual` | profile defaults |
 | `dense.filter` | `min_views`, `geom_error`, `min_ncc`, `median` | profile defaults |
@@ -66,7 +66,7 @@ Each method consumes `self`, updates only the plan and returns it, so the pipeli
 | `zones(span, overlap)` | `zones` |
 | `gps(path)`, `no_gps()` | `gps` |
 | `align(AlignFrame::Enu \| None)`, `fixed_enu_origin(bool)` | `align` |
-| `features(..)`, `match_backend(..)`, `gpu()` | `features`, `matching` (`gpu()` sets the feature, matching and densification backends to `cuda`) |
+| `features(..)`, `match_backend(..)`, `gpu()` | `features`, `matching` (`gpu()` sets the feature, matching, sparse-stage, bundle adjustment, densification and undistortion backends to `cuda`) |
 | `incremental_triangulation(bool)` | `sparse` |
 | `dense(Dense)`, `no_dense()` | `dense` |
 | `sinks(Sinks)` | `sinks` |

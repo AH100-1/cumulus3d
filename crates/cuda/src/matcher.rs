@@ -31,7 +31,7 @@
 
 //! CUDA implementation of `MatcherBackend`: integer dot product (__dp4a) + sequential top-2. Results are bit-identical to the CPU backend.
 
-use crate::device::{CudaDevice, GpuError};
+use crate::device::{CudaDevice, GpuError, SyncedCopy};
 use cudarc::driver::{CudaFunction, LaunchConfig, PushKernelArg};
 use cumulus3d_matching::{CpuMatcher, MatcherBackend, Top2};
 use std::sync::{Arc, Mutex};
@@ -82,8 +82,8 @@ impl CudaMatcher {
             // SAFETY: same arguments and sizes as top2_rows(q[nq·32], nq, t[nt·32], nt, out[3·nq]).
             unsafe { l.launch(cfg) }?;
         }
-        let rh = s.clone_dtoh(&ro)?;
-        let ch = s.clone_dtoh(&co)?;
+        let rh = s.clone_dtoh_synced(&ro)?;
+        let ch = s.clone_dtoh_synced(&co)?;
         s.synchronize()?;
         let conv = |v: &[u32], n: usize| -> Vec<Top2> {
             (0..n).map(|k| Top2 { best: v[3 * k], idx: v[3 * k + 1], second: v[3 * k + 2] }).collect()

@@ -31,9 +31,13 @@
 //! - [`CudaPatchMatch`]: implementation of `cumulus3d_dense::PatchMatchBackend` (per-scale run, evaluation and readout of multi-scale
 //!   densification).
 //! - [`CudaMatcher`]: implementation of `cumulus3d_matching::MatcherBackend` (integer dot product top-2).
-//! - [`CudaSift`]: implementation of `cumulus3d_features::SiftEngine` (GPU scale space + CPU detection/descriptors, same result as
-//!   CpuSift).
-//!
+//! - [`CudaSift`]: implementation of `cumulus3d_features::SiftEngine` (scale space, detection, orientation, selection and descriptors
+//!   all on the GPU; same quality as CpuSift but not bit-identical).
+//! - [`CudaBundleAdjuster`]: implementation of `cumulus3d_ba::BaBackend` (residuals, Jacobians, Schur assembly, reduced system solve
+//!   and back-substitution on the GPU; the LM loop stays on the CPU).
+//! - [`CudaSparse`]: implementation of `cumulus3d_matching::TwoViewBackend` (two-view geometry hypothesis scoring),
+//!   `cumulus3d_sfm::AbsPoseBackend` (absolute pose hypothesis scoring) and `cumulus3d_sfm::TriangulationBackend` (RANSAC
+//!   triangulation and observation checks).
 //! - [`CudaUndistort`]: implementation of `cumulus3d_dense::UndistortBackend` (fused lens undistortion + area downscale).
 //!
 //! `unsafe` is used only where cudarc marks things unsafe (kernel launch, pinned host memory allocation, `DeviceRepr` marking).
@@ -65,17 +69,23 @@
 //! }
 //! ```
 #![warn(missing_docs)]
+// SkyLens GPU patches (ba.rs, sparse.rs) index several parallel arrays and return nested tuples; keep them readable.
+#![allow(clippy::needless_range_loop, clippy::chunks_exact_to_as_chunks, clippy::type_complexity)]
 
+mod ba;
 mod device;
 mod matcher;
 mod patchmatch;
 mod sift;
+mod sparse;
 mod undistort;
 
+pub use ba::{CudaBaError, CudaBundleAdjuster, CPU_CHOLESKY_N, MAX_DENSE_N};
 pub use device::{is_available, CudaDevice, GpuError};
 pub use matcher::CudaMatcher;
 pub use patchmatch::{CudaPatchMatch, CudaPatchMatchOptions};
 pub use sift::CudaSift;
+pub use sparse::CudaSparse;
 pub use undistort::CudaUndistort;
 
 /// Tries compiling all kernels with NVRTC without a device (for CI checks). `arch` example: `"compute_70"`.
@@ -91,6 +101,8 @@ pub fn check_kernels(arch: &'static str) -> Result<Vec<(String, usize)>, String>
     let mut out = vec![
         compile("sift".into(), sift::SRC, false, false, &[])?,
         compile("matcher".into(), matcher::SRC, true, false, &[])?,
+        compile("ba".into(), ba::SRC, true, false, &[])?,
+        compile("sparse".into(), sparse::SRC, false, false, &[])?,
         compile("undistort".into(), undistort::SRC, false, false, &[])?,
     ];
     for step in [1, 2] {

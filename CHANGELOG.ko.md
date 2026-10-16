@@ -8,6 +8,12 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### 추가
+- CUDA 번들 조정이 사전항을 푼다: GPS 위치 사전항(`pose_priors`)과 내부값 사전항(`cam_priors`)을 CPU 백엔드와 같은 식으로 CPU 가 선형화해 새 커널 `ba_add_at` 으로 H·g_E 에 더한다(비용·후보 비용·모형 비용 변화에도). 사전항이 있어도 `bundle_adjust_with` 가 CPU 로 돌아가지 않는다. GPU 시험 `gpu_ba_matches_cpu_with_priors`. SkyLens 팀(i3months) 기여.
+- `NodeBuilder::settle(tol, max_zone)`, `live_stride(n)`, `stream_origin(lat, lon, alt)`, `stream_only(on)`; `stable_display(true)` 이면 `NodeBuilder::output` 이 `Recon::run` 처럼 차분 스트림(`<dir>/live/stream/`)도 쓴다. `stream_only` 는 run.log, 타임라인, 스트림만 쓴다(구간 PLY·화면 PLY·구간 모델·후처리 스냅숏 없음; `SinkSet::live_files`, `SnapshotSink::with_files`). SkyLens 팀(i3months) 기여.
+
+### 변경
+- CUDA BA 백엔드를 고르면 위치·내부값 사전항이 있는 문제도 CPU 로 강제하지 않는다.
 
 ## [0.7.0] — 2026-10-16
 ### Added

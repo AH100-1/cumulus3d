@@ -368,11 +368,7 @@ fn bundle_adjust_impl(rec: &mut Reconstruction, config: &BaConfig, backend: &dyn
     summary.num_residuals = 2 * input.obs_img.len();
     summary.free_point_count = input.point_const.iter().filter(|&&c| !c).count();
     let opts = TrOptions::new(config.max_num_iterations, config.function_tolerance, config.gradient_tolerance, config.parameter_tolerance);
-    // Backends other than the CPU one (e.g. the CUDA bundle adjuster) only evaluate reprojection residuals and do not know
-    // the position / intrinsics prior terms. Silently dropping those terms would change the problem, so when any prior is
-    // present the problem is solved on the CPU regardless of the requested backend.
-    let has_priors = !input.pose_priors.is_empty() || !input.cam_priors.is_empty();
-    let sol = if has_priors { CpuBaBackend.solve(&input, &opts)? } else { backend.solve(&input, &opts)? };
+    let sol = backend.solve(&input, &opts)?;
     summary.linear_solver = sol.linear_solver;
     let r = &sol.result;
     summary.num_iterations = r.num_iterations;

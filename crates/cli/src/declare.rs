@@ -724,6 +724,7 @@ impl Sinks {
             snapshots: self.snapshots,
             live_stream: None,
             live_stride: self.live_stride,
+            ..SinkSet::all()
         }
     }
 }

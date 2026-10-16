@@ -8,6 +8,12 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Added
+- CUDA bundle adjustment solves the prior terms: GPS position priors (`pose_priors`) and intrinsics priors (`cam_priors`) are linearized on the CPU as in the CPU backend and added into H and g_E by the new `ba_add_at` kernel (also into the cost, candidate cost and model cost change). `bundle_adjust_with` no longer falls back to the CPU when priors are present. GPU test `gpu_ba_matches_cpu_with_priors`. Contributed by the SkyLens team (i3months).
+- `NodeBuilder::settle(tol, max_zone)`, `live_stride(n)`, `stream_origin(lat, lon, alt)` and `stream_only(on)`; with `stable_display(true)`, `NodeBuilder::output` also writes the live diff stream (`<dir>/live/stream/`) like `Recon::run`. `stream_only` writes only run.log, the timeline and the stream (no zone PLYs, display PLYs, per-zone models or post-processing snapshots; `SinkSet::live_files`, `SnapshotSink::with_files`). Contributed by the SkyLens team (i3months).
+
+### Changed
+- Problems with position or intrinsics priors are no longer forced onto the CPU when a CUDA BA backend is selected.
 
 ## [0.7.0] — 2026-10-16
 ### Added

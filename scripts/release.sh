@@ -52,7 +52,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --release --workspace --locked
 
 # --- bump versions
-perl -i -pe 's/^(version = ")\Q'"$old"'\E(")/$1'"$new"'$2/ if $. && /^version = /; s/^(cumulus3d-[a-z0-9-]+ = \{ path = "[^"]+", version = ")\Q'"$old"'\E(")/$1'"$new"'$2/' Cargo.toml
+perl -i -pe 's/^(version = ")\Q'"$old"'\E(")/${1}'"$new"'${2}/ if $. && /^version = /; s/^(cumulus3d-[a-z0-9-]+ = \{ path = "[^"]+", version = ")\Q'"$old"'\E(")/${1}'"$new"'${2}/' Cargo.toml
 [ "$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)" = "$new" ] || die "version bump in Cargo.toml failed"
 cargo update -w -q
 

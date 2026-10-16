@@ -29,8 +29,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// SIFT 가우시안 스케일 공간. cumulus3d-features 의 CPU 피라미드와 같은 식·같은 연산 순서.
-// 곱셈-덧셈 융합을 끈 채(--fmad=false) 컴파일해 CPU 결과와 비트 단위로 맞춘다.
+// SIFT Gaussian scale space. Same formulas and operation order as the CPU pyramid of cumulus3d-features.
+// Compiled with fused multiply-add off (--fmad=false) so it matches the CPU result bit for bit.
 
 typedef unsigned char u8;
 
@@ -42,7 +42,7 @@ extern "C" __global__ void sift_normalize(const u8* __restrict__ src, int sw, in
     dst[(size_t)y * w + x] = (float)src[(size_t)y * sw + x] / 255.0f;
 }
 
-// 2배 업샘플: 출력 (2r+a, 2c+b), 가장자리 복제.
+// 2x upsampling: output (2r+a, 2c+b), edge replication.
 extern "C" __global__ void sift_upsample2(const float* __restrict__ src, int w, int h, float* __restrict__ dst) {
     int c = blockIdx.x * blockDim.x + threadIdx.x;
     int yy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -64,7 +64,7 @@ extern "C" __global__ void sift_upsample2(const float* __restrict__ src, int w, 
 #define TILE_W 128
 #define MAX_R 16
 
-// 가로 블러: out = k_r·p + Σ_{i<r} k_i·(row[x+i−r] + row[x+r−i]) (가장자리 복제), i 오름차순.
+// Horizontal blur: out = k_r·p + Σ_{i<r} k_i·(row[x+i−r] + row[x+r−i]) (edge replication), i ascending.
 extern "C" __global__ void sift_blur_h(const float* __restrict__ src, float* __restrict__ dst, int w, int h, const float* __restrict__ k, int r) {
     __shared__ float s[TILE_W + 2 * MAX_R];
     __shared__ float kk[2 * MAX_R + 1];
@@ -85,7 +85,7 @@ extern "C" __global__ void sift_blur_h(const float* __restrict__ src, float* __r
     dst[(size_t)y * w + x] = acc;
 }
 
-// 세로 블러: 같은 식을 행 방향으로(행 색인 고정).
+// Vertical blur: the same formula along the row direction (row index fixed).
 extern "C" __global__ void sift_blur_v(const float* __restrict__ src, float* __restrict__ dst, int w, int h, const float* __restrict__ k, int r) {
     __shared__ float kk[2 * MAX_R + 1];
     for (int i = threadIdx.y * blockDim.x + threadIdx.x; i <= 2 * r; i += blockDim.x * blockDim.y) kk[i] = k[i];
@@ -102,7 +102,7 @@ extern "C" __global__ void sift_blur_v(const float* __restrict__ src, float* __r
     dst[(size_t)y * w + x] = acc;
 }
 
-// 짝수 행·열만 취해 1/2 축소.
+// Take only even rows and columns for 1/2 downscaling.
 extern "C" __global__ void sift_decimate2(const float* __restrict__ src, int w, float* __restrict__ dst, int w2, int h2) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;

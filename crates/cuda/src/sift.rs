@@ -29,10 +29,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//! `SiftEngine` 의 CUDA 구현(혼합형): 가우시안 스케일 공간(정규화·2배 업샘플·분리형 블러·축소)을 GPU 에서
-//! CPU 와 비트 단위로 같게 만들고, 옥타브를 필요할 때만(거친 쪽부터) 내려받아 DoG·검출·방향·기술자는
-//! cumulus3d-features 의 CPU 함수로 계산한다. 따라서 결과는 `CpuSift` 와 같다.
-//! 최대 특징 수에 먼저 닿으면 미세 옥타브(2배 업샘플 해상도)는 내려받지도 않는다.
+//! CUDA implementation of `SiftEngine` (hybrid): the Gaussian scale space (normalization, 2x upsampling, separable blur, downscaling) is
+//! made bit-identical to
+//! the CPU on the GPU, octaves are downloaded only when needed (coarse ones first), and DoG, detection, orientation and descriptors are
+//! computed with the CPU functions of cumulus3d-features. So the result equals `CpuSift`.
+//! If the maximum feature count is reached first, the fine octave (2x upsampled resolution) is not even downloaded.
 
 use crate::device::{CudaDevice, GpuError};
 use cudarc::driver::{CudaFunction, CudaSlice, CudaStream, LaunchConfig, PinnedHostSlice, PushKernelArg};
@@ -47,7 +48,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) const SRC: &str = include_str!("kernels/sift.cu");
 const TILE_W: u32 = 128;
 
-/// CUDA SIFT 백엔드.
+/// CUDA SIFT backend.
 pub struct CudaSift {
     dev: Arc<CudaDevice>,
     f_norm: CudaFunction,
@@ -55,18 +56,18 @@ pub struct CudaSift {
     f_bh: CudaFunction,
     f_bv: CudaFunction,
     f_dec: CudaFunction,
-    /// 장치 사용 직렬화(스트림 공유) + 내림용 고정 호스트 버퍼(영상 사이 재사용).
+    /// Device use serialization (stream shared) + pinned host buffers for download (reused between images).
     lock: Mutex<HostBufs>,
 }
 
-/// 영상 사이에 재사용하는 호스트 버퍼(고정 메모리 피라미드, DoG 작업 버퍼).
+/// Host buffers reused between images (pinned-memory pyramid, DoG work buffer).
 #[derive(Default)]
 struct HostBufs {
     pinned: Option<PinnedHostSlice<f32>>,
     dogs: Vec<Vec<f32>>,
 }
 
-/// 장치 위 옥타브.
+/// Octave on the device.
 struct DevOctave {
     o: i32,
     w: usize,
@@ -74,8 +75,8 @@ struct DevOctave {
     gauss: Vec<CudaSlice<f32>>,
 }
 
-/// 내려받은 옥타브(필요할 때만 채움).
-/// 레벨들은 고정 호스트 버퍼의 구간으로 가리킨다(복사 없이 CPU 함수에 슬라이스로 넘김).
+/// Downloaded octave (filled only when needed).
+/// Levels point to ranges of the pinned host buffer (passed as slices to CPU functions without copying).
 struct HostOctave {
     o: i32,
     w: usize,
@@ -100,7 +101,7 @@ fn cfg2(w: usize, h: usize) -> LaunchConfig {
     LaunchConfig { grid_dim: ((w as u32).div_ceil(32), (h as u32).div_ceil(8), 1), block_dim: (32, 8, 1), shared_mem_bytes: 0 }
 }
 
-/// 입력 오류(그대로 돌려줌)와 장치 오류(CPU 로 대신 계산)를 나눈다.
+/// Separates input errors (returned as is) from device errors (computed on the CPU instead).
 enum Fail {
     Input(Error),
     Device(GpuError),
@@ -113,9 +114,9 @@ impl From<GpuError> for Fail {
 }
 
 impl CudaSift {
-    /// 장치 `dev` 에 스케일 공간 커널을 컴파일해 만든다.
+    /// Compiles the scale-space kernels on device `dev` and builds it.
     pub fn new(dev: Arc<CudaDevice>) -> std::result::Result<Self, GpuError> {
-        // 곱셈-덧셈 융합을 끄고 IEEE 나눗셈: CPU 피라미드와 비트 단위로 같게.
+        // Turn off fused multiply-add and use IEEE division: bit-identical to the CPU pyramid.
         let m = dev.compile(SRC, false, &[])?;
         Ok(Self {
             f_norm: m.load_function("sift_normalize")?,
@@ -128,7 +129,7 @@ impl CudaSift {
         })
     }
 
-    /// 장치 0 으로 만든다.
+    /// Builds with device 0.
     pub fn try_default() -> std::result::Result<Self, GpuError> {
         Self::new(CudaDevice::new(0)?)
     }
@@ -156,12 +157,12 @@ impl CudaSift {
         }
         let mut l = s.launch_builder(&self.f_bv);
         l.arg(&*tmp).arg(dst).arg(&wi).arg(&hi).arg(&kd).arg(&r);
-        // SAFETY: sift_blur_v 같은 형.
+        // SAFETY: same type as sift_blur_v.
         unsafe { l.launch(cfg2(w, h)) }?;
         Ok(())
     }
 
-    /// GPU 피라미드(CPU `pyramid::build_pyramid` 와 같은 규칙).
+    /// GPU pyramid (same rules as CPU `pyramid::build_pyramid`).
     fn build(
         &self,
         s: &Arc<CudaStream>,
@@ -216,7 +217,7 @@ impl CudaSift {
                 let mut g0 = s.alloc_zeros::<f32>(nw * nh)?;
                 let (pwi, nwi, nhi) = (pw as i32, nw as i32, nh as i32);
                 let mut l = s.launch_builder(&self.f_dec);
-                // 이전 옥타브 레벨 S−1 (gauss 색인 S).
+                // Previous octave level S−1 (gauss index S).
                 l.arg(&prev.gauss[ss.s]).arg(&pwi).arg(&mut g0).arg(&nwi).arg(&nhi);
                 // SAFETY: sift_decimate2(src[pw·ph], pw, dst[nw·nh], nw, nh).
                 unsafe { l.launch(cfg2(nw, nh)) }?;
@@ -283,7 +284,7 @@ impl CudaSift {
         let bufs = &mut *guard;
         if bufs.pinned.as_ref().is_none_or(|b| b.len() < off) {
             bufs.pinned = None;
-            // SAFETY: 장치가 채운 구간만 읽는다(fetched 표시된 옥타브).
+            // SAFETY: reads only the ranges the device filled (octaves marked fetched).
             bufs.pinned = Some(unsafe { self.dev.ctx.alloc_pinned_with_flags::<f32>(off, 0) }.map_err(GpuError::from)?);
         }
         let hbuf = bufs.pinned.as_mut().expect("채움");
@@ -301,7 +302,7 @@ impl CudaSift {
         };
         let op = OrientParams { max_num_orientations: opts.max_num_orientations, bin_interpolation: opts.orientation_bin_interpolation };
 
-        // CpuSift::extract 와 같은 순서: 거친 옥타브·높은 레벨부터, 잘릴 레벨은 생략.
+        // Same order as CpuSift::extract: coarse octaves and high levels first, omit levels that get truncated.
         let mut levels: Vec<LevelFeats> = Vec::new();
         let (mut cum_det, mut cum_or) = (0usize, 0usize);
         'outer: for oi in (0..pyr.len()).rev() {
@@ -403,7 +404,7 @@ impl CudaSift {
     }
 }
 
-/// 최대 특징 수 제한(CpuSift 와 같은 규칙). `levels` 는 거친 → 미세 순서.
+/// Maximum feature count limit (same rule as CpuSift). `levels` is in coarse → fine order.
 fn select(levels: &mut [LevelFeats], mode: FeatureSelection, k: usize, pyr: &[HostOctave]) {
     let total: usize = levels.iter().map(|l| l.items.len()).sum();
     if total <= k {

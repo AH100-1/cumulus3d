@@ -25,12 +25,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//! CUDA SIFT 가 CPU SIFT 와 같은 결과(특징·기술자 비트 단위)를 내는지. 장치가 없으면 건너뛴다.
+//! Checks that CUDA SIFT gives the same result as CPU SIFT (features and descriptors bit-identical). Skipped if there is no device.
 
 use cumulus3d_cuda::{is_available, CudaSift};
 use cumulus3d_features::{CpuSift, FeatureSelection, GrayImage, SiftEngine, SiftOptions};
 
-/// 여러 크기의 얼룩 무늬(결정적).
+/// Blob patterns of several sizes (deterministic).
 fn image(w: usize, h: usize, seed: u64) -> GrayImage {
     let mut data = vec![0u8; w * h];
     let blobs: Vec<(f64, f64, f64, f64)> = (0..400)

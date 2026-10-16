@@ -7,6 +7,16 @@ Developed under the name skyrecon up to and including 0.3.0.
 This project follows [Semantic Versioning](https://semver.org/). During 0.x, minor versions (0.1 → 0.2) may contain breaking changes.
 The date of each version is the actual work/commit date.
 
+## Unreleased
+### Added
+- CUDA image undistortion backend: `UndistortBackend` trait in `cumulus3d-dense` (CPU path stays the default and the reference) and
+  `CudaUndistort` in `cumulus3d-cuda` (one NVRTC kernel fusing the distorted-source lookup, bilinear warp and area-average
+  downscale). `--undistort-backend cpu|cuda` on the CLI (`--gpu` selects `cuda`), plan field `dense.undistort_backend`. On the V100
+  (240 images): GPU vs CPU max difference 0-1 grey levels (mean 0), undistortion 9.93 s vs 16.22 s, total 282.8 s vs 289.6 s,
+  GPS error 0.476 m vs 0.478 m, no fallbacks.
+- `scripts/release.sh patch|minor|major [--dry-run]` and automatic publishing: a push to `main` with a new workspace version runs
+  the checks, publishes all crates to crates.io, builds the binaries and creates the tag and GitHub Release. See "Releasing" in `README.md`.
+
 ## [0.4.0] — 2026-10-16
 ### Changed
 - CI: CUDA kernels compiled with NVRTC in a CUDA container on every push (no GPU needed; `cumulus3d_cuda::check_kernels`,

@@ -7,6 +7,15 @@
 이 프로젝트는 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다. 0.x 동안에는 부 버전(0.1 → 0.2)에서 호환이 깨질 수 있다.
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
+## Unreleased
+### 추가
+- CUDA 영상 왜곡 보정 백엔드: `cumulus3d-dense` 의 `UndistortBackend` 트레이트(CPU 경로가 기본이자 기준)와 `cumulus3d-cuda` 의
+  `CudaUndistort`(왜곡 영상 좌표 계산, 쌍선형 워프, 면적 평균 축소를 하나로 합친 NVRTC 커널). CLI `--undistort-backend cpu|cuda`
+  (`--gpu` 는 `cuda` 선택), 플랜 필드 `dense.undistort_backend`. V100(240장): GPU 와 CPU 의 최대 차이 0-1 계조(평균 0), 왜곡 보정
+  9.93 s 대 16.22 s, 전체 282.8 s 대 289.6 s, GPS 오차 0.476 m 대 0.478 m, 폴백 없음.
+- `scripts/release.sh patch|minor|major [--dry-run]` 와 자동 배포: `main` 에 새 워크스페이스 버전이 push 되면 검사, crates.io 배포,
+  바이너리 빌드, 태그와 GitHub Release 생성까지 자동. `README.ko.md` 의 "릴리스" 참고.
+
 ## [0.4.0] — 2026-10-16
 ### 변경
 - CI: 매 push 마다 CUDA 컨테이너에서 NVRTC 로 커널 컴파일 검사(GPU 불필요, `cumulus3d_cuda::check_kernels`, 예제 `check_kernels`),

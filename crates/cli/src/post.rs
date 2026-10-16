@@ -222,7 +222,7 @@ pub fn run_stable(
                     dst.push(b);
                 }
             }
-            cumulus3d_align::umeyama(&src, &dst, true)
+            cumulus3d_align::fit_same_up_sim3(&src, &dst)
         }
         _ => None,
     };

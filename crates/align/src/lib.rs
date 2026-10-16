@@ -72,6 +72,7 @@
 pub mod cloud;
 pub mod error;
 pub mod geodesy;
+pub mod gravity;
 pub mod kdtree;
 pub mod model_aligner;
 pub mod reanchor;
@@ -81,6 +82,7 @@ pub mod umeyama;
 pub use cloud::{compose_snapshot, decimate, merge_clouds, remove_near, select, transform_cloud, SnapshotOptions};
 pub use error::{AlignError, Result};
 pub use geodesy::{ecef_to_lla, lla_to_ecef, EnuFrame, WGS84_A, WGS84_B, WGS84_E2, WGS84_F};
+pub use gravity::{fit_enu_sim3, fit_same_up_sim3, GravityPrior, GravityResolution};
 pub use kdtree::KdTree;
 pub use model_aligner::{
     align_to_gps, align_to_gps_file, estimate_gps_alignment, gps_to_enu, EnuOrigin, GpsAlignment, ModelAlignerOptions,

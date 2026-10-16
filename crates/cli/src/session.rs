@@ -537,6 +537,9 @@ impl Shared {
                     a.median_error,
                     a.sim3.scale
                 ));
+                if let Some(g) = &a.gravity {
+                    out.log(gravity_note(&format!("align {what}"), g));
+                }
                 true
             }
             Err(e) => {
@@ -618,9 +621,12 @@ impl Shared {
                 // Bring the first model into ENU once; every later zone is placed in this frame.
                 let (src, dst): (Vec<_>, Vec<_>) = targets.iter().filter_map(|(id, g)| rec.projection_center(*id).map(|c| (c, *g))).unzip();
                 if src.len() >= 3 {
-                    if let Some(t) = cumulus3d_align::umeyama(&src, &dst, true) {
+                    if let Some((t, g)) = cumulus3d_align::fit_enu_sim3(&rec, &src, &dst) {
                         rec.transform(&t);
                         out.log(format!("[stable] refined 0: ENU 초기 정렬 GPS {} 개, 축척 {:.4}", src.len(), t.scale));
+                        if let Some(g) = g {
+                            out.log(gravity_note("stable refined 0", &g));
+                        }
                     }
                 }
                 settling = true;
@@ -1500,6 +1506,17 @@ fn display_to_enu_scale(display: &Reconstruction, enu: &Reconstruction) -> Optio
         return None;
     }
     cumulus3d_align::umeyama(&src, &dst, true).map(|t| t.scale)
+}
+
+/// One log line for a GPS fit whose positions were collinear.
+fn gravity_note(what: &str, g: &cumulus3d_align::GravityResolution) -> String {
+    use cumulus3d_align::GravityPrior;
+    let prior = match g.prior {
+        GravityPrior::Ground { inliers } => format!("지면 평면(점 {inliers} 개)"),
+        GravityPrior::ViewDirection => "카메라 시선(아래 방향)".to_string(),
+        GravityPrior::None => "사용 불가 — 회전 그대로".to_string(),
+    };
+    format!("[gravity] {what}: GPS 가 거의 일직선(σ2/σ1 {:.3}) — 직선 둘레 회전을 {prior} 로 결정", g.ratio)
 }
 
 /// ENU positions (origin = first GPS record) of the registered images of `rec` that have a GPS record.

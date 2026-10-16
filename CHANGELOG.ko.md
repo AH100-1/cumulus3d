@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### Fixed
+- GPS 위치가 (거의) 일직선(중심화한 위치의 σ2/σ1 < 0.05, 예: 드론 한 대가 직선 하나를 비행)일 때 ENU 정렬 후 장면이 비행선 둘레로 누워 보이던 문제를 고침. 직선 둘레 회전은 GPS 로 관측되지 않으므로 중력으로 정한다: 희소 점의 지배 지면 평면(RANSAC + 최소제곱, 카메라가 위, 법선 -> +Up), 없으면 평균 광축이 아래를 향하도록. 축척·이동은 GPS 적합 그대로. stable display zone 0 ENU 초기 정렬(`[gravity]` 로그 한 줄), `align_to_gps` / `estimate_gps_alignment`(새 `GpsAlignment::gravity`, `cumulus3d_align::gravity` 의 `fit_enu_sim3`, `fit_same_up_sim3`), 최종 display->ENU 변환에 적용. 일직선이 아니면 결과는 이전과 같다.
 
 ## [0.9.0] — 2026-10-17
 ### 추가

@@ -36,7 +36,8 @@
 
 use crate::error::{AlignError, Result};
 use crate::geodesy::EnuFrame;
-use crate::umeyama::{estimate_sim3_ransac, median, RankCheck};
+use crate::gravity::{degenerate_ratio, resolve_roll, GravityResolution};
+use crate::umeyama::{estimate_sim3_ransac, median, robust_umeyama, RankCheck, RobustUmeyamaOptions};
 use cumulus3d_core::io::{read_gps_file, GpsRecord};
 use cumulus3d_core::ransac::RansacParams;
 use cumulus3d_core::{ImageId, Reconstruction, Sim3, Vec3};
@@ -108,6 +109,8 @@ pub struct GpsAlignment {
     pub mean_error: f64,
     /// Median alignment error (m).
     pub median_error: f64,
+    /// Set when the GPS positions are collinear: the roll about the line was fixed by a gravity prior.
+    pub gravity: Option<GravityResolution>,
 }
 
 /// GPS list to (name, ENU). Error if the origin is `FirstRecord` but the list is empty.
@@ -154,13 +157,25 @@ pub fn estimate_gps_alignment(rec: &Reconstruction, gps: &[GpsRecord], opts: &Mo
     if common.len() < required {
         return Err(AlignError::TooFewCommonImages { found: common.len(), required });
     }
-    // 6.
-    let ropts = RansacParams { max_error: opts.max_error, ..opts.ransac.clone() };
-    let rep = estimate_sim3_ransac(&src, &dst, &ropts, opts.rank_check);
-    let num_inliers = rep.support.num_inliers;
-    let sim3 = match (rep.success, rep.model) {
-        (true, Some(m)) if num_inliers >= 3 => m,
-        _ => return Err(AlignError::RansacFailed { inliers: num_inliers }),
+    // 6. Collinear GPS: RANSAC samples are all degenerate, so fit robustly on all pairs and fix the free roll by gravity.
+    let degenerate = degenerate_ratio(&dst);
+    let (sim3, inlier_mask, num_inliers, num_trials, gravity) = if let Some(ratio) = degenerate {
+        let ro = RobustUmeyamaOptions { min_threshold: opts.max_error, ..Default::default() };
+        let r = robust_umeyama(&src, &dst, &ro).ok_or(AlignError::RansacFailed { inliers: 0 })?;
+        if r.num_inliers < 3 {
+            return Err(AlignError::RansacFailed { inliers: r.num_inliers });
+        }
+        let (sim3, prior) = resolve_roll(rec, &r.sim3, &dst);
+        (sim3, r.inlier_mask, r.num_inliers, 0, Some(GravityResolution { ratio, prior }))
+    } else {
+        let ropts = RansacParams { max_error: opts.max_error, ..opts.ransac.clone() };
+        let rep = estimate_sim3_ransac(&src, &dst, &ropts, opts.rank_check);
+        let num_inliers = rep.support.num_inliers;
+        let sim3 = match (rep.success, rep.model) {
+            (true, Some(m)) if num_inliers >= 3 => m,
+            _ => return Err(AlignError::RansacFailed { inliers: num_inliers }),
+        };
+        (sim3, rep.inlier_mask, num_inliers, rep.num_trials, None)
     };
 
     // 8. Alignment error (all names in the file, no filter; duplicate lines are each counted).
@@ -175,17 +190,7 @@ pub fn estimate_gps_alignment(rec: &Reconstruction, gps: &[GpsRecord], opts: &Mo
     // Design decision: median for an even count. Use the mean of the middle two.
     let median_error = median(&mut ev);
 
-    Ok(GpsAlignment {
-        sim3,
-        enu,
-        common,
-        inlier_mask: rep.inlier_mask,
-        num_inliers,
-        num_trials: rep.num_trials,
-        errors,
-        mean_error,
-        median_error,
-    })
+    Ok(GpsAlignment { sim3, enu, common, inlier_mask, num_inliers, num_trials, errors, mean_error, median_error, gravity })
 }
 
 /// Applies to the model (poses and points) if estimation succeeds. On failure leaves the model unchanged and returns `Err`.

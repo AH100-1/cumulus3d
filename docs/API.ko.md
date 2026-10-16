@@ -72,6 +72,7 @@
 | 두 재구성(초벌↔정밀) 정렬 | `cumulus3d_align::align_reconstructions` | align |
 | 구역 좌표계 연쇄 재기준 | `cumulus3d_align::AnchorChain::push_model` | align |
 | 스냅샷 점군 합성 | `cumulus3d_align::compose_snapshot` | align |
+| GPS 가 일직선(단일 직선 비행)일 때 ENU 정렬의 직선 둘레 회전을 중력(지면 평면, 없으면 평균 광축)으로 결정 — `align_to_gps` 는 자동 | `cumulus3d_align::fit_enu_sim3`, `GpsAlignment::gravity` | align |
 | GPS ↔ ENU 변환 | `cumulus3d_align::EnuFrame` | align |
 | 왜곡 보정 | `cumulus3d_dense::undistort` / `undistort_from_dir` | dense |
 | 조밀화 장면 만들기 | `cumulus3d_dense::DenseScene::from_reconstruction` / `from_workspace_dir` | dense |

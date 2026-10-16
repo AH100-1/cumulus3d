@@ -73,6 +73,7 @@ Pipeline order: images → **features** (SIFT) → **matching** (descriptor matc
 | Align two reconstructions (preview ↔ refined) | `cumulus3d_align::align_reconstructions` | align |
 | Chained re-referencing of zone coordinate frames | `cumulus3d_align::AnchorChain::push_model` | align |
 | Compose a snapshot point cloud | `cumulus3d_align::compose_snapshot` | align |
+| Fix the roll of an ENU fit with collinear GPS (single straight flight line) from gravity: ground plane, else mean optical axis; automatic in `align_to_gps` | `cumulus3d_align::fit_enu_sim3`, `GpsAlignment::gravity` | align |
 | GPS ↔ ENU conversion | `cumulus3d_align::EnuFrame` | align |
 | Undistortion | `cumulus3d_dense::undistort` / `undistort_from_dir` | dense |
 | Build a densification scene | `cumulus3d_dense::DenseScene::from_reconstruction` / `from_workspace_dir` | dense |

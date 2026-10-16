@@ -594,6 +594,7 @@ impl Shared {
         generation: u64,
         gps: Arc<Vec<GpsRecord>>,
         keep: Arc<HashSet<String>>,
+        cam_ids: Arc<BTreeMap<String, CameraId>>,
     ) {
         let k = range.zone;
         let sh = &*self;
@@ -649,6 +650,7 @@ impl Shared {
             }
         }
         if let Some(pr) = &sh.cfg.intrinsics_prior {
+            let pr = pr.resolve(&cam_ids);
             for (cid, cam) in rec.cameras() {
                 if !ba.constant_cameras.contains(cid) {
                     if let Some(p) = pr.ba_prior(cam) {
@@ -1258,6 +1260,7 @@ impl Session {
     /// A camera without an entry is left alone; an entry whose length differs from the camera model's is an error.
     fn apply_intrinsics_prior(&self, out: &mut Out) -> Result<(), String> {
         let Some(pr) = &self.shared.cfg.intrinsics_prior else { return Ok(()) };
+        let pr = pr.resolve(&self.cam_ids);
         for mut cam in self.store.cameras() {
             let before = cam.params.clone();
             if pr.apply(&mut cam)? && cam.params != before {
@@ -1288,8 +1291,8 @@ impl Session {
             let keep: Arc<HashSet<String>> =
                 Arc::new(self.position_of.iter().filter(|(_, p)| **p >= range.lo && **p < range.hi).map(|(n, _)| n.clone()).collect());
             let generation = sh.generation(k);
-            let (sh2, gps) = (sh.clone(), self.gps.clone());
-            let h = std::thread::spawn(move || sh2.refine_job(range, snap, generation, gps, keep));
+            let (sh2, gps, cam_ids) = (sh.clone(), self.gps.clone(), self.cam_ids.clone());
+            let h = std::thread::spawn(move || sh2.refine_job(range, snap, generation, gps, keep, cam_ids));
             sh.bg().jobs.push(h);
             self.arrived.insert(k, range);
             return;
@@ -1306,8 +1309,8 @@ impl Session {
             Arc::new(self.position_of.iter().filter(|(_, p)| **p >= range.lo && **p < range.hi).map(|(n, _)| n.clone()).collect());
         let generation = sh.generation(k);
         {
-            let (sh2, gps, keep) = (sh.clone(), self.gps.clone(), keep.clone());
-            let h = std::thread::spawn(move || sh2.refine_job(range, snap, generation, gps, keep));
+            let (sh2, gps, keep, cam_ids) = (sh.clone(), self.gps.clone(), keep.clone(), self.cam_ids.clone());
+            let h = std::thread::spawn(move || sh2.refine_job(range, snap, generation, gps, keep, cam_ids));
             sh.bg().jobs.push(h);
         }
         let cloud = sh.dense_region("preview", k, &preview, &keep, out);

@@ -396,3 +396,66 @@ fn stream_only_output_writes_the_stream_folder_and_no_plys() {
         std::fs::read_dir(out.join("live")).unwrap().filter(|e| e.as_ref().unwrap().path().extension().is_some_and(|x| x == "ply")).count();
     assert_eq!(plys, 0, "no display PLYs");
 }
+
+/// Focal length of every camera in every refined zone of a stable-display node run over the synthetic flight.
+fn refined_focals(tag: &str, prior: Option<cumulus3d_cli::intrinsics::IntrinsicsPrior>) -> Vec<f64> {
+    let host = CompositionHost::new();
+    let mut b = ReconNode::declare()
+        .id(tag)
+        .images(images(tag))
+        .cameras(CAMS)
+        .zones(3, 1)
+        .seed(7)
+        .stable_display(true)
+        .settle(0.01, 2)
+        .sync_hooks(true);
+    if let Some(p) = prior {
+        b = b.intrinsics_prior(p);
+    }
+    let n = b.build(&host).unwrap();
+    for s in 0..NPOS as u64 {
+        n.compose(FrameState::ready(set(s, 0))).unwrap();
+    }
+    let closed = host.close(tag).unwrap();
+    let refined = closed.session.refined();
+    assert!(!refined.is_empty());
+    refined.values().flat_map(|z| z.model.cameras().values().map(|c| c.params[0]).collect::<Vec<_>>()).collect()
+}
+
+#[test]
+fn intrinsics_prior_pulls_the_focal_length_towards_the_given_value() {
+    use cumulus3d_cli::intrinsics::IntrinsicsPrior;
+    // A prior 30 % away from the rendered focal length, keyed by camera name and very tight.
+    let f0 = common::F * 1.3;
+    let p = [f0, f0, 160.0, 120.0, 0.0, 0.0, 0.0, 0.0];
+    let prior = IntrinsicsPrior::new().sigmas(1e-4, 1e-3).opencv("camF", p).opencv("camR", p).opencv("camL", p);
+    let with = refined_focals("prior_on", Some(prior));
+    let without = refined_focals("prior_off", None);
+    let err = |v: &[f64]| v.iter().map(|f| (f / f0 - 1.0).abs()).fold(0.0, f64::max);
+    assert!(err(&with) < 0.01, "with prior: {with:?} vs {f0}");
+    assert!(err(&without) > 0.05, "without prior: {without:?} vs {f0}");
+}
+
+#[test]
+fn intrinsics_prior_is_validated_on_build() {
+    use cumulus3d_cli::intrinsics::IntrinsicsPrior;
+    let host = CompositionHost::new();
+    let dir = images("prior_bad");
+    let p = || IntrinsicsPrior::new().opencv("camF", [1000.0, 1000.0, 160.0, 120.0, 0.0, 0.0, 0.0, 0.0]);
+    let try_build = |p: IntrinsicsPrior| ReconNode::declare().id("v").images(&dir).cameras(CAMS).intrinsics_prior(p).build(&host);
+    for bad in [
+        p().sigmas(0.0, 0.01),
+        p().sigmas(0.01, -1.0),
+        p().sigmas(f64::NAN, 0.01),
+        IntrinsicsPrior::new(),
+        p().camera("camX", vec![1.0; 8]),
+        p().camera("camR", vec![f64::NAN; 8]),
+    ] {
+        let err = try_build(bad).unwrap_err();
+        assert!(matches!(err, ComposeError::Config(ref v) if v.iter().any(|x| x.starts_with("intrinsics_prior"))), "{err:?}");
+    }
+    let err =
+        ReconNode::declare().id("v").images(&dir).cameras(CAMS).intrinsics_prior_json("/no/such/prior.json").build(&host).unwrap_err();
+    assert!(matches!(err, ComposeError::Config(ref v) if v.iter().any(|x| x.starts_with("intrinsics_prior"))), "{err:?}");
+    try_build(p()).unwrap();
+}

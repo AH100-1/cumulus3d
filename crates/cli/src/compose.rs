@@ -92,6 +92,7 @@ use crate::blocks::LiveStream;
 use crate::declare::{AlignFrame, Dense, Features, Plan};
 use crate::densewrap::{make_ba_backend, make_match_backend, make_sift_backend, make_sparse_backend, parse_profile};
 use crate::events::{Command, Event, EventKind, Frame, ZoneRange};
+use crate::intrinsics::{IntrinsicsPrior, DEFAULT_DIST_SIGMA, DEFAULT_FOCAL_SIGMA};
 use crate::live::DisplayFeed;
 use crate::pipeline::{Pipeline, QueuePolicy, Summary};
 use crate::post::LiveOptions;
@@ -571,6 +572,10 @@ pub struct NodeBuilder {
     stream_origin: Option<[f64; 3]>,
     /// Only run.log, the timeline and the live diff stream are written to the output folder.
     stream_only: bool,
+    /// Soft intrinsics prior (set by the builder methods; the plan's `sparse.intrinsics_prior` file is the fallback).
+    prior: Option<IntrinsicsPrior>,
+    /// Error from reading a prior file in [`NodeBuilder::intrinsics_prior_json`], reported by `build`.
+    prior_error: Option<String>,
 }
 
 impl fmt::Debug for NodeBuilder {
@@ -598,6 +603,8 @@ impl ReconNode {
             deltas: None,
             stream_origin: None,
             stream_only: false,
+            prior: None,
+            prior_error: None,
         }
     }
 }
@@ -805,11 +812,57 @@ impl NodeBuilder {
         self.hook(move |pl| pl.sync(on))
     }
 
+    /// Soft intrinsics prior (the CLI's `--intrinsics-prior`): every camera starts from the given parameters (except the
+    /// principal point) and the bundle adjustment is pulled towards them with the prior's σ values. Cameras are keyed by
+    /// camera name (one of [`NodeBuilder::cameras`]) or by id; a camera without an entry is left alone. Checked by `build`.
+    ///
+    /// ```no_run
+    /// use cumulus3d_cli::compose::ReconNode;
+    /// use cumulus3d_cli::intrinsics::IntrinsicsPrior;
+    /// let prior = IntrinsicsPrior::new()
+    ///     .sigmas(0.005, 0.01) // focal: relative, distortion: absolute
+    ///     .opencv("camF", [1607.4, 1611.2, 1024.0, 576.0, 0.082, -0.084, 0.0013, 0.0014]);
+    /// let _builder = ReconNode::declare().images("live/images").cameras(["camF"]).intrinsics_prior(prior);
+    /// ```
+    pub fn intrinsics_prior(mut self, prior: IntrinsicsPrior) -> Self {
+        self.prior = Some(prior);
+        self.prior_error = None;
+        self
+    }
+
+    /// Reads the prior from a JSON file (same format as the CLI's `--intrinsics-prior`; default σ values 0.005 / 0.01).
+    /// A read or parse error is reported by `build`. For other σ values use [`IntrinsicsPrior::load`] and
+    /// [`NodeBuilder::intrinsics_prior`].
+    pub fn intrinsics_prior_json(mut self, path: impl AsRef<Path>) -> Self {
+        match IntrinsicsPrior::load(path, DEFAULT_FOCAL_SIGMA, DEFAULT_DIST_SIGMA) {
+            Ok(p) => {
+                self.prior = Some(p);
+                self.prior_error = None;
+            }
+            Err(e) => self.prior_error = Some(e),
+        }
+        self
+    }
+
     /// Checks the configuration, creates the session and pipeline, and registers the node on `host`.
     /// Creates the image folder's spool folder; nothing else is written until frames are declared.
     pub fn build(self, host: &CompositionHost) -> Result<ReconNode, ComposeError> {
-        let NodeBuilder { id, plan, policy, backpressure, source, spool, output, attach, frames, deltas, stream_origin, stream_only } =
-            self;
+        let NodeBuilder {
+            id,
+            plan,
+            policy,
+            backpressure,
+            source,
+            spool,
+            output,
+            attach,
+            frames,
+            deltas,
+            stream_origin,
+            stream_only,
+            prior,
+            prior_error,
+        } = self;
         let mut pr = Vec::new();
         let cams = &plan.input.cameras;
         if cams.is_empty() {
@@ -850,6 +903,28 @@ impl NodeBuilder {
             }
             _ => {}
         }
+        // Intrinsics prior: the builder's, else the plan's file (`sparse.intrinsics_prior`).
+        if let Some(e) = prior_error {
+            pr.push(format!("intrinsics_prior: {e}"));
+        }
+        let prior = match prior {
+            Some(p) => Some(p),
+            None => plan.sparse.intrinsics_prior.as_ref().and_then(|f| {
+                IntrinsicsPrior::load(f, plan.sparse.intrinsics_prior_sigma, plan.sparse.intrinsics_prior_dist_sigma)
+                    .map_err(|e| pr.push(format!("sparse.intrinsics_prior: {e}")))
+                    .ok()
+            }),
+        };
+        if let Some(p) = &prior {
+            match p.validate() {
+                Err(e) => pr.push(format!("intrinsics_prior: {e}")),
+                Ok(()) => {
+                    for n in p.named.keys().filter(|n| !cams.contains(n)) {
+                        pr.push(format!("intrinsics_prior: camera {n:?} is not one of the node's cameras"));
+                    }
+                }
+            }
+        }
         let sift = make_sift_backend(&plan.features.backend).map_err(|e| pr.push(format!("features.backend: {e}"))).ok();
         let matcher = make_match_backend(&plan.matching.backend).map_err(|e| pr.push(format!("matching.backend: {e}"))).ok();
         let ba_backend = make_ba_backend(&plan.sparse.ba_backend).map_err(|e| pr.push(format!("sparse.ba_backend: {e}"))).ok();
@@ -889,6 +964,7 @@ impl NodeBuilder {
         sc.stable_display = plan.sparse.stable_display;
         sc.settle_tol = plan.sparse.settle_tol;
         sc.settle_max_zone = plan.sparse.settle_max_zone;
+        sc.intrinsics_prior = prior.map(Arc::new);
         if deltas.as_ref().is_some_and(|o| o.stride == 0) {
             return Err(ComposeError::Config(vec!["display_deltas: stride must be at least 1".into()]));
         }

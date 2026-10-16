@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Added
+- `NodeBuilder::intrinsics_prior(IntrinsicsPrior)` and `intrinsics_prior_json(path)`: the compose API can now set the BA intrinsics prior the CLI exposes (`--intrinsics-prior*`), wired like the CLI path (initial camera parameters replaced, BA prior residuals). `IntrinsicsPrior` gains `new`, `sigmas`, `camera` (by camera name), `camera_id`, `opencv`, `validate` and `resolve`; the `named` field holds name-keyed entries, and JSON keys that are not integers are camera names (also in the CLI file). `build` validates it (positive finite σ, finite non-empty parameters, names that are node cameras) and falls back to the plan's `sparse.intrinsics_prior` file.
 
 ## [0.8.0] — 2026-10-17
 ### Added

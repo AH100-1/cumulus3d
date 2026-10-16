@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### 추가
+- `NodeBuilder::intrinsics_prior(IntrinsicsPrior)`, `intrinsics_prior_json(path)`: compose API 에서도 CLI 의 번들 조정 내부값 사전(`--intrinsics-prior*`)을 지정할 수 있다. CLI 경로와 같게 연결된다(초기 카메라 파라미터 교체, BA 사전 잔차). `IntrinsicsPrior` 에 `new`, `sigmas`, `camera`(카메라 이름 기준), `camera_id`, `opencv`, `validate`, `resolve` 추가, 이름 키 항목은 `named` 필드에 담기며 JSON 의 정수가 아닌 키는 카메라 이름이다(CLI 파일도 동일). `build` 가 σ 양수·유한, 파라미터 유한·비어 있지 않음, 노드에 있는 카메라 이름을 검사하고, 빌더에 없으면 계획의 `sparse.intrinsics_prior` 파일을 쓴다.
 
 ## [0.8.0] — 2026-10-17
 ### 추가

@@ -104,6 +104,29 @@ let closed = recon.close()?;                      // 남은 구역 닫기, 정�
 
 노드 조회: `positions()`, `journal()`(위치별 순번·리비전), `waiting()`, `stats()`, `subscribe()`, `poll()`, `with_session(|s| …)`.
 
+### 내부값 사전(intrinsics prior)
+
+`.intrinsics_prior(IntrinsicsPrior)` 는 CLI 의 `--intrinsics-prior`, `--intrinsics-prior-sigma`, `--intrinsics-prior-dist-sigma` 에 대응한다. 모든 카메라가
+주어진 값(주점 제외)에서 시작하고 번들 조정이 그 값 쪽으로 당겨진다(초점거리는 상대 σ 기본 0.005, 나머지는 절대 σ 기본 0.01).
+카메라는 이름(`.cameras` 의 항목) 또는 카메라 id 로 지정하고, 파라미터는 모델 순서(OPENCV: `fx fy cx cy k1 k2 p1 p2`)다. 항목이 없는 카메라는 그대로 둔다.
+`.intrinsics_prior_json(path)` 는 CLI 와 같은 JSON 파일을 읽는다(정수가 아닌 키는 카메라 이름). 빌더가 지정하지 않으면 계획의
+`sparse.intrinsics_prior` 파일을 쓴다. `.build` 는 0 이하·비유한 σ, 비었거나 유한하지 않은 사전, 노드에 없는 카메라 이름을 거부한다.
+
+```rust
+use cumulus3d_cli::intrinsics::IntrinsicsPrior;
+
+let prior = IntrinsicsPrior::new()
+    .sigmas(0.005, 0.01)
+    .opencv("camF", [1607.39, 1611.24, 1024.0, 576.0, 0.082, -0.084, 0.0013, 0.0014])
+    .opencv("camR", [1601.41, 1599.46, 1024.0, 576.0, 0.077, -0.079, 0.0006, -0.0014]);
+let node = ReconNode::declare()
+    .images("live/images")
+    .cameras(["camF", "camR"])
+    .stable_display(true)
+    .intrinsics_prior(prior)
+    .build(&host)?;
+```
+
 ## 7. 메모리 표시 증분(display delta)
 
 `cumulus3d stream` 의 파일 스트림 말고도, 노드가 점 키 기반 증분 표시를 임베딩 앱에 메모리로 바로 줄 수 있다. 보이는 점마다

@@ -111,6 +111,31 @@ file and sinks of the plan are not used.
 Node queries: `positions()`, `journal()` (sequence, revision per position), `waiting()`, `stats()`, `subscribe()`, `poll()`,
 `with_session(|s| …)`.
 
+### Intrinsics prior
+
+`.intrinsics_prior(IntrinsicsPrior)` is the compose counterpart of the CLI's `--intrinsics-prior`, `--intrinsics-prior-sigma` and
+`--intrinsics-prior-dist-sigma`: every camera starts from the given parameters (principal point kept) and the bundle adjustment is pulled towards
+them (focal length: relative σ, default 0.005; other parameters: absolute σ, default 0.01). Cameras are keyed by camera name (an entry of
+`.cameras`) or by camera id; parameters are in the model's order (OPENCV: `fx fy cx cy k1 k2 p1 p2`). A camera without an entry is left alone.
+`.intrinsics_prior_json(path)` reads the CLI's JSON file (keys that are not integers are camera names). A plan's
+`sparse.intrinsics_prior` file is used when the builder sets none. `.build` rejects non-positive or non-finite σ, an empty or non-finite prior and
+names that are not node cameras.
+
+```rust
+use cumulus3d_cli::intrinsics::IntrinsicsPrior;
+
+let prior = IntrinsicsPrior::new()
+    .sigmas(0.005, 0.01)
+    .opencv("camF", [1607.39, 1611.24, 1024.0, 576.0, 0.082, -0.084, 0.0013, 0.0014])
+    .opencv("camR", [1601.41, 1599.46, 1024.0, 576.0, 0.077, -0.079, 0.0006, -0.0014]);
+let node = ReconNode::declare()
+    .images("live/images")
+    .cameras(["camF", "camR"])
+    .stable_display(true)
+    .intrinsics_prior(prior)
+    .build(&host)?;
+```
+
 ## 7. In-memory display deltas
 
 Besides the file stream of `cumulus3d stream`, a node can hand the point-keyed incremental display to the embedding application

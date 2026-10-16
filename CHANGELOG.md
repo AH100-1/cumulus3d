@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+
+## [0.11.0] — 2026-10-17
 ### Added
 - Live throughput (see `docs/COMPOSE.md` section 8). The per-position chain (features -> matching -> registration -> triangulation) no longer has to run strictly one position after the other:
   - Backlog batching: `Input::Batch(Vec<FrameSet>)` extracts the features of all positions together (one parallel call, ids in position order), matches every pending pair in one call, and registers and triangulates once per batch. A batch is split where a zone closes or the first model is built, so zones see the same chain state as position by position; results equal position by position within the tolerance of registration order (`NodeBuilder::batch(threshold)`, default 3 on nodes: a spawned node that finds at least that many states waiting takes up to 32 as one batch; `ReconNode::compose_batch(states)` does the same on demand; off under `ReplayWindow`).

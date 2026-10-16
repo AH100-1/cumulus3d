@@ -51,14 +51,21 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --release --workspace --locked
 
-# --- public API compatibility with the last published version (0.x: breaking changes need a minor bump)
+# --- bump versions
+perl -i -pe 's/^(version = ")\Q'"$old"'\E(")/$1'"$new"'$2/ if $. && /^version = /; s/^(cumulus3d-[a-z0-9-]+ = \{ path = "[^"]+", version = ")\Q'"$old"'\E(")/$1'"$new"'$2/' Cargo.toml
+[ "$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)" = "$new" ] || die "version bump in Cargo.toml failed"
+cargo update -w -q
+
+# --- public API compatibility with the last published version, judged on the bumped version (0.x: breaking changes need 'minor')
+revert() { git checkout -q -- Cargo.toml Cargo.lock; }
 if ! command -v cargo-semver-checks > /dev/null 2>&1; then
   echo "cargo-semver-checks not found; installing"
   cargo install cargo-semver-checks --locked || echo "warning: cannot install cargo-semver-checks" >&2
 fi
 if command -v cargo-semver-checks > /dev/null 2>&1; then
   if curl -sf -m 20 -A "cumulus3d-release" https://crates.io/api/v1/crates/cumulus3d-core > /dev/null; then
-    if ! cargo semver-checks --workspace --release-type "$bump"; then
+    if ! cargo semver-checks --workspace; then
+      revert
       die "public API changes need more than a '$bump' bump (breaking changes in 0.x need 'minor')"
     fi
   else
@@ -69,14 +76,10 @@ else
 fi
 
 if [ $dry = 1 ]; then
+  revert
   echo "dry run: would bump $old -> $new, update Cargo.toml/Cargo.lock/changelogs, commit 'Release $new' and push"
   exit 0
 fi
-
-# --- bump versions
-perl -i -pe 's/^(version = ")\Q'"$old"'\E(")/$1'"$new"'$2/ if $. && /^version = /; s/^(cumulus3d-[a-z0-9-]+ = \{ path = "[^"]+", version = ")\Q'"$old"'\E(")/$1'"$new"'$2/' Cargo.toml
-[ "$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)" = "$new" ] || die "version bump in Cargo.toml failed"
-cargo update -w -q
 
 # --- changelogs: "## Unreleased" becomes "## [new] — date"; a fresh empty "## Unreleased" is kept on top
 today=$(date +%Y-%m-%d)

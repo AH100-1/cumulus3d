@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+
+## [0.7.0] — 2026-10-16
 ### Added
 - `cumulus3d-cuda` 의 SIFT 전 과정을 GPU 에서 수행(`CudaSift`): DoG, 부분화소 보정·엣지·대비 억제 극값 검출, 다중 방향 할당, 상위 K·공간 격자 선택, 128차원 기술자(L1-root/L2, 0.2 절단, x512)를 커널로 처리하고 최종 특징·기술자·레벨별 개수만 내려받는다. CUDA 가 실패하면 경고 후 `CpuSift` 로 계산한다. SkyLens 팀의 기여.
 - CUDA 번들 조정: `cumulus3d_ba::BaBackend` 트레이트, `CpuBaBackend`(기본), `bundle_adjust_with`; `cumulus3d_cuda::CudaBundleAdjuster`(`kernels/ba.cu`: 잔차·야코비안·견고 손실·정규방정식·Schur 축소·축소 계통 풀이·점 역대입을 f64 로, LM 루프는 CPU). 계획 키 `[sparse] ba_backend = "cpu" | "cuda"`, 세션의 구역 BA 와 전역 매퍼가 사용한다. CUDA 실패 시 CPU 로 다시 푼다. GPS 위치 사전항이나 내부값 사전항이 있는 문제는 GPU 풀이에 사전항이 없어 항상 CPU 로 푼다.

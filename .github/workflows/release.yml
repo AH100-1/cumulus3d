@@ -4,6 +4,8 @@ name: Release
 # check, a semver check against the last published version, publishes all crates in dependency order, builds the `cumulus3d`
 # binaries and creates the GitHub Release `vX.Y.Z` (this also creates the tag). Pushes that do not change the version do nothing.
 # Pushing a `vX.Y.Z` tag by hand (matching the workspace version) takes the same path. Use `scripts/release.sh` to cut a release.
+# After a release, `notify-downstream` sends a `cumulus3d-released` repository_dispatch to the repos in `.github/downstream.json`
+# (secret `DOWNSTREAM_DISPATCH_TOKEN`; skipped with a warning when unset). Run the workflow manually with `notify_version` to re-send.
 # crates.io publishing runs only when the `CARGO_REGISTRY_TOKEN` secret is set; otherwise it is skipped.
 
 on:
@@ -11,6 +13,11 @@ on:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      notify_version:
+        description: "Only re-send the downstream notification for this already released version (e.g. 0.5.0); nothing else runs"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -26,6 +33,10 @@ jobs:
     outputs:
       release: ${{ steps.plan.outputs.release }}
       tag: ${{ steps.plan.outputs.tag }}
+      notify_only: ${{ steps.plan.outputs.notify_only }}
+      version: ${{ steps.plan.outputs.version }}
+      previous: ${{ steps.plan.outputs.previous }}
+      breaking: ${{ steps.plan.outputs.breaking }}
     steps:
       - uses: actions/checkout@v5
       - name: Is this version still to be released?
@@ -34,14 +45,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          notify_only=false
+          if [ -n "${{ inputs.notify_version }}" ]; then v="${{ inputs.notify_version }}"; v="${v#v}"; notify_only=true; fi
           tag="v$v"
-          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then
+          if [ "$notify_only" = false ] && [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then
             echo "tag $GITHUB_REF_NAME does not match workspace version $v"; exit 1
           fi
           code=$(curl -s -o /dev/null -w '%{http_code}' -A "cumulus3d-release (github actions)" "https://crates.io/api/v1/crates/cumulus3d-cli/$v")
           case "$code" in 200|404) ;; *) echo "crates.io lookup failed (HTTP $code)"; exit 1 ;; esac
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then released=true; else released=false; fi
-          if [ "$code" = 200 ] && [ "$released" = true ]; then release=false; else release=true; fi
+          if [ "$notify_only" = true ]; then
+            [ "$code" = 200 ] && [ "$released" = true ] || { echo "$tag is not released yet; nothing to notify"; exit 1; }
+            release=false
+          elif [ "$code" = 200 ] && [ "$released" = true ]; then release=false; else release=true; fi
+          # previous published version and whether the bump is breaking (0.x: a minor bump may break; >=1.0: a major bump)
+          previous=$(curl -sf -A "cumulus3d-release (github actions)" https://crates.io/api/v1/crates/cumulus3d-cli \
+            | jq -r --arg v "$v" '[.versions[] | select(.yanked | not) | .num | select(. != $v)] | .[0] // ""')
+          breaking=false
+          if [ -n "$previous" ]; then
+            IFS=. read -r a1 b1 _ <<< "$previous"; IFS=. read -r a2 b2 _ <<< "$v"
+            if [ "$a2" != "$a1" ] || { [ "$a2" = 0 ] && [ "$b2" != "$b1" ]; }; then breaking=true; fi
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          echo "breaking=$breaking" >> "$GITHUB_OUTPUT"
+          echo "notify_only=$notify_only" >> "$GITHUB_OUTPUT"
           echo "version $v: crates.io HTTP $code, GitHub Release exists: $released -> release: $release"
           echo "release=$release" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -139,3 +167,42 @@ jobs:
           else
             gh release create "$TAG" dist/* --title "cumulus3d $TAG" --generate-notes --target "$GITHUB_SHA"
           fi
+
+  notify-downstream:
+    needs: [plan, github-release]
+    if: ${{ !cancelled() && (needs.plan.outputs.notify_only == 'true' || (needs.plan.outputs.release == 'true' && needs.github-release.result == 'success')) }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+      - name: repository_dispatch to downstream repos
+        env:
+          TOKEN: ${{ secrets.DOWNSTREAM_DISPATCH_TOKEN }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PREVIOUS: ${{ needs.plan.outputs.previous }}
+          BREAKING: ${{ needs.plan.outputs.breaking }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::DOWNSTREAM_DISPATCH_TOKEN is not set; downstream repos were not notified"
+            exit 0
+          fi
+          export RELEASE_URL="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          python3 -I - <<'PY' > payload.json
+          import json, os, re
+          t = open("CHANGELOG.md", encoding="utf-8").read()
+          v = os.environ["VERSION"]
+          m = re.search(r"^## \[" + re.escape(v) + r"\][^\n]*\n(.*?)(?=^## |\Z)", t, re.S | re.M)
+          log = (m.group(0) if m else "").strip()
+          if len(log) > 8000:
+              log = log[:8000] + "\n... (truncated; see the release page)"
+          print(json.dumps({"event_type": "cumulus3d-released", "client_payload": {
+              "version": v, "tag": os.environ["TAG"], "previous_version": os.environ["PREVIOUS"],
+              "breaking": os.environ["BREAKING"] == "true", "changelog": log, "release_url": os.environ["RELEASE_URL"]}}))
+          PY
+          for repo in $(jq -r '.[]' .github/downstream.json); do
+            code=$(curl -s -o resp.txt -w '%{http_code}' -X POST "https://api.github.com/repos/$repo/dispatches" \
+              -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" -d @payload.json)
+            if [ "$code" = 204 ]; then echo "notified $repo"; else echo "::warning::notifying $repo failed (HTTP $code): $(head -c 300 resp.txt)"; fi
+          done

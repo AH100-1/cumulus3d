@@ -14,6 +14,7 @@ The date of each version is the actual work/commit date.
   downscale). `--undistort-backend cpu|cuda` on the CLI (`--gpu` selects `cuda`), plan field `dense.undistort_backend`. On the V100
   (240 images): GPU vs CPU max difference 0-1 grey levels (mean 0), undistortion 9.93 s vs 16.22 s, total 282.8 s vs 289.6 s,
   GPS error 0.476 m vs 0.478 m, no fallbacks.
+- Release notification: after a release the workflow sends a `cumulus3d-released` repository_dispatch (version, tag, previous_version, breaking, changelog, release_url) to the repos in `.github/downstream.json`.
 - `scripts/release.sh patch|minor|major [--dry-run]` and automatic publishing: a push to `main` with a new workspace version runs
   the checks, publishes all crates to crates.io, builds the binaries and creates the tag and GitHub Release. See "Releasing" in `README.md`.
 

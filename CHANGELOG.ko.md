@@ -13,6 +13,7 @@
   `CudaUndistort`(왜곡 영상 좌표 계산, 쌍선형 워프, 면적 평균 축소를 하나로 합친 NVRTC 커널). CLI `--undistort-backend cpu|cuda`
   (`--gpu` 는 `cuda` 선택), 플랜 필드 `dense.undistort_backend`. V100(240장): GPU 와 CPU 의 최대 차이 0-1 계조(평균 0), 왜곡 보정
   9.93 s 대 16.22 s, 전체 282.8 s 대 289.6 s, GPS 오차 0.476 m 대 0.478 m, 폴백 없음.
+- 릴리스 알림: 릴리스 후 워크플로가 `.github/downstream.json` 의 저장소들에 `cumulus3d-released` repository_dispatch(version, tag, previous_version, breaking, changelog, release_url)를 보낸다.
 - `scripts/release.sh patch|minor|major [--dry-run]` 와 자동 배포: `main` 에 새 워크스페이스 버전이 push 되면 검사, crates.io 배포,
   바이너리 빌드, 태그와 GitHub Release 생성까지 자동. `README.ko.md` 의 "릴리스" 참고.
 

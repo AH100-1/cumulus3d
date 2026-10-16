@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+
+## [0.6.0] — 2026-10-16
 ### Added
 - 메모리 표시 증분: `cumulus3d_cli::live` — 입출력 없는 `KeyedDiff`(`apply(&cloud, &zones) -> DisplayDelta`, `prepare`/`commit`/`abort`),
   `DisplayDelta { seq, adds, moves, removes, total_points, capacity }`(`PointAdd`, `PointMove`), `DisplayMirror`(뷰어쪽 슬롯 표),

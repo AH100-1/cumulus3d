@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+
+## [0.6.0] — 2026-10-16
 ### Added
 - In-memory display deltas: `cumulus3d_cli::live` with the I/O-free `KeyedDiff` (`apply(&cloud, &zones) -> DisplayDelta`, `prepare`/`commit`/`abort`),
   `DisplayDelta { seq, adds, moves, removes, total_points, capacity }` (`PointAdd`, `PointMove`), `DisplayMirror` (viewer-side slot table),

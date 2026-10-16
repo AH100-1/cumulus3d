@@ -89,7 +89,10 @@ struct StreamArgs {
     /// Descriptor matching backend (cpu|cuda). The result is the same as cpu.
     #[arg(long, default_value = "cpu")]
     match_backend: String,
-    /// Set --pm-backend/--sift-backend/--match-backend all to cuda.
+    /// Image undistortion backend (cpu|cuda). The result matches cpu up to rounding.
+    #[arg(long, default_value = "cpu")]
+    undistort_backend: String,
+    /// Set --pm-backend/--sift-backend/--match-backend/--undistort-backend all to cuda.
     #[arg(long)]
     gpu: bool,
     /// Number of rayon threads (0 = number of cores).
@@ -221,7 +224,9 @@ fn main() {
             c.pm_backend = a.pm_backend;
             c.sift_backend = a.sift_backend;
             c.match_backend = a.match_backend;
+            c.undistort_backend = a.undistort_backend;
             if a.gpu {
+                c.undistort_backend = "cuda".into();
                 c.pm_backend = "cuda".into();
                 c.sift_backend = "cuda".into();
                 c.match_backend = "cuda".into();

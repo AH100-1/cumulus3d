@@ -30,8 +30,8 @@
 
 use cumulus3d_core::{ImageId, Reconstruction};
 use cumulus3d_dense::{
-    undistort, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions,
-    UndistortCache, UndistortOptions,
+    undistort_with, DenseOutput, DenseScene, DensifyOptions, DepthMapCache, ImageBuffer, MvsProfile, PatchMatchBackend, SceneOptions,
+    UndistortBackend, UndistortCache, UndistortOptions,
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -45,6 +45,17 @@ pub fn make_pm_backend(name: &str) -> Result<Arc<dyn PatchMatchBackend>, String>
             .map(|b| Arc::new(b) as Arc<dyn PatchMatchBackend>)
             .map_err(|e| format!("--pm-backend cuda: {e} (조밀화에는 CUDA 장치가 필요)")),
         other => Err(format!("알 수 없는 --pm-backend {other} (cuda)")),
+    }
+}
+
+/// Image undistortion backend selection (cpu|cuda). `None` = the CPU path.
+pub fn make_undistort_backend(name: &str) -> Result<Option<Arc<dyn UndistortBackend>>, String> {
+    match name {
+        "cpu" => Ok(None),
+        "cuda" => cumulus3d_cuda::CudaUndistort::try_default()
+            .map(|b| Some(Arc::new(b) as Arc<dyn UndistortBackend>))
+            .map_err(|e| format!("--undistort-backend cuda: {e}")),
+        other => Err(format!("알 수 없는 --undistort-backend {other} (cpu|cuda)")),
     }
 }
 
@@ -94,6 +105,8 @@ pub struct DenseConfig {
     pub depth_cache: Option<Arc<DepthMapCache>>,
     /// Undistortion result cache.
     pub undistort_cache: Arc<UndistortCache>,
+    /// Image undistortion backend (None = CPU).
+    pub undistort_backend: Option<Arc<dyn UndistortBackend>>,
 }
 
 impl DenseConfig {
@@ -108,6 +121,7 @@ impl DenseConfig {
             lock: None,
             depth_cache: None,
             undistort_cache: Arc::new(UndistortCache::new()),
+            undistort_backend: None,
         }
     }
 }
@@ -139,8 +153,14 @@ pub fn dense_model(model: &Reconstruction, keep: impl Fn(&str) -> bool, image_ro
     let del_ref: Vec<&str> = del.iter().map(|s| s.as_str()).collect();
     m.deregister_images_by_name(&del_ref);
     let root: PathBuf = image_root.to_path_buf();
-    let und = undistort(&m, &cfg.undistort, &cfg.undistort_cache, |im| ImageBuffer::load(root.join(&im.name)).ok().map(Arc::new))
-        .map_err(|e| format!("왜곡 보정 실패: {e}"))?;
+    let und = undistort_with(
+        &m,
+        &cfg.undistort,
+        &cfg.undistort_cache,
+        |im| ImageBuffer::load(root.join(&im.name)).ok().map(Arc::new),
+        cfg.undistort_backend.as_deref(),
+    )
+    .map_err(|e| format!("왜곡 보정 실패: {e}"))?;
     let images: BTreeMap<ImageId, Arc<ImageBuffer>> = und.images;
     let frames = images.len();
     let scene = DenseScene::from_reconstruction(&und.reconstruction, &images, &cfg.scene).map_err(|e| format!("장면 변환 실패: {e}"))?;

@@ -115,7 +115,7 @@ pub use scene::{DenseScene, DenseView, SceneOptions, ScenePoint};
 pub use smooth::{smooth_along_normals, SmoothParams};
 pub use stats::{cloud_stats, CloudStats};
 pub use undistort::{
-    undistort, undistort_from_dir, undistort_reconstruction, undistorted_camera, write_undistorted_workspace, CameraUndistortion,
-    UndistortCache, UndistortOptions, UndistortResult,
+    undistort, undistort_from_dir, undistort_reconstruction, undistort_with, undistorted_camera, write_undistorted_workspace,
+    CameraUndistortion, UndistortBackend, UndistortCache, UndistortOptions, UndistortResult,
 };
 pub use visibility::{filter_visibility, VisibilityParams};

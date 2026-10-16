@@ -296,6 +296,13 @@ impl CameraUndistortion {
     }
 }
 
+/// Pluggable image resampling (for example on the GPU). Must produce the same geometry as
+/// [`CameraUndistortion::undistort_image`]: an image of `u.pinhole` size with the input's channel count.
+pub trait UndistortBackend: Send + Sync {
+    /// Undistorts (and downscales) one image of the source camera size.
+    fn undistort_image(&self, u: &CameraUndistortion, img: &ImageBuffer) -> Result<ImageBuffer>;
+}
+
 fn camera_key(cam: &Camera, opts: &UndistortOptions) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     cam.model.id().hash(&mut h);
@@ -413,6 +420,20 @@ pub fn undistort<F>(rec: &Reconstruction, opts: &UndistortOptions, cache: &Undis
 where
     F: Fn(&Image) -> Option<Arc<ImageBuffer>> + Sync,
 {
+    undistort_with(rec, opts, cache, load, None)
+}
+
+/// Like [`undistort`], with an optional image resampling backend (`None` = the CPU path).
+pub fn undistort_with<F>(
+    rec: &Reconstruction,
+    opts: &UndistortOptions,
+    cache: &UndistortCache,
+    load: F,
+    backend: Option<&dyn UndistortBackend>,
+) -> Result<UndistortResult>
+where
+    F: Fn(&Image) -> Option<Arc<ImageBuffer>> + Sync,
+{
     let reconstruction = undistort_reconstruction(rec, opts, cache)?;
     let ids = rec.registered_images();
     // Fill the camera LUTs first to avoid duplicate computation during parallel image processing.
@@ -425,7 +446,14 @@ where
             let Some(im) = rec.image(iid) else { return (iid, None) };
             let cam = &rec.cameras()[&im.camera_id];
             let Some(src) = load(im) else { return (iid, None) };
-            let r = cache.get(cam, opts).and_then(|u| u.undistort_image(&src)).ok().map(Arc::new);
+            let r = cache
+                .get(cam, opts)
+                .and_then(|u| match backend {
+                    Some(b) => b.undistort_image(&u, &src),
+                    None => u.undistort_image(&src),
+                })
+                .ok()
+                .map(Arc::new);
             (iid, r)
         })
         .collect();
@@ -484,6 +512,25 @@ pub fn write_undistorted_workspace(result: &UndistortResult, out_dir: impl AsRef
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Marker;
+    impl UndistortBackend for Marker {
+        fn undistort_image(&self, u: &CameraUndistortion, _img: &ImageBuffer) -> Result<ImageBuffer> {
+            let mut o = ImageBuffer::new(u.pinhole.width as usize, u.pinhole.height as usize, 1);
+            o.data.fill(77);
+            Ok(o)
+        }
+    }
+
+    #[test]
+    fn backend_trait_dispatch() {
+        let cam = Camera::new(1, CameraModelKind::OpenCv, 64, 48, vec![60.0, 60.0, 32.0, 24.0, 0.05, 0.0, 0.0, 0.0]).unwrap();
+        let u = CameraUndistortion::new(&cam, &UndistortOptions::default()).unwrap();
+        let b: &dyn UndistortBackend = &Marker;
+        let out = b.undistort_image(&u, &ImageBuffer::new(64, 48, 1)).unwrap();
+        assert_eq!((out.width as u64, out.height as u64), (u.pinhole.width, u.pinhole.height));
+        assert!(out.data.iter().all(|&v| v == 77));
+    }
 
     fn front_cam() -> Camera {
         Camera::new(1, CameraModelKind::OpenCv, 2048, 1152, vec![1609.22, 1608.21, 1024.0, 576.0, 0.0824, -0.0849, 0.0022, 0.0007]).unwrap()

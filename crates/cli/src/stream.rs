@@ -72,6 +72,8 @@ pub struct StreamConfig {
     pub sift_backend: String,
     /// Descriptor matching backend (cpu|cuda).
     pub match_backend: String,
+    /// Image undistortion backend (cpu|cuda).
+    pub undistort_backend: String,
     /// Number of rayon threads (0 = number of cores).
     pub threads: usize,
     /// Process only the first N positions.
@@ -130,6 +132,7 @@ impl StreamConfig {
             mvs_profile: "fast".into(),
             sift_backend: "cpu".into(),
             match_backend: "cpu".into(),
+            undistort_backend: "cpu".into(),
             threads: 0,
             max_positions: None,
             save_models: false,

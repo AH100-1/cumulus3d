@@ -644,6 +644,7 @@ impl NodeBuilder {
         self.plan.features.backend = "cuda".into();
         self.plan.matching.backend = "cuda".into();
         self.plan.dense.backend = "cuda".into();
+        self.plan.dense.undistort_backend = "cuda".into();
         self
     }
     /// Triangulate only newly registered images.

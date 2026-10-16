@@ -70,7 +70,7 @@
 //! Relative paths in a plan file are relative to the working location (current folder).
 
 use crate::blocks::LiveStream;
-use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, parse_profile, DenseConfig};
+use crate::densewrap::{make_match_backend, make_pm_backend, make_sift_backend, make_undistort_backend, parse_profile, DenseConfig};
 use crate::events::{EventKind, Frame, ZoneRange};
 use crate::intrinsics::IntrinsicsPrior;
 use crate::pipeline::{Pipeline, QueuePolicy, Summary};
@@ -292,6 +292,8 @@ pub struct Dense {
     pub enabled: bool,
     /// PatchMatch backend (cuda).
     pub backend: String,
+    /// Image undistortion backend (cpu|cuda). Same result as cpu up to rounding.
+    pub undistort_backend: String,
     /// Profile (fast|quality).
     pub profile: String,
     /// Maximum undistorted image size.
@@ -316,6 +318,7 @@ impl Default for Dense {
         Self {
             enabled: true,
             backend: "cuda".into(),
+            undistort_backend: "cpu".into(),
             profile: "fast".into(),
             max_image_size: 960,
             views: 10,
@@ -407,6 +410,11 @@ impl Dense {
     /// PatchMatch backend name.
     pub fn backend(mut self, name: &str) -> Self {
         self.backend = name.to_string();
+        self
+    }
+    /// Image undistortion backend name (cpu|cuda).
+    pub fn undistort_backend(mut self, name: &str) -> Self {
+        self.undistort_backend = name.to_string();
         self
     }
     /// Maximum undistorted image size.
@@ -579,6 +587,7 @@ impl Dense {
     /// densification stage).
     pub fn config(&self) -> Result<DenseConfig, String> {
         let mut d = DenseConfig::new(make_pm_backend(&self.backend), parse_profile(&self.profile)?);
+        d.undistort_backend = make_undistort_backend(&self.undistort_backend)?;
         d.undistort.max_image_size = self.max_image_size;
         d.densify.neighbors.num_views = self.views;
         self.apply(&mut d.densify)?;
@@ -796,6 +805,7 @@ impl Plan {
             dense: Dense {
                 enabled: !c.no_dense,
                 backend: c.pm_backend.clone(),
+                undistort_backend: c.undistort_backend.clone(),
                 profile: c.mvs_profile.clone(),
                 max_image_size: c.dense_max_image_size,
                 views: c.number_views,
@@ -990,6 +1000,7 @@ impl ReconBuilder {
         self.plan.features.backend = "cuda".into();
         self.plan.matching.backend = "cuda".into();
         self.plan.dense.backend = "cuda".into();
+        self.plan.dense.undistort_backend = "cuda".into();
         self
     }
 
@@ -1202,6 +1213,7 @@ fn check(plan: &Plan, pr: &mut Problems) -> (Option<Layout>, Option<Vec<GpsRecor
     pr.check(f.max_num_features >= 1, "features.max_num_features", || "1 이상이어야 함".into());
     pr.check(f.max_image_size >= 16, "features.max_image_size", || "16 이상이어야 함".into());
     backend_ok(pr, "matching.backend", &plan.matching.backend, &["cpu", "cuda"]);
+    backend_ok(pr, "dense.undistort_backend", &plan.dense.undistort_backend, &["cpu", "cuda"]);
 
     let d = &plan.dense;
     if d.enabled {

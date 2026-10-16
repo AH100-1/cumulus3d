@@ -34,6 +34,8 @@
 //! - [`CudaSift`]: implementation of `cumulus3d_features::SiftEngine` (GPU scale space + CPU detection/descriptors, same result as
 //!   CpuSift).
 //!
+//! - [`CudaUndistort`]: implementation of `cumulus3d_dense::UndistortBackend` (fused lens undistortion + area downscale).
+//!
 //! `unsafe` is used only where cudarc marks things unsafe (kernel launch, pinned host memory allocation, `DeviceRepr` marking).
 //!
 //! # Usage example
@@ -68,11 +70,13 @@ mod device;
 mod matcher;
 mod patchmatch;
 mod sift;
+mod undistort;
 
 pub use device::{is_available, CudaDevice, GpuError};
 pub use matcher::CudaMatcher;
 pub use patchmatch::{CudaPatchMatch, CudaPatchMatchOptions};
 pub use sift::CudaSift;
+pub use undistort::CudaUndistort;
 
 /// Tries compiling all kernels with NVRTC without a device (for CI checks). `arch` example: `"compute_70"`.
 /// Uses the same options and define combinations as real runs (patchmatch: window step 1 and 2, hardware interpolation on and off, fast
@@ -84,7 +88,11 @@ pub fn check_kernels(arch: &'static str) -> Result<Vec<(String, usize)>, String>
         let opts = device::compile_options(Some(arch), fmad, fast, defs);
         compile_ptx_with_opts(src, opts).map(|ptx| (name.clone(), ptx.to_src().len())).map_err(|e| format!("{name}: {e:?}"))
     };
-    let mut out = vec![compile("sift".into(), sift::SRC, false, false, &[])?, compile("matcher".into(), matcher::SRC, true, false, &[])?];
+    let mut out = vec![
+        compile("sift".into(), sift::SRC, false, false, &[])?,
+        compile("matcher".into(), matcher::SRC, true, false, &[])?,
+        compile("undistort".into(), undistort::SRC, false, false, &[])?,
+    ];
     for step in [1, 2] {
         for hw in [false, true] {
             for fast in [false, true] {

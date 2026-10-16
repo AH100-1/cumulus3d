@@ -91,7 +91,9 @@
 use crate::declare::{AlignFrame, Dense, Features, Plan};
 use crate::densewrap::{make_match_backend, make_sift_backend, parse_profile};
 use crate::events::{Command, Event, EventKind, Frame, ZoneRange};
+use crate::live::DisplayFeed;
 use crate::pipeline::{Pipeline, QueuePolicy, Summary};
+use crate::post::LiveOptions;
 use crate::session::{FrameSet, Input, Session, SessionConfig};
 use crate::sinks::{self, SinkOptions};
 use cumulus3d_core::io::ply::PointCloud;
@@ -563,6 +565,7 @@ pub struct NodeBuilder {
     output: Option<(PathBuf, SinkOptions)>,
     attach: Vec<Attach>,
     frames: bool,
+    deltas: Option<LiveOptions>,
 }
 
 impl fmt::Debug for NodeBuilder {
@@ -587,6 +590,7 @@ impl ReconNode {
             output: None,
             attach: Vec::new(),
             frames: false,
+            deltas: None,
         }
     }
 }
@@ -645,6 +649,24 @@ impl NodeBuilder {
         self.plan.matching.backend = "cuda".into();
         self.plan.dense.backend = "cuda".into();
         self.plan.dense.undistort_backend = "cuda".into();
+        self
+    }
+    /// Stable display (see [`SessionConfig::stable_display`]): intrinsics are settled then frozen, later zones are anchored to the
+    /// shown ones with shared 3D points, and shown zones are re-densified in place (`ZoneRefined` of an earlier zone again), so
+    /// the displayed cloud only gets refined and never jumps. Settle parameters come from the plan (`sparse.settle_tol`,
+    /// `sparse.settle_max_zone`). Combine with [`NodeBuilder::fixed_enu_origin`]`(true)` for a display in a fixed ENU frame.
+    pub fn stable_display(mut self, on: bool) -> Self {
+        self.plan.sparse.stable_display = on;
+        self
+    }
+    /// Computes the in-memory display updates in the library: after every dense zone result a point-keyed
+    /// [`Event::DisplayDelta`] is delivered to subscribers and hooks (`EventKind::DisplayDelta`). Thinning (`stride`), overlap
+    /// voxel ownership and zone composition follow [`crate::post::LiveDisplay`]; `relocate` is decided by the node (on only
+    /// when previews exist). Needs dense clouds with point keys (`.dense(..)`, which the session always keys). The composition runs on
+    /// the composing thread right after the causing event; the ENU origin reported in the delta frame is the first GPS fix
+    /// declared.
+    pub fn display_deltas(mut self, opts: LiveOptions) -> Self {
+        self.deltas = Some(opts);
         self
     }
     /// Triangulate only newly registered images.
@@ -752,7 +774,7 @@ impl NodeBuilder {
     /// Checks the configuration, creates the session and pipeline, and registers the node on `host`.
     /// Creates the image folder's spool folder; nothing else is written until frames are declared.
     pub fn build(self, host: &CompositionHost) -> Result<ReconNode, ComposeError> {
-        let NodeBuilder { id, plan, policy, backpressure, source, spool, output, attach, frames } = self;
+        let NodeBuilder { id, plan, policy, backpressure, source, spool, output, attach, frames, deltas } = self;
         let mut pr = Vec::new();
         let cams = &plan.input.cameras;
         if cams.is_empty() {
@@ -819,8 +841,19 @@ impl NodeBuilder {
             _ => 0,
         };
         sc.decode_frames = frames;
+        sc.stable_display = plan.sparse.stable_display;
+        sc.settle_tol = plan.sparse.settle_tol;
+        sc.settle_max_zone = plan.sparse.settle_max_zone;
+        if deltas.as_ref().is_some_and(|o| o.stride == 0) {
+            return Err(ComposeError::Config(vec!["display_deltas: stride must be at least 1".into()]));
+        }
 
+        let origin = Arc::new(Mutex::new(None));
         let mut pl = Pipeline::new(Session::new(sc));
+        if let Some(opts) = deltas {
+            let mut feed = DisplayFeed::new(opts).with_origin(Arc::clone(&origin));
+            pl = pl.derive(move |e| feed.handle(e).into_iter().collect());
+        }
         if let Some((dir, opts)) = &output {
             pl = sinks::attach(pl, dir, opts).map_err(|e| ComposeError::Io(format!("{}: {e}", dir.display())))?;
         }
@@ -840,6 +873,7 @@ impl NodeBuilder {
             stats: ComposeStats::default(),
             pipeline: Some(pl),
             ended: None,
+            origin,
         };
         let node = ReconNode { id, backpressure, core: Arc::new(Mutex::new(core)) };
         host.register(&node)?;
@@ -890,6 +924,8 @@ struct Core {
     pipeline: Option<Pipeline<Session>>,
     /// Summary of a node closed by `FrameState::End`, until `close` takes it.
     ended: Option<Closed>,
+    /// First GPS fix declared `[lat, lon, alt]` (ENU origin reported by display deltas).
+    origin: Arc<Mutex<Option<[f64; 3]>>>,
 }
 
 impl ReconNode {
@@ -1229,6 +1265,9 @@ impl Core {
                 self.recent.pop_front();
             }
         }
+        if let Some(g) = fs.gps.first() {
+            lock(&self.origin).get_or_insert([g.lat, g.lon, g.alt]);
+        }
         self.pl().push(Input::Frames(fs));
         self.fail_check()
     }
@@ -1518,6 +1557,7 @@ mod tests {
             stats: ComposeStats::default(),
             pipeline: None,
             ended: None,
+            origin: Arc::new(Mutex::new(None)),
         };
         let k = FrameKey::new("rtsp://drone 1", 42, 3);
         assert_eq!(c.spool_name(&k, "camF", "png"), ".live/camF/rtsp___drone_1_0000000042.png");

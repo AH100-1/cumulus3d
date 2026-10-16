@@ -8,6 +8,24 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### Added
+- 메모리 표시 증분: `cumulus3d_cli::live` — 입출력 없는 `KeyedDiff`(`apply(&cloud, &zones) -> DisplayDelta`, `prepare`/`commit`/`abort`),
+  `DisplayDelta { seq, adds, moves, removes, total_points, capacity }`(`PointAdd`, `PointMove`), `DisplayMirror`(뷰어쪽 슬롯 표),
+  `DisplayFeed`(구역 사건 → `LiveDisplay` 합성 → delta), `DeltaKind`/`DisplayFrame`.
+- compose API: `NodeBuilder::stable_display(bool)`, `NodeBuilder::display_deltas(LiveOptions)` — 후자는 구역 결과 직후
+  `Event::DisplayDelta { delta, zone, kind (refined|replace|final), t, frame }`(`EventKind::DisplayDelta`)를 노드가 내보내게 한다.
+- `Pipeline::derive(f)`: 원인 사건 뒤에 파생 사건을 구독자·훅에 전달.
+- `DensifyOptions::set_fusion_mode(mode)`.
+
+### Changed
+- `blocks::DiffStream` 은 `live::KeyedDiff` 위의 얇은 파일 쓰기 계층(팩 형식 4, 바이트 동일; 고정 시퀀스의 팩 바이트를 시험으로 고정). `blocks::KeyHasher`/`POSITION_EPS` 는 `live` 로 옮김(재공개).
+
+### Breaking
+- `events::Event`, `events::EventKind` 는 `#[non_exhaustive]` 이고 `DisplayDelta` 변형이 늘었다: 전수 `match` 에는 `_` 가 필요하다.
+
+### Fixed
+- fast 프로파일 튜닝 이후 확장(traversal) 융합 점 수가 약 1/5 로 줄었음: 일치 융합용으로 튜닝한 `max_reproj_error = 100 px` 가 확장 융합에서는 픽셀이 한 성분으로 묶이는 거리라 성분이 표면을 가로질러 합쳐졌다(GPU 시험 `gpu_depth_accuracy_fast_and_quality` 가 3,821 점으로 실패). `DensifyOptions::set_fusion_mode`(CLI `--fusion-mode`, 계획 `dense.fusion.mode` 가 사용)로 traversal 을 고르면 깊이·법선·재투영 허용치를 튜닝 전 값으로 되돌린다. CPU 회귀 시험 `crates/dense/tests/traversal_tuning.rs`.
+- 시험 `sinks::tests::timeline_table` 이 시계 해상도에 의존하지 않음(Windows 100 ns `SystemTime` 에서 실패하던 것).
 
 ## [0.5.0] — 2026-10-16
 ### 추가

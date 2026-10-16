@@ -98,13 +98,55 @@ let closed = recon.close()?;                      // 남은 구역 닫기, 정�
 재구성 설정은 `Plan`(`declare` 와 같은 필드·TOML, `.plan(plan)` 으로 교체)이다. 계획의 위치 수·간격·GPS 파일·출력 설정은 쓰지 않는다.
 
 `.id`, `.images`, `.cameras`, `.zones`, `.align`, `.fixed_enu_origin`, `.features`, `.match_backend`, `.gpu`,
-`.incremental_triangulation`, `.dense`, `.no_dense`(기본), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
+`.incremental_triangulation`, `.stable_display`, `.display_deltas`, `.dense`, `.no_dense`(기본), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
 `.output(dir, SinkOptions)`(기본 출력 파일), 훅 `.on`, `.on_event`, `.on_frame`, `.on_zone_preview`, `.on_zone_refined`,
 `.on_message`, `.event_policy`, `.sync_hooks`, 그리고 설정 문제를 한 번에 모아 알려 주는 `.build(&host)`(`ComposeError::Config`).
 
 노드 조회: `positions()`, `journal()`(위치별 순번·리비전), `waiting()`, `stats()`, `subscribe()`, `poll()`, `with_session(|s| …)`.
 
-## 7. 보장(시험으로 확인)
+## 7. 메모리 표시 증분(display delta)
+
+`cumulus3d stream` 의 파일 스트림 말고도, 노드가 점 키 기반 증분 표시를 임베딩 앱에 메모리로 바로 줄 수 있다. 보이는 점마다
+조밀한 `u32` 슬롯 id 가 있고, 조밀 구역 결과가 나올 때마다 라이브러리가 표시를 합성(키 해시 솎기 `stride`, 끈끈한 복셀 소유,
+낮은 구역 우선, 중복 키 제거)하고 뷰어가 보는 것과 비교해 `Event::DisplayDelta { delta, zone, kind, t, frame, .. }` 를 원인 사건
+바로 뒤에 전달한다.
+
+```rust
+use cumulus3d_cli::compose::{CompositionHost, ReconNode};
+use cumulus3d_cli::declare::Dense;
+use cumulus3d_cli::events::{Event, EventKind};
+use cumulus3d_cli::live::DisplayMirror;
+use cumulus3d_cli::post::LiveOptions;
+
+let host = CompositionHost::new();
+let mut viewer = DisplayMirror::new(); // 실제로는 GPU 버퍼: 색인 = id 에 쓴다
+let node = ReconNode::declare()
+    .images("frames").cameras(["camF", "camR", "camL"]).zones(12, 2)
+    .gpu().dense(Dense::profile("fast"))
+    .stable_display(true).fixed_enu_origin(true)
+    .display_deltas(LiveOptions { stride: 6, ..LiveOptions::default() })
+    .on(EventKind::DisplayDelta, move |e| {
+        if let Event::DisplayDelta { delta, kind, zone, .. } = e {
+            // 제거, 추가, 이동 순; delta.capacity = 잡아야 할 버퍼 크기
+            viewer.apply(delta).unwrap();
+            println!("{kind:?} zone {zone}: +{} ~{} -{} = {}", delta.adds.len(), delta.moves.len(), delta.removes.len(), delta.total_points);
+        }
+    })
+    .build(&host)?;
+```
+
+`kind` 는 `Refined`(구역의 첫 결과), `Replace`(보이던 구역을 다시 조밀화·재배치, 안정 표시가 함), `Final`(정제 전부 끝, 빈
+delta). 색이 바뀌거나 위치가 `POSITION_EPS` 넘게 바뀌면 이동, 소유 구역이 바뀐 점은 제거 + 새 id 로 추가, 한 delta 에서
+풀린 id 는 다음 delta 부터 재사용(작은 것 먼저). delta 에는 `seq`, `total_points`, `capacity` 가 있고 `frame` 은 점이 ENU
+(`origin_gps` = 처음 선언된 GPS) 인지 표시 좌표계인지 알려 준다.
+
+노드 없이 부품만 쓸 수도 있다: `LiveDisplay::compose_zoned`(합성), `KeyedDiff::apply(&cloud, &zones) -> DisplayDelta`(입출력
+없는 비교, 트랜잭션은 `prepare`/`commit`/`abort`), `DisplayFeed::handle(&event)`(사건 구동 결합) — `cumulus3d_cli::live`/`post`.
+파일 스트림(`blocks::DiffStream`, 팩 형식 4)은 `KeyedDiff` 위의 얇은 쓰기 계층이며 바이트 단위로 같다.
+`.stable_display(true)` 는 정착 후 고정 표시(`--stable-display`)의 노드 옵션이다. 합성은 compose 호출 스레드에서 돌므로 큰
+장면에서는 `stride` 를 크게 잡는다.
+
+## 8. 보장(시험으로 확인)
 
 `crates/cli/tests/compose_synthetic.rs` 가 합성 장면으로 모든 정책을 돌린다: 재선언은 아무것도 하지 않고, 대기·불완전 묶음은 처리하지
 않으며, 순번 건너뜀을 알리고, 늦은 도착과 정정은 범위 안에서 다시 처리하고 밖이면 무시하며, 정정은 해당 구역만 다시 만들고,

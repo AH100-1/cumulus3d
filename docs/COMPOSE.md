@@ -103,7 +103,7 @@ Reconstruction settings are a `Plan` (same fields and TOML as `declare`; `.plan(
 file and sinks of the plan are not used.
 
 `.id`, `.images`, `.cameras`, `.zones`, `.align`, `.fixed_enu_origin`, `.features`, `.match_backend`, `.gpu`,
-`.incremental_triangulation`, `.dense`, `.no_dense` (default), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
+`.incremental_triangulation`, `.stable_display`, `.display_deltas`, `.dense`, `.no_dense` (default), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
 `.output(dir, SinkOptions)` (standard output files), hooks `.on`, `.on_event`, `.on_frame`, `.on_zone_preview`, `.on_zone_refined`,
 `.on_message`, `.event_policy`, `.sync_hooks`, and `.build(&host)`, which reports every configuration problem at once
 (`ComposeError::Config`).
@@ -111,10 +111,55 @@ file and sinks of the plan are not used.
 Node queries: `positions()`, `journal()` (sequence, revision per position), `waiting()`, `stats()`, `subscribe()`, `poll()`,
 `with_session(|s| …)`.
 
-## 7. Guarantees (covered by tests)
+## 7. In-memory display deltas
+
+Besides the file stream of `cumulus3d stream`, a node can hand the point-keyed incremental display to the embedding application
+in memory. Every shown point owns a dense `u32` slot id; after each dense zone result the library composes the display
+(key-hash thinning with `stride`, sticky voxel ownership, lowest zone wins, repeated keys dropped), diffs it against what the viewer
+shows and delivers `Event::DisplayDelta { delta, zone, kind, t, frame, .. }` right behind the causing event.
+
+```rust
+use cumulus3d_cli::compose::{CompositionHost, ReconNode};
+use cumulus3d_cli::declare::Dense;
+use cumulus3d_cli::events::{Event, EventKind};
+use cumulus3d_cli::live::DisplayMirror;
+use cumulus3d_cli::post::LiveOptions;
+
+let host = CompositionHost::new();
+let mut viewer = DisplayMirror::new(); // your GPU buffers: write at index = id
+let node = ReconNode::declare()
+    .images("frames").cameras(["camF", "camR", "camL"]).zones(12, 2)
+    .gpu().dense(Dense::profile("fast"))
+    .stable_display(true).fixed_enu_origin(true)
+    .display_deltas(LiveOptions { stride: 6, ..LiveOptions::default() })
+    .on(EventKind::DisplayDelta, move |e| {
+        if let Event::DisplayDelta { delta, kind, zone, .. } = e {
+            // removes, then adds, then moves; delta.capacity = buffer size to allocate
+            viewer.apply(delta).unwrap();
+            println!("{kind:?} zone {zone}: +{} ~{} -{} = {}", delta.adds.len(), delta.moves.len(), delta.removes.len(), delta.total_points);
+        }
+    })
+    .build(&host)?;
+```
+
+`kind` is `Refined` (first result of a zone), `Replace` (a shown zone re-densified or re-placed, which stable display does) or
+`Final` (all refinements done, empty delta). A colour change or a position change beyond `POSITION_EPS` is a move; a point whose
+owner zone changes is a remove plus an add with a new id; ids freed in a delta are reused from the next one (lowest first). The
+delta carries `seq`, `total_points` and `capacity`. `frame` tells whether the points are in the ENU frame (`origin_gps` = first GPS
+fix declared) or the display frame.
+
+Without a node, use the pieces directly: `LiveDisplay::compose_zoned` (composition, `LiveOptions` = stride, voxel factor,
+relocate), `KeyedDiff::apply(&cloud, &zones) -> DisplayDelta` (I/O-free diff; `prepare` / `commit` / `abort` for transactional
+use) and `DisplayFeed::handle(&event)` (the event driven combination), all in `cumulus3d_cli::live` / `post`. The file stream
+(`blocks::DiffStream`, pack format version 4) is a thin writer over `KeyedDiff` and unchanged byte for byte.
+`.stable_display(true)` is the node option for the settle-then-freeze display (`--stable-display`); the composition runs on the
+composing thread, so keep `stride` coarse for large scenes.
+
+## 8. Guarantees (covered by tests)
 
 `crates/cli/tests/compose_synthetic.rs` runs every policy on the synthetic scene: duplicate declarations are no-ops, pending and
 incomplete sets ingest nothing, gaps are reported, late arrivals and corrections are replayed inside the window and ignored outside
 it, corrections rebuild exactly the affected zones, `Strict` rejects anything but the next sequence, in-memory payloads are spooled
 without partial files, and a spawned node with `KeepLatest` drops only queued ready sets. The batch API
-(`Recon::declare().run()`) is unchanged.
+(`Recon::declare().run()`) is unchanged. `crates/cli/tests/display_delta.rs` checks that the deltas of a stable-display session rebuild
+exactly the composed display.

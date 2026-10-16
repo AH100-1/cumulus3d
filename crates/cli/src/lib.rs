@@ -120,6 +120,7 @@ pub mod events;
 pub mod fusion_variants;
 pub mod interop;
 pub mod intrinsics;
+pub mod live;
 pub mod pipeline;
 pub mod post;
 pub mod session;

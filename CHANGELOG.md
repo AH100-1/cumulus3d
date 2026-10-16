@@ -8,6 +8,24 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Added
+- In-memory display deltas: `cumulus3d_cli::live` with the I/O-free `KeyedDiff` (`apply(&cloud, &zones) -> DisplayDelta`, `prepare`/`commit`/`abort`),
+  `DisplayDelta { seq, adds, moves, removes, total_points, capacity }` (`PointAdd`, `PointMove`), `DisplayMirror` (viewer-side slot table),
+  `DisplayFeed` (zone events -> `LiveDisplay` composition -> delta) and `DeltaKind`/`DisplayFrame`.
+- Compose API: `NodeBuilder::stable_display(bool)` and `NodeBuilder::display_deltas(LiveOptions)`; the latter makes the node emit
+  `Event::DisplayDelta { delta, zone, kind (refined|replace|final), t, frame }` (`EventKind::DisplayDelta`) right after the causing zone result.
+- `Pipeline::derive(f)`: derived events delivered behind their cause to subscribers and hooks.
+- `DensifyOptions::set_fusion_mode(mode)`.
+
+### Changed
+- `blocks::DiffStream` is a thin file writer over `live::KeyedDiff` (pack format version 4, byte-identical; a regression test freezes the pack bytes of a fixed sequence). `blocks::KeyHasher` / `POSITION_EPS` moved to `live` (re-exported).
+
+### Breaking
+- `events::Event` and `events::EventKind` are `#[non_exhaustive]` and gained the `DisplayDelta` variant: exhaustive `match`es need a `_` arm.
+
+### Fixed
+- Traversal fusion produced about 5x fewer points since the fast-profile tuning: the tuned agreement-fusion tolerance `max_reproj_error = 100 px` is the pixel distance at which traversal pixels join one component, so components merged across surfaces (GPU test `gpu_depth_accuracy_fast_and_quality` failed with 3,821 points). Selecting traversal with `DensifyOptions::set_fusion_mode` (used by the CLI `--fusion-mode`, plan `dense.fusion.mode`) restores the untuned depth/normal/reprojection tolerances. CPU regression test `crates/dense/tests/traversal_tuning.rs`.
+- Test `sinks::tests::timeline_table` no longer depends on the clock resolution (failed on Windows, 100 ns `SystemTime`).
 
 ## [0.5.0] — 2026-10-16
 ### Added

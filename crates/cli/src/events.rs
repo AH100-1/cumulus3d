@@ -78,6 +78,7 @@ pub struct Frame {
 
 /// Pipeline events (per-stage results). Every variant carries a [`Meta`].
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Event {
     /// The frame bundle of one position has arrived.
     FrameIngested {
@@ -311,6 +312,23 @@ pub enum Event {
         /// Zone index.
         zone: usize,
     },
+    /// Incremental display update computed by the library (opt-in, see `NodeBuilder::display_deltas` and
+    /// [`crate::live::DisplayFeed`]): the point-keyed difference between the previous and the new composed display cloud after
+    /// a zone result. Emitted right after the event that caused it.
+    DisplayDelta {
+        /// Common header (of the causing event).
+        meta: Meta,
+        /// Adds, moves and removes with dense slot ids (apply: removes, adds, moves).
+        delta: Arc<crate::live::DisplayDelta>,
+        /// Zone whose result caused the delta.
+        zone: usize,
+        /// Why it was emitted.
+        kind: crate::live::DeltaKind,
+        /// Seconds since the session start.
+        t: f64,
+        /// Coordinate frame of the display points.
+        frame: crate::live::DisplayFrame,
+    },
     /// Warning.
     Warning {
         /// Common header.
@@ -329,6 +347,7 @@ pub enum Event {
 
 /// Event kind (for hook registration and filtering).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum EventKind {
     /// [`Event::FrameIngested`].
     FrameIngested,
@@ -376,6 +395,8 @@ pub enum EventKind {
     AllPositionsDone,
     /// [`Event::AllRefinedDone`].
     AllRefinedDone,
+    /// [`Event::DisplayDelta`].
+    DisplayDelta,
     /// [`Event::Warning`].
     Warning,
     /// [`Event::Error`].
@@ -410,6 +431,7 @@ impl Event {
             Snapshot { .. } => EventKind::Snapshot,
             AllPositionsDone { .. } => EventKind::AllPositionsDone,
             AllRefinedDone { .. } => EventKind::AllRefinedDone,
+            DisplayDelta { .. } => EventKind::DisplayDelta,
             Warning { .. } => EventKind::Warning,
             Error { .. } => EventKind::Error,
         }
@@ -441,6 +463,7 @@ impl Event {
             | Finished { meta, .. }
             | Reset { meta, .. }
             | ZoneInvalidated { meta, .. }
+            | DisplayDelta { meta, .. }
             | Warning { meta, .. }
             | Error { meta, .. } => meta,
         }

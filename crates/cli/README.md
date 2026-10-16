@@ -158,6 +158,17 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `EventKind` | enum | Event kind (for hook registration and filtering) |
 | `Command` | enum | `ResetFrom(position)`, `InvalidateZone(zone)` |
 
+### `live` — in-memory display deltas
+
+| Item | Kind | Role |
+|---|---|---|
+| `KeyedDiff` | struct | I/O-free point-keyed diff (`apply`, `prepare`/`commit`/`abort`, `unchanged`) |
+| `DisplayDelta` / `PointAdd` / `PointMove` | struct | Adds, moves, removes with dense `u32` slot ids, `seq`, `total_points`, `capacity` |
+| `DisplayMirror` | struct | Viewer-side slot table (`apply`, `points`) |
+| `DisplayFeed` | struct | Zone events → `LiveDisplay` composition → delta (`handle`) |
+| `DeltaKind` / `DisplayFrame` | enum / struct | `Refined`/`Replace`/`Final`; ENU flag and origin |
+| `Event::DisplayDelta` | event | Emitted by `NodeBuilder::display_deltas`; see `docs/COMPOSE.md` |
+
 ### `sinks` — default output hooks
 
 | Item | Kind | Role |

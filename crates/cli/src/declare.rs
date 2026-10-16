@@ -525,7 +525,7 @@ impl Dense {
             o.max_levels = v;
         }
         if let Some(m) = &f.mode {
-            o.fusion.mode = parse_fusion_mode(m)?;
+            o.set_fusion_mode(parse_fusion_mode(m)?);
         }
         if let Some(v) = f.min_views {
             o.fusion.min_consistent_views = v;

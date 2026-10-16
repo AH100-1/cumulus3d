@@ -510,7 +510,7 @@ pub(crate) fn apply_densify_args(a: &DensifyArgs, o: &mut cumulus3d_dense::Densi
         o.max_levels = l;
     }
     if let Some(m) = a.fusion_mode.as_deref().filter(|m| !is_score_mode(m)) {
-        o.fusion.mode = cumulus3d_dense::FusionMode::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-mode {m}"))?;
+        o.set_fusion_mode(cumulus3d_dense::FusionMode::parse(m).ok_or_else(|| format!("알 수 없는 --fusion-mode {m}"))?);
     }
     let f = &mut o.fusion;
     if let Some(v) = a.fusion_min_views {

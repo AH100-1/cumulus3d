@@ -157,6 +157,17 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # 깊�
 | `EventKind` | enum | 이벤트 종류(훅 등록·필터링용) |
 | `Command` | enum | `ResetFrom(위치)`, `InvalidateZone(구역)` |
 
+### `live` — 메모리 표시 증분
+
+| 항목 | 종류 | 역할 |
+|---|---|---|
+| `KeyedDiff` | struct | 입출력 없는 점 키 기반 비교(`apply`, `prepare`/`commit`/`abort`, `unchanged`) |
+| `DisplayDelta` / `PointAdd` / `PointMove` | struct | 조밀한 `u32` 슬롯 id 의 추가·이동·제거, `seq`, `total_points`, `capacity` |
+| `DisplayMirror` | struct | 뷰어쪽 슬롯 표(`apply`, `points`) |
+| `DisplayFeed` | struct | 구역 사건 → `LiveDisplay` 합성 → delta(`handle`) |
+| `DeltaKind` / `DisplayFrame` | enum / struct | `Refined`/`Replace`/`Final`; ENU 여부와 원점 |
+| `Event::DisplayDelta` | 사건 | `NodeBuilder::display_deltas` 가 내보냄; `docs/COMPOSE.ko.md` 참고 |
+
 ### `sinks` — 기본 출력 훅
 
 | 항목 | 종류 | 역할 |

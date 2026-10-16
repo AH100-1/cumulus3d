@@ -874,7 +874,8 @@ mod tests {
 
     #[test]
     fn timeline_table() {
-        let m = || meta(1_700_000_000, 5);
+        // Nanoseconds are a multiple of 100: Windows SystemTime has 100 ns resolution.
+        let m = || meta(1_700_000_000, 500);
         let model = Arc::new(Reconstruction::new());
         let cloud = Arc::new(PointCloud::default());
         let cases: Vec<(Event, &str)> = vec![
@@ -906,7 +907,7 @@ mod tests {
         assert_eq!(cases.len(), TIMELINE_TABLE.len());
         for ((e, want), (k, _)) in cases.iter().zip(TIMELINE_TABLE.iter()) {
             assert_eq!(e.kind(), *k);
-            assert_eq!(TimelineSink::line(e).unwrap(), format!("1700000000.000000005 {want}"));
+            assert_eq!(TimelineSink::line(e).unwrap(), format!("1700000000.000000500 {want}"));
         }
         assert!(TimelineSink::line(&Event::Warning { meta: m(), message: "x".into() }).is_none());
     }

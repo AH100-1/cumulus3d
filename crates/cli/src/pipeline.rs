@@ -296,9 +296,13 @@ impl Drop for Lanes {
     }
 }
 
+/// Derives extra events from an event (see [`Pipeline::derive`]).
+type Deriver = Box<dyn FnMut(&Event) -> Vec<Event> + Send + 'static>;
+
 /// Event driver that wraps a reducer.
 pub struct Pipeline<R: Reducer> {
     reducer: R,
+    derivers: Vec<Deriver>,
     lanes: Lanes,
     policies: HashMap<EventKind, QueuePolicy>,
     shared: Arc<Shared>,
@@ -312,6 +316,7 @@ impl<R: Reducer> Pipeline<R> {
     pub fn new(reducer: R) -> Self {
         Pipeline {
             reducer,
+            derivers: Vec::new(),
             lanes: Lanes { map: HashMap::new() },
             policies: HashMap::new(),
             shared: Arc::new(Shared {
@@ -440,6 +445,19 @@ impl<R: Reducer> Pipeline<R> {
         })
     }
 
+    /// Registers a deriver: after each event is delivered, `f` may return further events (e.g. [`Event::DisplayDelta`]), which
+    /// are delivered right behind it, in order, to subscribers and hooks like reducer events (and counted in the summary).
+    /// It runs on the thread that pushes (not on a lane), so the derived event follows its cause deterministically; keep it
+    /// cheap or accept that it adds to the push time. A panic in `f` is caught and reported as `Event::Error` to subscribers.
+    /// Derivers also see derived events; ignore kinds you do not handle.
+    pub fn derive<F>(mut self, f: F) -> Self
+    where
+        F: FnMut(&Event) -> Vec<Event> + Send + 'static,
+    {
+        self.derivers.push(Box::new(f));
+        self
+    }
+
     fn add_hook(&mut self, key: LaneKey, hook: Hook) {
         let lane = self.lanes.map.entry(key).or_insert_with(Lane::new);
         lane.hooks.lock().unwrap_or_else(|p| p.into_inner()).push(hook);
@@ -509,8 +527,26 @@ impl<R: Reducer> Pipeline<R> {
     }
 
     fn dispatch(&mut self, evs: Vec<Event>) -> usize {
-        let n = evs.len();
-        for ev in evs {
+        let mut n = 0;
+        let mut queue: VecDeque<Event> = evs.into();
+        while let Some(ev) = queue.pop_front() {
+            n += 1;
+            if !self.derivers.is_empty() {
+                let mut derived = Vec::new();
+                for d in self.derivers.iter_mut() {
+                    match catch_unwind(AssertUnwindSafe(|| d(&ev))) {
+                        Ok(v) => derived.extend(v),
+                        Err(_) => {
+                            self.shared.hook_panics.fetch_add(1, Ordering::Relaxed);
+                            let meta = ev.meta().clone();
+                            self.shared.broadcast(&Event::Error { meta, message: "derive: panic".to_string() });
+                        }
+                    }
+                }
+                for d in derived.into_iter().rev() {
+                    queue.push_front(d);
+                }
+            }
             self.events += 1;
             *self.by_kind.entry(ev.kind()).or_insert(0) += 1;
             self.shared.broadcast(&ev);

@@ -36,15 +36,12 @@
 //! a key that leaves frees its id; a new key takes the lowest free id or `capacity++`. An id freed in an event is not handed
 //! out in the same event. A zone change is a remove plus an add with a new id. Files are never overwritten.
 
+use crate::live::KeyedDiff;
 use crate::util::{py_float, Json};
 use cumulus3d_core::io::PointCloud;
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
-use std::hash::{BuildHasherDefault, Hasher};
 use std::path::{Path, PathBuf};
 
-/// A point whose position moved by more than this (display units, any axis) is sent as a move.
-pub const POSITION_EPS: f32 = 1e-4;
+pub use crate::live::{KeyHasher, POSITION_EPS};
 
 /// Manifest format version.
 pub const FORMAT_VERSION: i64 = 4;
@@ -65,34 +62,6 @@ pub struct LiveStream {
     pub origin_gps: Option<[f64; 3]>,
 }
 
-/// Cheap hasher for the already well-mixed 64-bit pixel keys.
-#[derive(Default)]
-pub struct KeyHasher(u64);
-
-impl Hasher for KeyHasher {
-    fn finish(&self) -> u64 {
-        self.0 ^ (self.0 >> 32)
-    }
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0.rotate_left(8) ^ b as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-        }
-    }
-    fn write_u64(&mut self, v: u64) {
-        self.0 = v.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Shown {
-    id: u32,
-    pos: [f32; 3],
-    color: [u8; 3],
-    zone: u8,
-    /// Event number that last saw this key (to find the removed ones without a second set).
-    seen: u32,
-}
-
 /// What one [`DiffStream::write_event`] did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EventStats {
@@ -108,32 +77,24 @@ pub struct EventStats {
     pub bytes: usize,
 }
 
-/// Writer of the live diff stream.
+/// Writer of the live diff stream: a thin file writer over [`KeyedDiff`].
 pub struct DiffStream {
     dir: PathBuf,
     cfg: LiveStream,
-    /// key → what the viewer shows.
-    last: HashMap<u64, Shown, BuildHasherDefault<KeyHasher>>,
-    /// Free ids (lowest first).
-    free: BinaryHeap<Reverse<u32>>,
-    /// Max id + 1 used so far.
-    capacity: u32,
+    diff: KeyedDiff,
     /// Manifest events written so far.
     events: Vec<Json>,
-    seq: i64,
-    /// Counts attempts (also failed ones), stamps [`Shown::seen`].
-    epoch: u32,
 }
 
 impl DiffStream {
     /// Stream into `dir` (`live/stream`); nothing is written until the first event.
     pub fn new(dir: PathBuf, cfg: LiveStream) -> Self {
-        Self { dir, cfg, last: HashMap::default(), free: BinaryHeap::new(), capacity: 0, events: Vec::new(), seq: 0, epoch: 0 }
+        Self { dir, cfg, diff: KeyedDiff::new(), events: Vec::new() }
     }
 
     /// Number of events written so far (the last `seq`).
     pub fn events_written(&self) -> i64 {
-        self.seq
+        self.diff.seq() as i64
     }
 
     /// Directory of the stream.
@@ -145,100 +106,38 @@ impl DiffStream {
     /// point i, `t` seconds since the session start, `zone` the zone that triggered the event, `kind` one of `refined`,
     /// `replace`, `final`. Writes the pack and the manifest; on an error nothing of this event is recorded.
     pub fn write_event(&mut self, t: f64, zone: usize, kind: &str, cloud: &PointCloud, zones: &[usize]) -> Result<EventStats, String> {
-        let n = cloud.len();
-        if n > 0 && cloud.keys.len() != n {
-            return Err("점 키가 없는 점군은 스트림으로 낼 수 없음".into());
-        }
-        if zones.len() != n {
-            return Err("점별 구역 길이가 점 수와 다름".into());
-        }
-        self.epoch += 1;
-        let epoch = self.epoch;
-        if self.last.is_empty() {
-            self.last.reserve(n);
-        }
-        // Pass 1: classify. Kept keys are stamped; unseen keys are removals.
-        let mut adds: Vec<(u64, [f32; 3], [u8; 3], u8)> = Vec::new();
-        let mut moves: Vec<(u64, u32, [f32; 3], [u8; 3])> = Vec::new();
-        let mut gone: Vec<u32> = Vec::new();
-        let mut replaced = 0usize;
-        for (i, &p) in cloud.positions.iter().enumerate() {
-            if !p.iter().all(|v| v.is_finite()) {
-                continue;
-            }
-            let key = cloud.keys[i];
-            let color = cloud.colors.get(i).copied().unwrap_or([255; 3]);
-            let zn = zones[i].min(255) as u8;
-            match self.last.get_mut(&key) {
-                Some(s) if s.seen == epoch => {}
-                Some(s) => {
-                    s.seen = epoch;
-                    if s.zone != zn {
-                        gone.push(s.id);
-                        replaced += 1;
-                        adds.push((key, p, color, zn));
-                    } else if s.color != color || (0..3).any(|a| (s.pos[a] - p[a]).abs() > POSITION_EPS) {
-                        moves.push((key, s.id, p, color));
-                    }
-                }
-                None => adds.push((key, p, color, zn)),
-            }
-        }
-        let mut removed_keys: Vec<u64> = Vec::new();
-        for (k, s) in &self.last {
-            if s.seen != epoch {
-                removed_keys.push(*k);
-                gone.push(s.id);
-            }
-        }
-        // Ids for the adds: lowest free id of earlier events, else a new one. Undone when the write fails.
-        let (cap0, mut taken) = (self.capacity, Vec::new());
-        let mut add_ids: Vec<u32> = Vec::with_capacity(adds.len());
-        for _ in 0..adds.len() {
-            let id = match self.free.pop() {
-                Some(Reverse(id)) => {
-                    taken.push(id);
-                    id
-                }
-                None => {
-                    self.capacity += 1;
-                    self.capacity - 1
-                }
-            };
-            add_ids.push(id);
-        }
-        let n_remove = gone.len();
-        let bytes = adds.len() * ADD_BYTES + moves.len() * MOVE_BYTES + n_remove * REMOVE_BYTES;
+        let pending = self.diff.prepare(cloud, zones)?;
+        let d = pending.delta();
+        let (n_add, n_move, n_remove) = (d.adds.len(), d.moves.len(), d.removes.len());
+        let bytes = n_add * ADD_BYTES + n_move * MOVE_BYTES + n_remove * REMOVE_BYTES;
         let mut pack: Vec<u8> = Vec::with_capacity(bytes);
-        for ((_, p, c, z), id) in adds.iter().zip(&add_ids) {
-            pack.extend_from_slice(&id.to_le_bytes());
-            for v in p {
+        for a in &d.adds {
+            pack.extend_from_slice(&a.id.to_le_bytes());
+            for v in a.xyz {
                 pack.extend_from_slice(&v.to_le_bytes());
             }
-            pack.extend_from_slice(c);
-            pack.push(*z);
+            pack.extend_from_slice(&a.rgb);
+            pack.push(a.zone);
         }
-        for (_, id, p, c) in &moves {
-            pack.extend_from_slice(&id.to_le_bytes());
-            for v in p {
+        for m in &d.moves {
+            pack.extend_from_slice(&m.id.to_le_bytes());
+            for v in m.xyz {
                 pack.extend_from_slice(&v.to_le_bytes());
             }
-            pack.extend_from_slice(c);
+            pack.extend_from_slice(&m.rgb);
             pack.push(0);
         }
-        for id in &gone {
+        for id in &d.removes {
             pack.extend_from_slice(&id.to_le_bytes());
         }
-        let seq = self.seq + 1;
-        let (n_add, n_move) = (adds.len(), moves.len());
-        let points = self.last.len() - removed_keys.len() + n_add - replaced;
+        let seq = d.seq as i64;
         let pack_name = (bytes > 0).then(|| format!("packs/e_{seq:04}.bin"));
         let ev = Json::obj(vec![
             ("seq", Json::Int(seq)),
             ("t", Json::f(t, 2)),
             ("zone", Json::Int(zone as i64)),
             ("kind", Json::Str(kind.to_string())),
-            ("points", Json::Int(points as i64)),
+            ("points", Json::Int(d.total_points as i64)),
             ("pack", pack_name.clone().map_or(Json::Null, Json::Str)),
             ("n_add", Json::Int(n_add as i64)),
             ("n_move", Json::Int(n_move as i64)),
@@ -253,30 +152,11 @@ impl DiffStream {
         let written = written.and_then(|_| self.write_manifest());
         if let Err(e) = written {
             self.events.pop();
-            self.capacity = cap0;
-            for id in taken {
-                self.free.push(Reverse(id));
-            }
+            self.diff.abort(pending);
             return Err(e);
         }
-        // Commit.
-        for k in &removed_keys {
-            self.last.remove(k);
-        }
-        for (k, id, p, c) in &moves {
-            if let Some(s) = self.last.get_mut(k) {
-                s.pos = *p;
-                s.color = *c;
-                debug_assert_eq!(s.id, *id);
-            }
-        }
-        self.last.reserve(adds.len().saturating_sub(replaced));
-        for ((key, pos, color, zone), id) in adds.into_iter().zip(add_ids) {
-            self.last.insert(key, Shown { id, pos, color, zone, seen: epoch });
-        }
-        self.free.extend(gone.into_iter().map(Reverse));
-        self.seq = seq;
-        Ok(EventStats { n_add, n_move, n_remove, points: self.last.len(), bytes })
+        self.diff.commit(pending);
+        Ok(EventStats { n_add, n_move, n_remove, points: self.diff.len(), bytes })
     }
 
     fn write_manifest(&self) -> Result<(), String> {
@@ -288,7 +168,7 @@ impl DiffStream {
             ("version", Json::Int(FORMAT_VERSION)),
             ("frame", Json::Str(if self.cfg.enu { "enu" } else { "display" }.into())),
             ("origin_gps", origin),
-            ("capacity", Json::Int(self.capacity as i64)),
+            ("capacity", Json::Int(self.diff.capacity() as i64)),
             ("events", Json::Arr(self.events.clone())),
         ]);
         atomic_write(&self.dir.join("manifest.json"), m.dump().as_bytes())
@@ -343,6 +223,9 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FROZEN_HASH: u64 = 0x3f8de9f327bd3d56;
+    const FROZEN_LENS: [usize; 4] = [5760, 628, 920, 0];
 
     fn tmpdir(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("cumulus3d_diff_{}_{name}", std::process::id()));
@@ -631,6 +514,54 @@ mod tests {
         let mut ds = DiffStream::new(dir.clone(), cfg());
         assert!(ds.write_event(0.0, 0, "refined", &c, &[0]).is_err());
         assert!(!dir.join("manifest.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// FNV-1a 64 over bytes.
+    fn fnv(h: u64, b: &[u8]) -> u64 {
+        b.iter().fold(h, |h, &x| (h ^ x as u64).wrapping_mul(0x0000_0100_0000_01b3))
+    }
+
+    /// The pack bytes of a fixed event sequence (adds, moves, colour change, zone change, removes, id reuse) are frozen:
+    /// format version 4 must stay byte-identical across refactors.
+    #[test]
+    fn pack_bytes_are_frozen() {
+        let dir = tmpdir("frozen");
+        let (c, z) = lattice();
+        let n = c.len();
+        let mut ds = DiffStream::new(dir.clone(), cfg());
+        ds.write_event(1.0, 0, "refined", &c, &z).unwrap();
+        let keep: Vec<usize> = (0..n).filter(|i| i % 7 != 3).collect();
+        let (mut c2, mut z2) = pick(&c, &z, &keep);
+        c2.positions[5][0] += 0.4;
+        c2.colors[9] = [3, 4, 5];
+        z2[11] = 4;
+        for j in 0..20u64 {
+            c2.positions.push([60.0 + j as f32, 2.0, 1.5]);
+            c2.colors.push([j as u8, 2, 3]);
+            c2.keys.push(20_000 + j);
+            z2.push(1);
+        }
+        ds.write_event(2.0, 1, "replace", &c2, &z2).unwrap();
+        let (mut c3, mut z3) = pick(&c2, &z2, &(0..c2.len()).filter(|i| i % 11 != 0).collect::<Vec<_>>());
+        c3.positions[2][2] -= 1.0;
+        for j in 0..40u64 {
+            c3.positions.push([-60.0 - j as f32, 2.0, 1.5]);
+            c3.colors.push([9, j as u8, 3]);
+            c3.keys.push(30_000 + j);
+            z3.push(2);
+        }
+        ds.write_event(3.0, 2, "replace", &c3, &z3).unwrap();
+        ds.write_event(4.0, 2, "final", &c3, &z3).unwrap();
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        let mut lens = Vec::new();
+        for s in 1..=4 {
+            let f = dir.join(format!("packs/e_{s:04}.bin"));
+            let b = std::fs::read(&f).unwrap_or_default();
+            lens.push(b.len());
+            h = fnv(h, &b);
+        }
+        assert_eq!((h, lens), (FROZEN_HASH, FROZEN_LENS.to_vec()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

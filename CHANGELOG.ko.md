@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+
+## [0.5.0] — 2026-10-16
 ### 추가
 - CUDA 영상 왜곡 보정 백엔드: `cumulus3d-dense` 의 `UndistortBackend` 트레이트(CPU 경로가 기본이자 기준)와 `cumulus3d-cuda` 의
   `CudaUndistort`(왜곡 영상 좌표 계산, 쌍선형 워프, 면적 평균 축소를 하나로 합친 NVRTC 커널). CLI `--undistort-backend cpu|cuda`

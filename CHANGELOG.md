@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+
+## [0.5.0] — 2026-10-16
 ### Added
 - CUDA image undistortion backend: `UndistortBackend` trait in `cumulus3d-dense` (CPU path stays the default and the reference) and
   `CudaUndistort` in `cumulus3d-cuda` (one NVRTC kernel fusing the distorted-source lookup, bilinear warp and area-average

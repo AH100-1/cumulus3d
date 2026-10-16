@@ -458,6 +458,21 @@ impl DensifyOptions {
         (u.min_consistent_views, u.max_depth_error, u.max_normal_error_deg, u.max_reproj_error) = (3, 0.005, 23.0, 100.0);
     }
 
+    /// Selects the fusion mode. The fast-profile tolerances (`max_depth_error`, `max_normal_error_deg`, `max_reproj_error`) are tuned
+    /// for agreement fusion; extended (traversal) fusion treats `max_reproj_error` as the pixel distance within which pixels join
+    /// one component, so with the tuned 100 px components merge across surfaces and the point count collapses (about 5x fewer
+    /// points on the synthetic scene). Switching to [`FusionMode::Traversal`] therefore restores the untuned values of those
+    /// three tolerances. Set explicit tolerances after calling this.
+    pub fn set_fusion_mode(&mut self, mode: FusionMode) {
+        if mode == FusionMode::Traversal {
+            let d = FusionParams::default();
+            let f = &mut self.fusion;
+            (f.max_depth_error, f.max_normal_error_deg, f.max_reproj_error) =
+                (d.max_depth_error, d.max_normal_error_deg, d.max_reproj_error);
+        }
+        self.fusion.mode = mode;
+    }
+
     /// Schedule of scale `level` (0 = lowest). `top` is the highest scale number.
     pub fn schedule(&self, level: usize, top: usize) -> LevelSchedule {
         let mut s = self.base_schedule(level, top);

@@ -119,7 +119,7 @@ fn gpu_depth_accuracy_fast_and_quality() {
     let opts = DensifyOptions::default();
     for mode in [cumulus3d_dense::FusionMode::Consistency, cumulus3d_dense::FusionMode::Traversal] {
         let mut o = opts.clone();
-        o.fusion.mode = mode;
+        o.set_fusion_mode(mode);
         let f = fuse_depth_maps(&s.scene, &fast, &o, 0);
         let mut d: Vec<f64> = f.cloud.positions.iter().map(|p| s.surface_distance([p[0] as f64, p[1] as f64, p[2] as f64])).collect();
         let n = d.len();

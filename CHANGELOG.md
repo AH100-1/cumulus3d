@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+
+## [0.10.0] — 2026-10-17
 ### Fixed
 - ENU alignment no longer leaves the scene rolled about the flight line when the GPS positions are (nearly) collinear (σ2/σ1 of the centred positions < 0.05, e.g. one drone flying a single straight line): the rotation about the line is unobservable from GPS, so it is now chosen from gravity: a dominant ground plane of the sparse points (RANSAC + least squares, cameras above it, normal to +Up), or, if none is found, the mean optical axis pointing down. Scale and translation stay those of the GPS fit. Applies to the stable-display zone-0 ENU init (`[stable] ... [gravity]` log line), `align_to_gps` / `estimate_gps_alignment` (new `GpsAlignment::gravity`, plus `cumulus3d_align::gravity` with `fit_enu_sim3`, `fit_same_up_sim3`) and the final display-to-ENU transform. Non-degenerate GPS gives the same result as before.
 

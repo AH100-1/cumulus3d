@@ -8,6 +8,8 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+
+## [0.11.1] — 2026-10-17
 ### Fixed
 - 노드의 백로그 배치가 기본 꺼짐으로 바뀜(`ReconNode::declare()` 의 `batch` 기본 1, 필요하면 `NodeBuilder::batch(n)` / `[live] batch`). GPU 장치 비행에서 batch 3 일 때 안정 표시가 약 30배 작게 나왔고 batch 1 은 미터 단위로 맞았음. 희소 세션은 CPU(합성·실제 영상, batch 1/3/혼합, lookahead 0/4, 미리보기 켬/끔, 느린 번들 조정, 내부값 사전)에서 이 오차가 재현되지 않아 원인은 배치의 장치 전용 경로에 있는 것으로 보이며, 찾을 때까지 배치는 선택 사항으로 둠. lookahead 는 그대로.
 ### Added

@@ -392,6 +392,10 @@ impl DisplayMirror {
 pub enum DeltaKind {
     /// A zone's refined cloud arrived for the first time.
     Refined,
+    /// A zone's quick preview (sparse points, no bundle adjustment; `SessionConfig::preview`) arrived. The zone's refined cloud
+    /// replaces it later by a `Refined` delta: the preview points are removed and the refined points added (the point keys of the
+    /// two clouds differ). The preview is placed in the current display frame and never moves a shown zone.
+    Preview,
     /// A shown zone was re-densified or moved (stable display re-placement).
     Replace,
     /// All refinements finished; the display is complete (the delta is empty).
@@ -399,9 +403,10 @@ pub enum DeltaKind {
 }
 
 impl DeltaKind {
-    /// `"refined"` | `"replace"` | `"final"` (the names of the file stream).
+    /// `"preview"` | `"refined"` | `"replace"` | `"final"` (`"refined"`, `"replace"` and `"final"` are the names of the file stream).
     pub fn as_str(self) -> &'static str {
         match self {
+            DeltaKind::Preview => "preview",
             DeltaKind::Refined => "refined",
             DeltaKind::Replace => "replace",
             DeltaKind::Final => "final",
@@ -431,6 +436,8 @@ pub struct DisplayFeed {
     refined: BTreeMap<usize, Arc<PointCloud>>,
     refined_models: BTreeMap<usize, Arc<Reconstruction>>,
     previews: BTreeSet<usize>,
+    /// Sparse display previews (`frame == "display"`) of zones whose refined cloud has not arrived yet.
+    quick: BTreeMap<usize, Arc<PointCloud>>,
     t0: Option<SystemTime>,
     origin: Arc<Mutex<Option<[f64; 3]>>>,
     shown_any: bool,
@@ -445,6 +452,7 @@ impl DisplayFeed {
             refined: BTreeMap::new(),
             refined_models: BTreeMap::new(),
             previews: BTreeSet::new(),
+            quick: BTreeMap::new(),
             t0: None,
             origin: Arc::new(Mutex::new(None)),
             shown_any: false,
@@ -477,7 +485,40 @@ impl DisplayFeed {
         self.refined.remove(&k);
         self.refined_models.remove(&k);
         self.previews.remove(&k);
+        self.quick.remove(&k);
         self.live.forget(k);
+    }
+
+    /// Composes the display (refined zones through [`LiveDisplay`], then the quick previews of the zones without a refined cloud,
+    /// unthinned) and diffs it against what is shown.
+    fn emit_delta(&mut self, meta: &Meta, zone: usize, kind: DeltaKind, t: f64) -> Option<Event> {
+        let clouds: BTreeMap<usize, &PointCloud> = self.refined.iter().map(|(j, c)| (*j, &**c)).collect();
+        let models: BTreeMap<usize, &Reconstruction> = self.refined_models.iter().map(|(j, m)| (*j, &**m)).collect();
+        self.live.set_relocate(!self.previews.is_empty());
+        let (mut display, mut zones) = self.live.compose_zoned(&clouds, &models);
+        let mut seen: std::collections::HashSet<u64> = display.keys.iter().copied().collect();
+        for (j, q) in &self.quick {
+            for i in 0..q.len() {
+                if !seen.insert(q.keys[i]) {
+                    continue;
+                }
+                display.positions.push(q.positions[i]);
+                display.colors.push(q.colors.get(i).copied().unwrap_or([255, 255, 255]));
+                display.keys.push(q.keys[i]);
+                if !display.normals.is_empty() {
+                    display.normals.push([0.0; 3]);
+                }
+                zones.push(*j);
+            }
+        }
+        match self.diff.apply(&display, &zones) {
+            Ok(delta) => {
+                self.shown_any = true;
+                Some(Event::DisplayDelta { meta: meta.clone(), delta: Arc::new(delta), zone, kind, t, frame: self.frame() })
+            }
+            // A display without point keys cannot be diffed (a session produces keys; foreign events may not).
+            Err(msg) => Some(Event::Warning { meta: meta.clone(), message: format!("display delta: {msg}") }),
+        }
     }
 
     /// Feeds one session event; returns the [`Event::DisplayDelta`] it caused, if any. Events of other kinds (including
@@ -492,7 +533,15 @@ impl DisplayFeed {
             secs(at) - secs(t0.unwrap_or(at))
         };
         match e {
-            Event::ZonePreview { range, .. } => {
+            // A quick preview already in the display frame: shown next to the refined zones, replaced by the zone's refined cloud.
+            Event::ZonePreview { range, cloud, dense: false, frame, .. } if frame == "display" && !cloud.is_empty() && cloud.has_keys() => {
+                if self.refined.contains_key(&range.zone) {
+                    return None;
+                }
+                self.quick.insert(range.zone, Arc::clone(cloud));
+                self.emit_delta(meta, range.zone, DeltaKind::Preview, rel(meta.at, self.t0))
+            }
+            Event::ZonePreview { range, frame, .. } if frame != "display" => {
                 self.previews.insert(range.zone);
                 None
             }
@@ -504,25 +553,8 @@ impl DisplayFeed {
             Event::ZoneRefined { range, cloud, dense, .. } if *dense => {
                 let kind = if self.refined.contains_key(&range.zone) { DeltaKind::Replace } else { DeltaKind::Refined };
                 self.refined.insert(range.zone, Arc::clone(cloud));
-                let clouds: BTreeMap<usize, &PointCloud> = self.refined.iter().map(|(j, c)| (*j, &**c)).collect();
-                let models: BTreeMap<usize, &Reconstruction> = self.refined_models.iter().map(|(j, m)| (*j, &**m)).collect();
-                self.live.set_relocate(!self.previews.is_empty());
-                let (display, zones) = self.live.compose_zoned(&clouds, &models);
-                match self.diff.apply(&display, &zones) {
-                    Ok(delta) => {
-                        self.shown_any = true;
-                        Some(Event::DisplayDelta {
-                            meta: meta.clone(),
-                            delta: Arc::new(delta),
-                            zone: range.zone,
-                            kind,
-                            t: rel(meta.at, self.t0),
-                            frame: self.frame(),
-                        })
-                    }
-                    // A display without point keys cannot be diffed (a session produces keys; foreign events may not).
-                    Err(msg) => Some(Event::Warning { meta: meta.clone(), message: format!("display delta: {msg}") }),
-                }
+                self.quick.remove(&range.zone);
+                self.emit_delta(meta, range.zone, kind, rel(meta.at, self.t0))
             }
             Event::ZoneInvalidated { zone, .. } => {
                 self.drop_zone(*zone);

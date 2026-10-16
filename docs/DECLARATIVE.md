@@ -38,6 +38,7 @@ A value type with no execution logic: it can be cloned, compared and serialised 
 | `features` | `backend` (`cpu`/`cuda`), `max_num_features`, `max_image_size` | `cpu`, 8192, 3200 |
 | `matching` | `backend` | `cpu` |
 | `sparse` | `incremental_triangulation`, `backend` (`cpu`/`cuda`: two-view verification, registration, triangulation), `ba_backend` (`cpu`/`cuda`: bundle adjustment) | false, `cpu`, `cpu` |
+| `live` | `lookahead` (positions whose features are extracted ahead), `batch` (nodes: backlog batch threshold), `preview` (stable display: sparse zone preview) | 0, 0, false (`ReconNode::declare()` starts with 4, 3, false) |
 | `dense` | `enabled`, `backend`, `profile` (`fast`/`quality`), `max_image_size`, `views`, `serialize`, `depth_cache` | true, `cuda`, `fast`, 960, 10, false, false |
 | `dense.fusion` | `mode`, `min_views`, `depth_error`, `normal_error`, `reproj_error`, `residual` | profile defaults |
 | `dense.filter` | `min_views`, `geom_error`, `min_ncc`, `median` | profile defaults |
@@ -68,6 +69,7 @@ Each method consumes `self`, updates only the plan and returns it, so the pipeli
 | `align(AlignFrame::Enu \| None)`, `fixed_enu_origin(bool)` | `align` |
 | `features(..)`, `match_backend(..)`, `gpu()` | `features`, `matching` (`gpu()` sets the feature, matching, sparse-stage, bundle adjustment, densification and undistortion backends to `cuda`) |
 | `incremental_triangulation(bool)` | `sparse` |
+| `lookahead(n)`, `preview(bool)` | `live` (see [COMPOSE.md](COMPOSE.md) section 8) |
 | `dense(Dense)`, `no_dense()` | `dense` |
 | `sinks(Sinks)` | `sinks` |
 | `seed(n)`, `threads(n)` | `seed`, `threads` |

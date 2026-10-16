@@ -8,6 +8,16 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Added
+- Live throughput (see `docs/COMPOSE.md` section 8). The per-position chain (features -> matching -> registration -> triangulation) no longer has to run strictly one position after the other:
+  - Backlog batching: `Input::Batch(Vec<FrameSet>)` extracts the features of all positions together (one parallel call, ids in position order), matches every pending pair in one call, and registers and triangulates once per batch. A batch is split where a zone closes or the first model is built, so zones see the same chain state as position by position; results equal position by position within the tolerance of registration order (`NodeBuilder::batch(threshold)`, default 3 on nodes: a spawned node that finds at least that many states waiting takes up to 32 as one batch; `ReconNode::compose_batch(states)` does the same on demand; off under `ReplayWindow`).
+  - Feature lookahead: `SessionConfig::lookahead`, `Session::lookahead() -> Lookahead` (`hint(&FrameSet)`) and `NodeBuilder::lookahead(n)` (default 4 on nodes): a worker thread extracts the features of the next positions (images of a position in parallel) while earlier positions are matched, registered and triangulated. Image ids, cameras and events are those of the serial run. `Recon::run` and `cumulus3d stream --lookahead N` use it too (default 0). New `FeatureExtractor::extract_ordered` (per-image camera mode, ids in the given order, all images in parallel); with lookahead on (or in a batch) a session extracts the images of a position in parallel instead of one after the other.
+  - Preview delta: with a stable display, `SessionConfig::preview` / `NodeBuilder::preview(true)` / `cumulus3d stream --preview` emit a sparse preview of every zone as soon as it closes (before the bundle adjustment) as `Event::ZonePreview { dense: false, frame: "display" }`, placed in the display frame by a shared-point Sim3 to the latest shown zone (GPS ENU fit before any zone is shown) and never moving a shown zone. `DisplayFeed` turns it into a new `DeltaKind::Preview` delta (adds only; `as_str()` = `"preview"`; SkyLens maps it to a new `slot_kind` value in `SlotEncoder`); the zone's refined cloud replaces it in a `Refined` delta (the preview points are removed, the dense ones added).
+  - Plan: new `[live]` table (`lookahead`, `batch`, `preview`; `Plan::live`, `declare::Live`); `ReconNode::declare()` starts with lookahead 4 and batch 3.
+  - Tests `crates/cli/tests/live_throughput.rs` and the ignored benchmarks `bench_live_throughput` / `bench_extraction_overlap`. On the synthetic flight (40 positions, CPU) draining a backlog took 0.165 s per position serially and 0.09-0.11 s batched (triangulation 3.8 s -> 0.8-1.0 s in total); with a device-like extraction stage lookahead cut 0.342 s per position to 0.297 s.
+
+### Breaking
+- `SessionConfig` gained the public fields `lookahead` and `preview`, `Plan` gained `live`, `Input` and `DeltaKind` (non-exhaustive) gained variants (`Input::Batch`, `DeltaKind::Preview`), and `StreamConfig` gained `lookahead` and `preview` (struct literals without `..` stop compiling; matches on `Input` need an arm).
 
 ## [0.10.0] — 2026-10-17
 ### Fixed

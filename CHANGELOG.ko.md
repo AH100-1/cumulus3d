@@ -8,6 +8,16 @@
 각 버전의 날짜는 실제 작업·커밋 날짜다.
 
 ## Unreleased
+### 추가
+- 실시간 처리량(`docs/COMPOSE.ko.md` 8절). 위치별 체인(특징 -> 매칭 -> 등록 -> 삼각측량)을 위치 하나씩 엄격히 이어서 돌릴 필요가 없어졌다:
+  - 밀린 일 묶음: `Input::Batch(Vec<FrameSet>)` 은 모든 위치의 특징을 함께 추출하고(병렬 호출 한 번, id 는 위치 순), 대기 중인 모든 짝을 매칭 한 번으로 처리하고, 묶음당 등록과 삼각측량을 한 번만 한다. 묶음은 구역이 닫히거나 첫 모델이 만들어지는 곳에서 나뉘어 구역이 위치별 처리와 같은 체인 상태를 보며, 결과는 위치별 처리와 등록 순서 오차 범위에서 같다(`NodeBuilder::batch(threshold)`, 노드 기본 3: spawn 한 노드가 그 수 이상의 상태가 기다리는 것을 보면 최대 32 개를 한 묶음으로 가져간다; `ReconNode::compose_batch(states)` 는 같은 일을 직접 한다; `ReplayWindow` 에서는 꺼짐).
+  - 특징 앞서 추출: `SessionConfig::lookahead`, `Session::lookahead() -> Lookahead`(`hint(&FrameSet)`), `NodeBuilder::lookahead(n)`(노드 기본 4): 작업 스레드가 다음 위치들의 특징을 (한 위치의 영상은 병렬로) 앞 위치를 매칭·등록·삼각측량하는 동안 추출한다. 영상 id, 카메라, 이벤트는 직렬 실행과 같다. `Recon::run`, `cumulus3d stream --lookahead N` 도 쓴다(기본 0). 새 `FeatureExtractor::extract_ordered`(영상별 카메라 모드, 주어진 순서로 id, 모든 영상 병렬); lookahead 가 켜져 있거나 묶음이면 세션이 한 위치의 영상을 차례로가 아니라 병렬로 추출한다.
+  - Preview delta: 안정 표시에서 `SessionConfig::preview` / `NodeBuilder::preview(true)` / `cumulus3d stream --preview` 가 구역이 닫히는 즉시(번들 조정 전) 구역의 희소 초벌을 `Event::ZonePreview { dense: false, frame: "display" }` 로 내보낸다. 가장 최근에 보인 구역과의 공유 점 Sim3 로 표시 좌표계에 놓고(보인 구역이 없으면 GPS ENU 적합) 이미 보인 구역은 옮기지 않는다. `DisplayFeed` 가 이를 새 `DeltaKind::Preview` delta 로 만든다(추가만; `as_str()` = `"preview"`; SkyLens 는 `SlotEncoder` 에서 새 `slot_kind` 값에 대응). 구역의 정제 점군은 `Refined` delta 로 이를 대체한다(초벌 점 제거, 조밀 점 추가).
+  - 계획: 새 `[live]` 표(`lookahead`, `batch`, `preview`; `Plan::live`, `declare::Live`); `ReconNode::declare()` 는 lookahead 4, batch 3 으로 시작한다.
+  - 시험 `crates/cli/tests/live_throughput.rs` 와 무시 처리된 벤치마크 `bench_live_throughput` / `bench_extraction_overlap`. 합성 비행(40 위치, CPU)에서 밀린 일을 비우는 데 직렬은 위치당 0.165 초, 묶음은 0.09~0.11 초(삼각측량 합계 3.8 초 -> 0.8~1.0 초)였고, 장치 같은 추출 단계에서는 lookahead 가 위치당 0.342 초를 0.297 초로 줄였다.
+
+### 호환성 깨짐
+- `SessionConfig` 에 공개 필드 `lookahead`, `preview` 가, `Plan` 에 `live` 가, `Input` 과 `DeltaKind`(non-exhaustive)에 변종(`Input::Batch`, `DeltaKind::Preview`)이, `StreamConfig` 에 `lookahead`, `preview` 가 추가되었다(`..` 없는 구조체 리터럴은 컴파일되지 않고, `Input` 을 match 하면 갈래가 필요하다).
 
 ## [0.10.0] — 2026-10-17
 ### Fixed

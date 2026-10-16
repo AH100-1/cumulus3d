@@ -128,6 +128,8 @@ pub struct Plan {
     pub matching: Matching,
     /// Sparse reconstruction.
     pub sparse: Sparse,
+    /// Live throughput: feature extraction ahead, backlog batching, sparse previews.
+    pub live: Live,
     /// Densification.
     pub dense: Dense,
     /// Output hooks.
@@ -147,6 +149,7 @@ impl Default for Plan {
             features: Features::default(),
             matching: Matching::default(),
             sparse: Sparse::default(),
+            live: Live::default(),
             dense: Dense::default(),
             sinks: Sinks::default_files("out"),
         }
@@ -290,6 +293,28 @@ impl Default for Sparse {
             intrinsics_prior_sigma: crate::intrinsics::DEFAULT_FOCAL_SIGMA,
             intrinsics_prior_dist_sigma: crate::intrinsics::DEFAULT_DIST_SIGMA,
         }
+    }
+}
+
+/// Live throughput: how a session keeps up with arriving positions and shows a low level first.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Live {
+    /// Positions whose features are extracted ahead of the position loop (0 = off, see [`SessionConfig::lookahead`]). The
+    /// results do not change. Applies to `Recon::run` and to nodes (default 0; `ReconNode::declare()` starts with 4).
+    pub lookahead: usize,
+    /// Nodes: when this many states are waiting (the one being taken plus the queued ones), they are processed as one
+    /// backlog batch ([`crate::session::Input::Batch`]); 0 = off. Applies to spawned nodes (`ReconNode::spawn`); not used with
+    /// `ReconcilePolicy::ReplayWindow`, which needs a rewind point at every position. Default 0; `ReconNode::declare()` starts with 3.
+    pub batch: usize,
+    /// Stable display: a sparse preview of every zone as soon as it closes (see [`SessionConfig::preview`]).
+    pub preview: bool,
+}
+
+impl Live {
+    /// The defaults of a live node ([`crate::compose::ReconNode::declare`]): lookahead 4, batching from 3 waiting states.
+    pub fn live_node() -> Self {
+        Self { lookahead: 4, batch: 3, preview: false }
     }
 }
 
@@ -813,6 +838,7 @@ impl Plan {
                 intrinsics_prior_dist_sigma: c.intrinsics_prior_dist_sigma,
                 ..Default::default()
             },
+            live: Live { lookahead: c.lookahead, preview: c.preview, ..Live::default() },
             dense: Dense {
                 enabled: !c.no_dense,
                 backend: c.pm_backend.clone(),
@@ -1034,6 +1060,18 @@ impl ReconBuilder {
     pub fn settle(mut self, tol: f64, max_zone: usize) -> Self {
         self.plan.sparse.settle_tol = tol;
         self.plan.sparse.settle_max_zone = max_zone;
+        self
+    }
+
+    /// Positions whose features are extracted ahead of the position loop (see [`SessionConfig::lookahead`]; 0 = off, the default).
+    pub fn lookahead(mut self, positions: usize) -> Self {
+        self.plan.live.lookahead = positions;
+        self
+    }
+
+    /// Stable display: sparse preview of every zone when it closes (see [`SessionConfig::preview`]).
+    pub fn preview(mut self, on: bool) -> Self {
+        self.plan.live.preview = on;
         self
     }
 
@@ -1472,6 +1510,8 @@ impl Recon {
         // Do not rewind (saves memory).
         sc.history = 0;
         sc.decode_frames = frames;
+        sc.lookahead = plan.live.lookahead;
+        sc.preview = plan.live.preview;
 
         let mut pl = Pipeline::new(Session::new(sc));
         if let Some(sinks) = sinks {
@@ -1512,7 +1552,14 @@ impl Recon {
             d.views,
             rayon::current_num_threads()
         )));
+        let ahead = pl.reducer().lookahead();
         for p in 0..npos {
+            // Extract the features of the next positions while this one is matched, registered and triangulated.
+            for q in p..npos.min(p + 1 + plan.live.lookahead) {
+                if !ahead.hint(&frame_set_of(&layout, &plan.input.cameras, q)) {
+                    break;
+                }
+            }
             pl.push(frame_set_of(&layout, &plan.input.cameras, p).into());
             if let Some(e) = pl.reducer().failed() {
                 // Fatal error: stop without post-processing (the hook queue is drained when the pipeline is dropped).

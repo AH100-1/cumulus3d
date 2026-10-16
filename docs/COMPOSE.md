@@ -103,7 +103,7 @@ Reconstruction settings are a `Plan` (same fields and TOML as `declare`; `.plan(
 file and sinks of the plan are not used.
 
 `.id`, `.images`, `.cameras`, `.zones`, `.align`, `.fixed_enu_origin`, `.features`, `.match_backend`, `.gpu`,
-`.incremental_triangulation`, `.stable_display`, `.display_deltas`, `.dense`, `.no_dense` (default), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
+`.incremental_triangulation`, `.stable_display`, `.display_deltas`, `.lookahead`, `.batch`, `.preview`, `.dense`, `.no_dense` (default), `.seed`, `.reconcile`, `.backpressure`, `.source`, `.spool`,
 `.output(dir, SinkOptions)` (standard output files), hooks `.on`, `.on_event`, `.on_frame`, `.on_zone_preview`, `.on_zone_refined`,
 `.on_message`, `.event_policy`, `.sync_hooks`, and `.build(&host)`, which reports every configuration problem at once
 (`ComposeError::Config`).
@@ -167,7 +167,7 @@ let node = ReconNode::declare()
     .build(&host)?;
 ```
 
-`kind` is `Refined` (first result of a zone), `Replace` (a shown zone re-densified or re-placed, which stable display does) or
+`kind` is `Preview` (a quick sparse preview of a zone, see section 8), `Refined` (first result of a zone), `Replace` (a shown zone re-densified or re-placed, which stable display does) or
 `Final` (all refinements done, empty delta). A colour change or a position change beyond `POSITION_EPS` is a move; a point whose
 owner zone changes is a remove plus an add with a new id; ids freed in a delta are reused from the next one (lowest first). The
 delta carries `seq`, `total_points` and `capacity`. `frame` tells whether the points are in the ENU frame (`origin_gps` = first GPS
@@ -180,11 +180,62 @@ use) and `DisplayFeed::handle(&event)` (the event driven combination), all in `c
 `.stable_display(true)` is the node option for the settle-then-freeze display (`--stable-display`); the composition runs on the
 composing thread, so keep `stride` coarse for large scenes.
 
-## 8. Guarantees (covered by tests)
+## 8. Keeping up with arrival (live throughput)
+
+A session works through a position in four stages: features, matching, registration, triangulation. Run strictly one position
+after the other, the time per position is the *sum* of the stages, and a flight that delivers positions faster than that builds a
+backlog. Three options (on a spawned node, `node.spawn()`) bring the rate towards the slowest stage and show a low level first:
+
+| Option | Default | What it does |
+|---|---|---|
+| `.lookahead(n)` | 4 on nodes, 0 for `Recon::run` / `cumulus3d stream` (`--lookahead n`) | Feature extraction of up to `n` queued positions runs on a worker thread (the images of a position in parallel) while earlier positions are matched, registered and triangulated. The images are read when a state is queued (`send`), so file and encoded payloads are covered; raw RGB payloads are not read ahead (spooling them stays on the worker). The results do not change: image ids, cameras and events are those of the serial run. |
+| `.batch(n)` | 3 on nodes (0 or 1 = off) | When the worker finds at least `n` states waiting (the one it takes plus the queued ones) it takes up to 32 of them as one backlog batch (`Input::Batch`, or `node.compose_batch(states)` directly): all features, one matching call for all pending pairs, one registration and one triangulation per batch. A batch is split where a zone closes or the first model is built, so zones see the same chain state as with one position at a time. Equivalent to position by position within the tolerance of registration order. Off under `ReconcilePolicy::ReplayWindow` (a rewind needs the state after every position). |
+| `.preview(true)` | off (`--preview`) | Stable display only. As soon as a zone closes (before its bundle adjustment), the zone's own registered 3D points are placed into the display frame and emitted as `Event::ZonePreview { dense: false, frame: "display" }`; with `.display_deltas(..)` this arrives as a `DeltaKind::Preview` delta. The refined zone replaces it later. |
+
+Plan keys: `[live] lookahead`, `batch`, `preview` (`Plan::live`, `declare::Live`). `Session` level: `SessionConfig::lookahead`,
+`SessionConfig::preview`, `Input::Batch`, and `Session::lookahead()` returning a `Lookahead` handle whose `hint(&FrameSet)` starts the
+extraction of an upcoming position from any thread (`Recon::run` uses it for the next positions of the folder).
+
+### Preview deltas (the delay pattern in a stable display)
+
+With `.stable_display(true).preview(true).display_deltas(..)` each zone is shown twice: first a sparse preview, then the refined
+(dense) zone.
+
+- `DeltaKind::Preview`: only adds (no moves, no removes). The preview points carry the zone as owner and their keys have the
+  row field `0xFFFF` (`image << 32 | 0xFFFF << 16 | feature`), a row no depth-map pixel has, so they never collide with dense keys.
+- Placement: a robust Sim3 on the 3D points the chain shares with the latest shown (refined) zone; with too few shared points on the
+  camera centers of the shared images; before any zone is shown, the same GPS ENU fit the first refined zone starts from. Without a
+  fit no preview is made (a log line says so). Shown zones are never touched.
+- The refined zone then arrives as `DeltaKind::Refined`: the zone's preview points are removed and the dense points added in the same
+  delta (the two key spaces differ, so there are no moves). Previews of later zones that are still waiting stay.
+- Zones that only have a sparse result (no dense stage) keep their preview.
+
+For SkyLens: `DeltaKind` is `#[non_exhaustive]` and gains `Preview` (`as_str()` = `"preview"`); `SlotEncoder` maps it to a new `slot_kind`
+value next to `refined` / `replace` / `final`. The file stream (`blocks::DiffStream`, pack version 4) is unchanged and carries no previews.
+
+### Measured (synthetic flight, 40 positions x 3 images, zones 12/2, CPU, 10 cores, release build)
+
+`cargo test --release -p cumulus3d-cli --test live_throughput bench -- --ignored --nocapture --test-threads=1`:
+
+| Variant (all positions queued at once) | s per position | triangulation total |
+|---|---|---|
+| serial (before) | 0.165 | 3.8 s |
+| `.batch(3)` | 0.09 - 0.11 | 0.8 - 1.0 s |
+
+Triangulation (all registered images, once per position) dominates the serial run; batching pays it once per batch. With an
+extraction stage that does not use the CPU (a sleep of 250 ms per image standing in for a GPU call), feeding positions one at a time
+takes 0.342 s per position and 0.297 s with `lookahead 4` (about 13 % less; the floor is the 0.25 s of the extraction itself). On CPU
+SIFT the extraction competes with the other stages for the same cores, so lookahead gains little there; it pays when extraction runs
+on the GPU. Timings vary with machine load.
+
+## 9. Guarantees (covered by tests)
 
 `crates/cli/tests/compose_synthetic.rs` runs every policy on the synthetic scene: duplicate declarations are no-ops, pending and
 incomplete sets ingest nothing, gaps are reported, late arrivals and corrections are replayed inside the window and ignored outside
 it, corrections rebuild exactly the affected zones, `Strict` rejects anything but the next sequence, in-memory payloads are spooled
 without partial files, and a spawned node with `KeepLatest` drops only queued ready sets. The batch API
 (`Recon::declare().run()`) is unchanged. `crates/cli/tests/display_delta.rs` checks that the deltas of a stable-display session rebuild
-exactly the composed display.
+exactly the composed display. `crates/cli/tests/live_throughput.rs` checks that backlog batches (in any cut) equal position-by-position
+within tolerance, that lookahead changes only the timing (same image ids, features and events, also across a rewind), that previews are placed
+in the display frame, come before the refined delta of their zone and never move or remove shown points, and that a spawned node works
+off a backlog.

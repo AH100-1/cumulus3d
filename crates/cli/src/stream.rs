@@ -114,6 +114,10 @@ pub struct StreamConfig {
     pub fusion: Fusion,
     /// Live display thinning: keep 1 of N points by key hash (1 = keep all; ≥ 1).
     pub live_stride: usize,
+    /// Positions whose features are extracted ahead of the position loop (see [`crate::session::SessionConfig::lookahead`]; 0 = off).
+    pub lookahead: usize,
+    /// Stable display: sparse preview of every zone when it closes (see [`crate::session::SessionConfig::preview`]).
+    pub preview: bool,
 }
 
 impl StreamConfig {
@@ -153,6 +157,8 @@ impl StreamConfig {
             max_levels: None,
             fusion: Fusion::default(),
             live_stride: crate::post::LiveOptions::default().stride,
+            lookahead: 0,
+            preview: false,
         }
     }
 }
@@ -251,6 +257,8 @@ pub fn session_config(cfg: &StreamConfig, npos: usize, gps: Vec<GpsRecord>, dens
     s.stable_display = cfg.stable_display;
     s.settle_tol = cfg.settle_tol;
     s.settle_max_zone = cfg.settle_max_zone;
+    s.lookahead = cfg.lookahead;
+    s.preview = cfg.preview;
     if let Some(p) = &cfg.intrinsics_prior {
         s.intrinsics_prior = Some(Arc::new(IntrinsicsPrior::load(p, cfg.intrinsics_prior_sigma, cfg.intrinsics_prior_dist_sigma)?));
     }

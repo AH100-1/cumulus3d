@@ -166,8 +166,9 @@ cumulus3d densify -i dense -o out/x.ply --fusion-variants variants.txt   # depth
 | `DisplayDelta` / `PointAdd` / `PointMove` | struct | Adds, moves, removes with dense `u32` slot ids, `seq`, `total_points`, `capacity` |
 | `DisplayMirror` | struct | Viewer-side slot table (`apply`, `points`) |
 | `DisplayFeed` | struct | Zone events → `LiveDisplay` composition → delta (`handle`) |
-| `DeltaKind` / `DisplayFrame` | enum / struct | `Refined`/`Replace`/`Final`; ENU flag and origin |
+| `DeltaKind` / `DisplayFrame` | enum / struct | `Preview`/`Refined`/`Replace`/`Final`; ENU flag and origin |
 | `Event::DisplayDelta` | event | Emitted by `NodeBuilder::display_deltas`; see `docs/COMPOSE.md` |
+| `ahead::Lookahead` | struct | Handle from `Session::lookahead()`: `hint(&FrameSet)` starts the feature extraction of an upcoming position; with `Input::Batch` and `NodeBuilder::{lookahead, batch, preview}` see `docs/COMPOSE.md` section 8 |
 
 ### `sinks` — default output hooks
 

@@ -149,6 +149,14 @@ struct StreamArgs {
     /// Fix the RANSAC seed (two-view geometry, GPS alignment). Without it, it differs from run to run.
     #[arg(long)]
     seed: Option<u64>,
+    /// Extract the features of the next N positions ahead while the current one is matched, registered and triangulated
+    /// (0 = off). The results do not change.
+    #[arg(long, default_value_t = 0)]
+    lookahead: usize,
+    /// Stable display: show a sparse preview of every zone as soon as it closes (placed in the display frame; the refined zone
+    /// replaces it later).
+    #[arg(long)]
+    preview: bool,
     /// Live display thinning: keep 1 of N points (key hash); 1 = keep all. Not applied to merged.ply.
     #[arg(long, default_value_t = 6, value_parser = parse_live_stride)]
     live_stride: usize,
@@ -250,6 +258,8 @@ fn main() {
             c.seed = a.seed;
             c.max_levels = a.max_levels;
             c.live_stride = a.live_stride;
+            c.lookahead = a.lookahead;
+            c.preview = a.preview;
             c.fusion.smooth_iters = a.fusion_smooth_iters;
             c.fusion.smooth_radius = a.fusion_smooth_radius;
             c.fusion.smooth_range = a.fusion_smooth_range;

@@ -27,6 +27,7 @@
 
 //! Library part of the cumulus3d executable: the incremental stream pipeline and the stage-by-stage compatible subcommands ([`interop`]).
 //!
+//! - [`ahead`]: [`ahead::Lookahead`], the handle that gets feature extraction of upcoming positions started ahead of the position loop.
 //! - [`session`]: the state value [`session::Session`] and the reducer functions [`session::step`] / [`session::poll`] /
 //!   [`session::command`] / [`session::finish`].
 //! - [`pipeline`]: [`pipeline::Pipeline`], which wraps the reducer and provides hooks, queue policy, panic isolation and subscription
@@ -112,6 +113,7 @@
 
 #![warn(missing_docs)]
 
+pub mod ahead;
 pub mod blocks;
 pub mod compose;
 pub mod declare;

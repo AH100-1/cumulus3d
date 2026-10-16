@@ -285,11 +285,79 @@ impl FeatureExtractor {
         Ok(reports.into_iter().flatten().collect())
     }
 
+    /// Like [`FeatureExtractor::extract_files`] for images that each have their own camera mode (e.g. one position of a
+    /// multi-camera rig: `Existing(camera)` per image), in **the given order** instead of sorted order: image rows are
+    /// issued in that order (deterministic ids), then decoding and SIFT of all images run in parallel. Names are
+    /// trimmed; empty and repeated names are dropped (the first one counts). Reports come back in the given order.
+    pub fn extract_ordered(
+        &self,
+        store: &FeatureStore,
+        root: &Path,
+        items: &[(String, CameraMode)],
+        opts: &ExtractionOptions,
+    ) -> Result<Vec<ImageReport>> {
+        let mut seen = std::collections::HashSet::new();
+        let items: Vec<(String, CameraMode)> =
+            items.iter().map(|(n, m)| (n.trim().to_string(), *m)).filter(|(n, _)| !n.is_empty() && seen.insert(n.clone())).collect();
+        for (_, m) in &items {
+            check_existing_mode(store, *m)?;
+        }
+        let mut reports: Vec<Option<ImageReport>> = vec![None; items.len()];
+        let mut todo = Vec::new();
+        for (i, (n, _)) in items.iter().enumerate() {
+            match already_done(store, n) {
+                Some(id) => reports[i] = Some(ImageReport { name: n.clone(), status: ImageStatus::AlreadyExists { image_id: id } }),
+                None => todo.push(i),
+            }
+        }
+        let decode = |i: &usize| -> std::result::Result<ImageSource, String> {
+            let n = &items[*i].0;
+            let path = root.join(n);
+            let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let exif = ExifInfo::from_bytes(&bytes);
+            let img = image::load_from_memory(&bytes).map_err(|e| format!("{}: 디코딩 실패: {e}", path.display()))?;
+            let gray = gray::to_gray(&img).map_err(|e| e.to_string())?;
+            Ok(ImageSource { name: n.clone(), gray, exif })
+        };
+        let decoded: Vec<std::result::Result<ImageSource, String>> =
+            if opts.sequential_images { todo.iter().map(decode).collect() } else { todo.par_iter().map(decode).collect() };
+        let (mut inputs, mut modes, mut slot) = (Vec::new(), Vec::new(), Vec::new());
+        for (i, d) in todo.iter().zip(decoded) {
+            match d {
+                Ok(inp) => {
+                    inputs.push(inp);
+                    modes.push(items[*i].1);
+                    slot.push(*i);
+                }
+                Err(e) => reports[*i] = Some(ImageReport { name: items[*i].0.clone(), status: ImageStatus::Failed { error: e } }),
+            }
+        }
+        let sub = self.extract_inputs_impl(store, inputs, Some(modes), opts)?;
+        for (s, r) in slot.into_iter().zip(sub) {
+            reports[s] = Some(r);
+        }
+        Ok(reports.into_iter().flatten().collect())
+    }
+
     /// Adds decoded images to the store (for per-position calls). Issues ids in lexicographic name order.
     pub fn extract_inputs(&self, store: &FeatureStore, mut inputs: Vec<ImageSource>, opts: &ExtractionOptions) -> Result<Vec<ImageReport>> {
         inputs.sort_by(|a, b| a.name.cmp(&b.name));
+        self.extract_inputs_impl(store, inputs, None, opts)
+    }
+
+    /// Body of [`FeatureExtractor::extract_inputs`]: `inputs` in the order to issue ids; `modes` (same length) overrides
+    /// the reader's camera mode per image.
+    fn extract_inputs_impl(
+        &self,
+        store: &FeatureStore,
+        inputs: Vec<ImageSource>,
+        modes: Option<Vec<CameraMode>>,
+        opts: &ExtractionOptions,
+    ) -> Result<Vec<ImageReport>> {
         let ro = &opts.reader;
-        check_existing_camera(store, ro)?;
+        if modes.is_none() {
+            check_existing_camera(store, ro)?;
+        }
         let mut reports: Vec<ImageReport> =
             inputs.iter().map(|i| ImageReport { name: i.name.clone(), status: ImageStatus::Failed { error: String::new() } }).collect();
 
@@ -320,7 +388,8 @@ impl FeatureExtractor {
                     }
                     Ok(())
                 };
-                let cam = match ro.camera_mode {
+                let mode = modes.as_ref().map_or(ro.camera_mode, |m| m[idx]);
+                let cam = match mode {
                     CameraMode::PerImage => new_cam(store)?,
                     CameraMode::Single => match single_cam {
                         Some(c) => {
@@ -411,7 +480,11 @@ fn already_done(store: &FeatureStore, name: &str) -> Option<ImageId> {
 }
 
 fn check_existing_camera(store: &FeatureStore, ro: &ReaderOptions) -> Result<Option<CameraId>> {
-    match ro.camera_mode {
+    check_existing_mode(store, ro.camera_mode)
+}
+
+fn check_existing_mode(store: &FeatureStore, mode: CameraMode) -> Result<Option<CameraId>> {
+    match mode {
         CameraMode::Existing(n) => {
             if store.camera(n).is_none() {
                 return Err(Error::NotFound(format!("existing_camera_id {n}")));

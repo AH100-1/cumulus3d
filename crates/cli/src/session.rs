@@ -32,6 +32,12 @@
 //! -> on zone completion, preview (foreground) densification + refinement (background thread: BA -> GPS ENU alignment -> densification),
 //! and emits that process as per-stage [`Event`]s. It writes no files or logs (run.log lines also go out as [`Event::Log`]).
 //!
+//! # Throughput
+//! - [`Input::Batch`] processes the positions of a backlog together (features, one matching call, one registration and
+//!   triangulation per segment between zone closings); [`Session::lookahead`] gives a [`Lookahead`] handle that starts the feature
+//!   extraction of upcoming positions while earlier ones are processed ([`SessionConfig::lookahead`]).
+//! - [`SessionConfig::preview`] (stable display) emits a sparse preview of every zone when it closes.
+//!
 //! # State and sharing
 //! `Session` is a value. `step(&s, frames)` returns a new `Session` and `s` can still be used.
 //! Models, image lists, correspondence graphs etc. are shared via `Arc` / copy on write. However, the feature store is append-only shared
@@ -57,6 +63,7 @@
 //! - [`Event::Warning`]/[`Event::Error`] go out together with a `Log` of the same content, so do not write them to run.log separately.
 //! - The stage times of [`Event::Finished`] have no post-processing ("post") time (post-processing is done by the output hook).
 
+use crate::ahead::{AheadCore, Lookahead, PositionExtract};
 use crate::densewrap::{dense_model, DenseConfig};
 use crate::events::{Command, Event, Frame, Meta, ZoneRange};
 use crate::intrinsics::IntrinsicsPrior;
@@ -69,7 +76,7 @@ use cumulus3d_core::analyzer::ModelStats;
 use cumulus3d_core::io::ply::PointCloud;
 use cumulus3d_core::io::GpsRecord;
 use cumulus3d_core::{Camera, CameraId, FeatureStore, ImageId, MatchGraph, MatchGraphOptions, Reconstruction, Rigid3};
-use cumulus3d_features::{CameraMode, ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
+use cumulus3d_features::{ExtractionOptions, FeatureExtractor, ImageReport, ImageStatus, SiftEngine};
 use cumulus3d_matching::{match_pairs_with, MatcherBackend, PairMatchingOptions, TwoViewBackend};
 use cumulus3d_sfm::{
     global_mapper, register_images_with, triangulate_points_with, AbsPoseBackend, GlobalSfmOptions, PointTriangulatorOptions,
@@ -180,6 +187,16 @@ pub struct SessionConfig {
     /// Soft intrinsics prior (see [`crate::intrinsics`]): every camera starts from the prior values as soon as it exists and
     /// each refinement pulls its refined parameters back towards them. None = off.
     pub intrinsics_prior: Option<Arc<IntrinsicsPrior>>,
+    /// Positions whose features may be extracted ahead of the position loop (default 0 = off). A [`Lookahead`] handle
+    /// ([`Session::lookahead`]) gets the frame sets of upcoming positions; one worker thread extracts at most this many of them
+    /// into the feature store while the earlier positions are matched, registered and triangulated. The results are the same as
+    /// without lookahead.
+    pub lookahead: usize,
+    /// Stable display: show a sparse preview of every zone as soon as it closes (default off). The zone's registered points (no
+    /// bundle adjustment yet) are placed into the display frame (robust Sim3 on the 3D points shared with the latest shown zone;
+    /// before any zone is shown, the GPS ENU fit the first refined zone uses) and emitted as an [`Event::ZonePreview`] with
+    /// `dense: false` and `frame: "display"`. The refined zone later replaces it. Shown zones are never touched.
+    pub preview: bool,
 }
 
 impl SessionConfig {
@@ -210,6 +227,8 @@ impl SessionConfig {
             settle_tol: 0.01,
             settle_max_zone: 3,
             intrinsics_prior: None,
+            lookahead: 0,
+            preview: false,
         }
     }
 }
@@ -219,6 +238,13 @@ impl SessionConfig {
 pub enum Input {
     /// Frame bundle of the next position.
     Frames(FrameSet),
+    /// Frame bundles of the next positions, processed as a backlog batch: features of all positions are extracted together,
+    /// every pair of the batch is matched in one call, the batch is registered and triangulated once. The batch is split where
+    /// a zone closes (or the first model is built), so zones see the same chain state as with one `Frames` input per position.
+    /// Equivalent to the same `Frames` inputs one after the other within the tolerance of registration order; the events are the
+    /// same kinds in the same per-position order within each stage, but the stages of a batch's positions are grouped (all
+    /// `FeaturesExtracted`, then all `PairsMatched`, then the registrations, then all `PositionDone`).
+    Batch(Vec<FrameSet>),
     /// A command that changes the state.
     Command(Command),
     /// Only collect background events.
@@ -249,12 +275,19 @@ impl crate::pipeline::Reducer for Session {
         self.apply(input)
     }
     fn prelude(&mut self, input: &Input) -> Vec<Event> {
-        let Input::Frames(fs) = input else { return Vec::new() };
         let sh = self.shared.clone();
         let mut evs = Vec::new();
         {
             let mut out = Out { sh: &sh, fg: Some(&mut evs), guard: None };
-            self.announce(fs, &mut out);
+            match input {
+                Input::Frames(fs) => self.announce(fs, self.frames.len(), &mut out),
+                Input::Batch(sets) => {
+                    for (i, fs) in sets.iter().enumerate() {
+                        self.announce(fs, self.frames.len() + i, &mut out);
+                    }
+                }
+                _ => {}
+            }
         }
         evs
     }
@@ -333,10 +366,19 @@ impl Emitter {
     }
 }
 
+/// Closes the lookahead worker when the last session of the lineage is gone.
+struct AheadGuard(Arc<AheadCore>);
+
+impl Drop for AheadGuard {
+    fn drop(&mut self) {
+        self.0.close();
+    }
+}
+
 /// Immutable settings + background state shared by the session lineage.
 struct Shared {
     cfg: SessionConfig,
-    extractor: FeatureExtractor,
+    ahead: AheadGuard,
     emitter: Emitter,
     times: StageTimes,
     bg: Mutex<Background>,
@@ -870,11 +912,20 @@ pub fn finish(session: &Session) -> (Session, Vec<Event>) {
 impl Session {
     /// Create an empty session from the settings.
     pub fn new(cfg: SessionConfig) -> Self {
-        let extractor = FeatureExtractor::with_backend(cfg.sift.clone());
+        let extractor = Arc::new(FeatureExtractor::with_backend(cfg.sift.clone()));
+        let store = Arc::new(FeatureStore::new());
+        let ahead = AheadGuard(AheadCore::new(
+            extractor,
+            cfg.image_root.clone(),
+            cfg.extraction.clone(),
+            cfg.intrinsics_prior.clone(),
+            cfg.lookahead,
+            Arc::clone(&store),
+        ));
         let gps = Arc::new(cfg.gps.clone());
         let shared = Arc::new(Shared {
             cfg,
-            extractor,
+            ahead,
             emitter: Emitter(Mutex::new(EmitState { version: 0, sink: None, inbox: Vec::new() })),
             times: StageTimes::default(),
             bg: Mutex::new(Background::default()),
@@ -882,7 +933,7 @@ impl Session {
         });
         Self {
             shared,
-            store: Arc::new(FeatureStore::new()),
+            store,
             graph: Arc::new(MatchGraph::new()),
             frames: Arc::new(Vec::new()),
             position_of: Arc::new(HashMap::new()),
@@ -942,11 +993,23 @@ impl Session {
                 }
                 match input {
                     Input::Frames(fs) => {
-                        self.announce(&fs, &mut out);
+                        self.announce(&fs, self.frames.len(), &mut out);
                         if let Some(e) = &self.failed {
                             let message = format!("이전 오류로 중단된 세션 — 프레임 무시 ({e})");
                             out.emit(|meta| Event::Warning { meta, message });
                         } else if let Err(e) = self.process_frames(fs, &mut out) {
+                            self.failed = Some(e.clone());
+                            out.emit(|meta| Event::Error { meta, message: e });
+                        }
+                    }
+                    Input::Batch(sets) => {
+                        for (i, fs) in sets.iter().enumerate() {
+                            self.announce(fs, self.frames.len() + i, &mut out);
+                        }
+                        if let Some(e) = &self.failed {
+                            let message = format!("이전 오류로 중단된 세션 — 프레임 무시 ({e})");
+                            out.emit(|meta| Event::Warning { meta, message });
+                        } else if let Err(e) = self.process_batch(sets, &mut out) {
                             self.failed = Some(e.clone());
                             out.emit(|meta| Event::Error { meta, message: e });
                         }
@@ -1048,10 +1111,9 @@ impl Session {
     }
 
     /// Decode the next position's frames to RGB and emit them as [`Event::FrameDecoded`] (once per position, cameras in parallel).
-    fn announce(&mut self, fs: &FrameSet, out: &mut Out) {
+    fn announce(&mut self, fs: &FrameSet, p: usize, out: &mut Out) {
         let sh = self.shared.clone();
-        let p = self.frames.len();
-        if !sh.cfg.decode_frames || self.finished || self.failed.is_some() || self.announced == Some(p) {
+        if !sh.cfg.decode_frames || self.finished || self.failed.is_some() || self.announced.is_some_and(|a| a >= p) {
             return;
         }
         self.ensure_started(out);
@@ -1092,63 +1154,151 @@ impl Session {
         }
     }
 
+    /// Handle that starts the feature extraction of upcoming positions ahead of the position loop (see [`Lookahead`]). It is
+    /// inert unless [`SessionConfig::lookahead`] is above 0. Usable from any thread, also while the session is busy.
+    pub fn lookahead(&self) -> Lookahead {
+        Lookahead(Arc::clone(&self.shared.ahead.0))
+    }
+
     fn process_frames(&mut self, fs: FrameSet, out: &mut Out) -> Result<(), String> {
-        let sh = self.shared.clone();
-        let cfg = &sh.cfg;
-        let p = self.frames.len();
-        let names: Vec<String> = fs.images.iter().map(|i| i.name.clone()).collect();
-        {
-            let pos = Arc::make_mut(&mut self.position_of);
-            for n in &names {
-                pos.insert(n.clone(), p);
+        self.process_segment(vec![fs], out)
+    }
+
+    /// Backlog batch: split into segments that end where a zone closes or the first model is built (the chain state a zone
+    /// snapshot sees is then the same as position by position), each segment is processed together.
+    fn process_batch(&mut self, sets: Vec<FrameSet>, out: &mut Out) -> Result<(), String> {
+        let cfg = &self.shared.cfg;
+        let (span, ovl, total) = (cfg.span, cfg.overlap, cfg.total_positions);
+        let mut seg: Vec<FrameSet> = Vec::new();
+        for (p, fs) in (self.frames.len()..).zip(sets) {
+            seg.push(fs);
+            let boundary = p + 1 == span + ovl || !zones_ending_at(p, span, ovl, total).is_empty();
+            if boundary {
+                self.process_segment(std::mem::take(&mut seg), out)?;
             }
         }
-        Arc::make_mut(&mut self.frames).push(fs.images.clone());
-        self.ingested += fs.images.len();
-        if !fs.gps.is_empty() {
-            Arc::make_mut(&mut self.gps).extend(fs.gps);
+        if !seg.is_empty() {
+            self.process_segment(seg, out)?;
         }
-        out.emit(|meta| Event::FrameIngested { meta, position: p, images: names });
+        Ok(())
+    }
+
+    /// Features of positions `p0..p0+imgs.len()`: hinted positions are taken from the lookahead worker, the others are extracted
+    /// now in one call. Emits the per-position events in position order.
+    fn extract_positions(&mut self, p0: usize, imgs: &[Vec<FrameImage>], out: &mut Out) -> Result<(), String> {
+        let sh = self.shared.clone();
+        let ahead = &sh.ahead.0;
+        let mut results: Vec<Option<PositionExtract>> = Vec::with_capacity(imgs.len());
+        let mut missing: Vec<usize> = Vec::new();
+        for (i, im) in imgs.iter().enumerate() {
+            match ahead.take(im) {
+                Some(Ok(r)) => results.push(Some(r)),
+                Some(Err(e)) if e != "cancelled" => return Err(e),
+                _ => {
+                    results.push(None);
+                    missing.push(i);
+                }
+            }
+        }
+        if !missing.is_empty() {
+            let list: Vec<&[FrameImage]> = missing.iter().map(|&i| imgs[i].as_slice()).collect();
+            let done = ahead.run_now(&self.store, &list)?;
+            for (&i, r) in missing.iter().zip(done) {
+                results[i] = Some(r);
+            }
+        }
+        for (i, r) in results.into_iter().enumerate() {
+            let (p, r) = (p0 + i, r.expect("every position extracted"));
+            report_extraction(&r.reports, p, out);
+            for note in &r.notes {
+                out.log(note.clone());
+            }
+            if *self.cam_ids != r.cams {
+                self.cam_ids = Arc::new(r.cams);
+            }
+            sh.times.add("feature", r.elapsed);
+            out.stamped(format!("[time] feature pos {p}: {:.3}s", r.elapsed.as_secs_f64()));
+        }
+        Ok(())
+    }
+
+    /// One or more consecutive positions through features -> matching -> registration -> triangulation. A single position
+    /// is the plain per-position step; several positions (a [`Input::Batch`] segment) match all their pairs in one call and
+    /// register and triangulate once. The segment ends at the position that closes a zone, builds the first model, or is the
+    /// last one given.
+    fn process_segment(&mut self, sets: Vec<FrameSet>, out: &mut Out) -> Result<(), String> {
+        let sh = self.shared.clone();
+        let cfg = &sh.cfg;
+        let p0 = self.frames.len();
+        let n = sets.len();
+        if n == 0 {
+            return Ok(());
+        }
+        let last = p0 + n - 1;
+        let label = if n == 1 { format!("pos {p0}") } else { format!("pos {p0}..{last}") };
+        let mut imgs: Vec<Vec<FrameImage>> = Vec::with_capacity(n);
+        for (i, fs) in sets.into_iter().enumerate() {
+            let p = p0 + i;
+            let names: Vec<String> = fs.images.iter().map(|i| i.name.clone()).collect();
+            {
+                let pos = Arc::make_mut(&mut self.position_of);
+                for n in &names {
+                    pos.insert(n.clone(), p);
+                }
+            }
+            Arc::make_mut(&mut self.frames).push(fs.images.clone());
+            self.ingested += fs.images.len();
+            if !fs.gps.is_empty() {
+                Arc::make_mut(&mut self.gps).extend(fs.gps);
+            }
+            out.emit(|meta| Event::FrameIngested { meta, position: p, images: names });
+            imgs.push(fs.images);
+        }
 
         // 1) Features: for the first bundle, one camera per folder; afterwards the same camera id.
-        let t0 = Instant::now();
-        let r = self.extract(p, &fs.images, out);
-        out.stage("feature", &format!("pos {p}"), t0);
-        r?;
+        self.extract_positions(p0, &imgs, out)?;
 
         // 2) Match only pairs that involve a new image.
-        let pairs: Vec<(ImageId, ImageId)> = pairs_for(&self.frames, p)
-            .into_iter()
-            .filter_map(|(a, b)| Some((self.store.image_id_by_name(&a)?, self.store.image_id_by_name(&b)?)))
+        let per_pos: Vec<Vec<(ImageId, ImageId)>> = (p0..=last)
+            .map(|p| {
+                pairs_for(&self.frames, p)
+                    .into_iter()
+                    .filter_map(|(a, b)| Some((self.store.image_id_by_name(&a)?, self.store.image_id_by_name(&b)?)))
+                    .collect()
+            })
             .collect();
+        let pairs: Vec<(ImageId, ImageId)> = if n == 1 { per_pos[0].clone() } else { per_pos.iter().flatten().copied().collect() };
         let mut mopts = PairMatchingOptions::default();
         mopts.geometry.ransac.random_seed = cfg.seed;
         let t0 = Instant::now();
         let st = match_pairs_with(&self.store, &pairs, &mopts, cfg.matcher.as_ref(), cfg.sparse.two_view.as_ref());
-        out.stage("matching", &format!("pos {p} ({} pairs)", pairs.len()), t0);
+        out.stage("matching", &format!("{label} ({} pairs)", pairs.len()), t0);
         let st = st.map_err(|e| e.to_string())?;
         Arc::make_mut(&mut self.graph).update_from_store(&self.store, &MatchGraphOptions::default());
-        out.log(format!(
-            "[match] pos {p}: 짝 {} 매칭 {} 유효 기하 {} (그래프 영상 {})",
-            pairs.len(),
-            st.num_matched,
-            st.num_valid_geometries,
-            self.graph.image_ids().len()
-        ));
-        let (np, nv, nm) = (pairs.len(), st.num_valid_geometries, st.num_matched);
-        out.emit(|meta| Event::PairsMatched { meta, pairs: np, verified: nv, position: p, matched: nm });
+        for (i, pp) in per_pos.iter().enumerate() {
+            let p = p0 + i;
+            let (np, nv, nm) = if n == 1 {
+                (pairs.len(), st.num_valid_geometries, st.num_matched)
+            } else {
+                let valid =
+                    pp.iter().filter(|(a, b)| self.store.get_two_view(*a, *b).is_some_and(|g| !g.inlier_matches.is_empty())).count();
+                (pp.len(), valid, pp.len())
+            };
+            out.log(format!("[match] pos {p}: 짝 {np} 매칭 {nm} 유효 기하 {nv} (그래프 영상 {})", self.graph.image_ids().len()));
+            out.emit(|meta| Event::PairsMatched { meta, pairs: np, verified: nv, position: p, matched: nm });
+        }
 
         // 3) Registration.
         let (span, ovl) = (cfg.span, cfg.overlap);
-        if p + 1 < span + ovl {
-            self.checkpoint(p);
+        if last + 1 < span + ovl {
+            self.checkpoint(last);
             return Ok(());
         }
-        if p + 1 == span + ovl {
+        if last + 1 == span + ovl {
             let t0 = Instant::now();
             let gopts = GlobalSfmOptions { ba_backend: BaBackendRef::new(cfg.ba_backend.clone()), ..GlobalSfmOptions::script() };
             let o = global_mapper(&self.store, &self.graph, &gopts);
-            out.stage("mapper", &format!("pos {p}"), t0);
+            out.stage("mapper", &format!("pos {last}"), t0);
             let o = o.map_err(|e| e.to_string())?;
             if let Some(f) = &o.failure {
                 out.warn(format!("[mapper] 실패 보고: {f}"));
@@ -1157,7 +1307,7 @@ impl Session {
             let rec = o.reconstruction;
             let model = Arc::new(rec.clone());
             let registered = rec.registered_image_count();
-            out.emit(|meta| Event::ModelInitialized { meta, registered, position: p, model });
+            out.emit(|meta| Event::ModelInitialized { meta, registered, position: last, model });
             let ids = rec.registered_images();
             self.emit_registered(&rec, &ids, out);
             self.chain = Some(rec);
@@ -1177,11 +1327,11 @@ impl Session {
                 let t0 = Instant::now();
                 let rr =
                     register_images_with(&mut reg, &self.store, &self.graph, &RegistrationOptions::default(), cfg.sparse.abs_pose.as_ref());
-                out.stage("registration", &format!("pos {p}"), t0);
+                out.stage("registration", &label, t0);
                 match rr {
                     Ok(rep) => {
                         let new_ids = rep.registered();
-                        out.log(format!("[register] pos {p}: 시도 {} 등록 {}", rep.attempts.len(), new_ids.len()));
+                        out.log(format!("[register] {label}: 시도 {} 등록 {}", rep.attempts.len(), new_ids.len()));
                         let scope = if cfg.incremental_triangulation {
                             TriangulationScope::Images(new_ids.clone())
                         } else {
@@ -1190,11 +1340,11 @@ impl Session {
                         let topts = PointTriangulatorOptions { clear_points: false, scope, ..Default::default() };
                         let t0 = Instant::now();
                         let tr = triangulate_points_with(&mut reg, &self.graph, &topts, cfg.sparse.triangulation.as_ref());
-                        out.stage("triangulation", &format!("pos {p}"), t0);
+                        out.stage("triangulation", &label, t0);
                         match tr {
                             Ok(t) => {
                                 out.log(format!(
-                                    "[triangulate] pos {p}: 생성 {} 연장 {} 완성 {} 병합 {} 필터 {} (점 {})",
+                                    "[triangulate] {label}: 생성 {} 연장 {} 완성 {} 병합 {} 필터 {} (점 {})",
                                     t.num_created,
                                     t.num_continued,
                                     t.num_completed,
@@ -1205,75 +1355,29 @@ impl Session {
                                 self.emit_registered(&reg, &new_ids, out);
                                 self.chain = Some(reg);
                             }
-                            Err(e) => out.warn(format!("[triangulate] pos {p} 실패: {e} (이전 모델 유지)")),
+                            Err(e) => out.warn(format!("[triangulate] {label} 실패: {e} (이전 모델 유지)")),
                         }
                     }
-                    Err(e) => out.warn(format!("[register] pos {p} 실패: {e}")),
+                    Err(e) => out.warn(format!("[register] {label} 실패: {e}")),
                 }
             }
         }
         let registered = self.chain.as_ref().map_or(0, |r| r.registered_image_count());
-        let expected = self.ingested;
-        out.emit(|meta| Event::PositionDone { meta, position: p, registered, expected });
+        for p in p0..=last {
+            if p + 1 < span + ovl {
+                continue;
+            }
+            let expected: usize = self.frames[..=p].iter().map(|f| f.len()).sum();
+            out.emit(|meta| Event::PositionDone { meta, position: p, registered, expected });
+        }
 
         // 4) Zone completion -> preview (foreground) + refinement (background).
-        for z in zones_ending_at(p, span, ovl, cfg.total_positions) {
+        for z in zones_ending_at(last, span, ovl, cfg.total_positions) {
             if !self.arrived.contains_key(&z.zone) {
                 self.process_zone(z, out);
             }
         }
-        self.checkpoint(p);
-        Ok(())
-    }
-
-    fn extract(&mut self, p: usize, images: &[FrameImage], out: &mut Out) -> Result<(), String> {
-        let sh = self.shared.clone();
-        let cfg = &sh.cfg;
-        if self.cam_ids.is_empty() {
-            let names: Vec<String> = images.iter().map(|i| i.name.clone()).collect();
-            let mut o = cfg.extraction.clone();
-            o.reader.camera_mode = CameraMode::PerFolder;
-            let rep = sh.extractor.extract_files(&self.store, &cfg.image_root, &names, &o).map_err(|e| e.to_string())?;
-            report_extraction(&rep, p, out);
-            let cams = Arc::make_mut(&mut self.cam_ids);
-            for im in images {
-                let s = self.store.image_by_name(&im.name).ok_or_else(|| format!("{} 첫 영상 특징 추출 실패", im.camera))?;
-                cams.insert(im.camera.clone(), s.camera_id);
-            }
-            self.apply_intrinsics_prior(out)?;
-        } else {
-            for im in images {
-                let mut o = cfg.extraction.clone();
-                let known = self.cam_ids.get(&im.camera).copied();
-                o.reader.camera_mode = known.map_or(CameraMode::PerFolder, CameraMode::Existing);
-                let rep = sh
-                    .extractor
-                    .extract_files(&self.store, &cfg.image_root, std::slice::from_ref(&im.name), &o)
-                    .map_err(|e| e.to_string())?;
-                report_extraction(&rep, p, out);
-                if known.is_none() {
-                    if let Some(s) = self.store.image_by_name(&im.name) {
-                        Arc::make_mut(&mut self.cam_ids).insert(im.camera.clone(), s.camera_id);
-                    }
-                    self.apply_intrinsics_prior(out)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Soft intrinsics prior: sets the store's cameras to the prior values (before any registration or model uses them).
-    /// A camera without an entry is left alone; an entry whose length differs from the camera model's is an error.
-    fn apply_intrinsics_prior(&self, out: &mut Out) -> Result<(), String> {
-        let Some(pr) = &self.shared.cfg.intrinsics_prior else { return Ok(()) };
-        let pr = pr.resolve(&self.cam_ids);
-        for mut cam in self.store.cameras() {
-            let before = cam.params.clone();
-            if pr.apply(&mut cam)? && cam.params != before {
-                out.log(format!("[prior] 카메라 {}: 내부값 초기화 {} → {}", cam.camera_id, fmt_params(&before), fmt_params(&cam.params)));
-                self.store.update_camera(cam).map_err(|e| e.to_string())?;
-            }
-        }
+        self.checkpoint(last);
         Ok(())
     }
 
@@ -1298,9 +1402,13 @@ impl Session {
                 Arc::new(self.position_of.iter().filter(|(_, p)| **p >= range.lo && **p < range.hi).map(|(n, _)| n.clone()).collect());
             let generation = sh.generation(k);
             let (sh2, gps, cam_ids) = (sh.clone(), self.gps.clone(), self.cam_ids.clone());
-            let h = std::thread::spawn(move || sh2.refine_job(range, snap, generation, gps, keep, cam_ids));
+            let (snap_job, keep_job) = (snap.clone(), keep.clone());
+            let h = std::thread::spawn(move || sh2.refine_job(range, snap_job, generation, gps, keep_job, cam_ids));
             sh.bg().jobs.push(h);
             self.arrived.insert(k, range);
+            if sh.cfg.preview {
+                self.sparse_preview(range, &snap, &keep, out);
+            }
             return;
         }
         let mut preview = snap.clone();
@@ -1325,6 +1433,67 @@ impl Session {
         Arc::make_mut(&mut self.previews)
             .insert(k, PreviewZone { range, model: model.clone(), cloud: cloud.clone(), frame: frame.clone() });
         out.emit(|meta| Event::ZonePreview { meta, range, dense: cloud.is_some(), cloud: cloud.unwrap_or_default(), model, frame });
+    }
+
+    /// Stable display: the zone's registered 3D points (no bundle adjustment) as a preview in the display frame, emitted as an
+    /// [`Event::ZonePreview`] (`dense: false`, `frame: "display"`).
+    ///
+    /// Placement: a robust Sim3 on the 3D points the chain shares with the latest shown (refined) zone, or on the camera centers
+    /// when too few points are shared; before any zone is shown, the GPS ENU fit the first refined zone starts from. Without a fit
+    /// no preview is made (a preview in an unknown frame would jump). The shown zones are not touched: the preview only adds
+    /// points of this zone's own positions (the part past the overlap with the previous zone, which shows its own).
+    fn sparse_preview(&mut self, range: ZoneRange, snap: &Reconstruction, keep: &HashSet<String>, out: &mut Out) {
+        let sh = self.shared.clone();
+        let k = range.zone;
+        // The previous zone reaches `overlap` positions past this zone's start: from there on the positions are this zone's own.
+        let own_lo = if k == 0 { 0 } else { (k * sh.cfg.span + sh.cfg.overlap).max(range.lo) };
+        let own: HashSet<ImageId> = snap
+            .registered_images()
+            .into_iter()
+            .filter(|id| {
+                snap.image(*id).is_some_and(|im| keep.contains(&im.name) && self.position_of.get(&im.name).is_some_and(|p| *p >= own_lo))
+            })
+            .collect();
+        let mut cloud = PointCloud::default();
+        for (_, pt) in snap.points3d() {
+            let Some(t) = pt.track.iter().find(|t| own.contains(&t.image_id)) else { continue };
+            cloud.positions.push([pt.xyz.x as f32, pt.xyz.y as f32, pt.xyz.z as f32]);
+            cloud.colors.push(pt.color);
+            cloud.keys.push(preview_key(t.image_id, t.point2d_idx));
+        }
+        if cloud.is_empty() {
+            out.log(format!("[preview] 구역 {k}: 표시할 3D 점 없음 — 미리보기 생략"));
+            return;
+        }
+        let shown = sh.bg().ready.range(..k).next_back().map(|(j, z)| (*j, z.model.clone()));
+        let fit = match &shown {
+            Some((j, m)) => match fit_shared_points(snap, m, None, MIN_SHARED_PAIRS) {
+                Some((f, n)) => Some((f.sim3, format!("구역 {j} 과 공유 점 {n}, 잔차 중앙 {:.3}m", f.median))),
+                None => sim3_between(snap, m, |_| true).map(|t| (t, format!("구역 {j} 과 공유 영상 카메라 중심"))),
+            },
+            None => {
+                let targets = enu_targets(snap, &self.gps);
+                let (src, dst): (Vec<_>, Vec<_>) =
+                    targets.iter().filter_map(|(id, g)| snap.projection_center(*id).map(|c| (c, *g))).unzip();
+                (src.len() >= 3)
+                    .then(|| cumulus3d_align::fit_enu_sim3(snap, &src, &dst))
+                    .flatten()
+                    .map(|(t, _)| (t, format!("GPS {} 개 (ENU)", src.len())))
+            }
+        };
+        let Some((t, how)) = fit else {
+            out.warn(format!("[preview] 구역 {k}: 표시 좌표계에 맞출 기준 없음 — 미리보기 생략"));
+            return;
+        };
+        cumulus3d_align::transform_cloud(&mut cloud, &t);
+        let mut model = snap.clone();
+        model.transform(&t);
+        let (model, cloud) = (Arc::new(model), Arc::new(cloud));
+        out.log(format!("[preview] 구역 {k}: 희소 점 {} 개를 표시 좌표계에 배치 ({how}, 축척 {:.4})", cloud.len(), t.scale));
+        let frame = "display".to_string();
+        Arc::make_mut(&mut self.previews)
+            .insert(k, PreviewZone { range, model: model.clone(), cloud: Some(cloud.clone()), frame: frame.clone() });
+        out.emit(|meta| Event::ZonePreview { meta, range, dense: false, cloud, model, frame });
     }
 
     fn checkpoint(&mut self, position: usize) {
@@ -1416,6 +1585,7 @@ impl Session {
                 self.gps = Arc::new(self.shared.cfg.gps.clone());
             }
         }
+        self.shared.ahead.0.reset(Arc::clone(&self.store), (*self.cam_ids).clone());
         out.emit(|meta| Event::Reset { meta, position: p });
     }
 
@@ -1487,7 +1657,7 @@ fn report_extraction(rep: &[ImageReport], position: usize, out: &mut Out) {
     }
 }
 
-fn fmt_params(p: &[f64]) -> String {
+pub(crate) fn fmt_params(p: &[f64]) -> String {
     format!("[{}]", p.iter().map(|x| format!("{x:.5}")).collect::<Vec<_>>().join(" "))
 }
 
@@ -1570,6 +1740,12 @@ fn anchor_to_shown(rec: &mut Reconstruction, shown: &Reconstruction, ba: &mut Ba
 
 /// Fewest shared 3D points for which a point-based Sim3 fit is trusted over the camera-center fit.
 const MIN_SHARED_PAIRS: usize = 20;
+
+/// Key of a preview point: the dense point key layout (`image << 32 | v << 16 | u`) with `v` = 0xFFFF, a row no depth map pixel
+/// has, and the 2D point index of the track's first observation in place of `u`. Never equal to a dense key.
+fn preview_key(image: ImageId, point2d: u32) -> u64 {
+    ((image as u64) << 32) | 0xFFFF_0000 | (point2d as u64 & 0xFFFF)
+}
 
 /// Sim3 taking `from` into the frame of `to` (umeyama with scale on the projection centers of the images, accepted by
 /// `keep`, registered in both). None with fewer than 3 common images.

@@ -88,6 +88,7 @@
 //! behind a bounded queue with an explicit [`Backpressure`] policy, and the producer only calls
 //! [`ComposeHandle::send`] / [`ComposeHandle::try_send`] (both usable from async code; `try_send` never blocks).
 
+use crate::ahead::Lookahead;
 use crate::blocks::LiveStream;
 use crate::declare::{AlignFrame, Dense, Features, Plan};
 use crate::densewrap::{make_ba_backend, make_match_backend, make_sift_backend, make_sparse_backend, parse_profile};
@@ -303,6 +304,9 @@ pub enum ReconcilePolicy {
     /// Accept only the exact next sequence; everything else (gap, late, correction, foreign source) is an error.
     Strict,
 }
+
+/// Largest number of queued states a spawned node takes as one backlog batch.
+const BATCH_MAX: usize = 32;
 
 /// Queue policy between a producer and a spawned node ([`ReconNode::spawn`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -590,6 +594,7 @@ impl ReconNode {
         let mut plan = Plan::default();
         plan.dense.enabled = false;
         plan.gps = None;
+        plan.live = crate::declare::Live::live_node();
         NodeBuilder {
             id: "default".to_string(),
             plan,
@@ -688,6 +693,30 @@ impl NodeBuilder {
     /// Triangulate only newly registered images.
     pub fn incremental_triangulation(mut self, on: bool) -> Self {
         self.plan.sparse.incremental_triangulation = on;
+        self
+    }
+    /// Feature lookahead (see [`SessionConfig::lookahead`], default 2; 0 = off): on a spawned node ([`ReconNode::spawn`]) the
+    /// features of up to this many queued positions are extracted by a worker thread while earlier positions are matched,
+    /// registered and triangulated, so the throughput approaches the slowest stage instead of the sum of the stages. Nothing
+    /// is read ahead for sets whose payload is raw RGB pixels (their spooling stays on the worker). Results do not change.
+    pub fn lookahead(mut self, positions: usize) -> Self {
+        self.plan.live.lookahead = positions;
+        self
+    }
+    /// Backlog batching (default 3; 0 or 1 = off): when a spawned node finds at least `threshold` states waiting (the one it
+    /// takes plus the queued ones), it processes up to 32 of them as one batch ([`ReconNode::compose_batch`]): features,
+    /// matching of all pending pairs in one call, registration and triangulation once per batch (split where a zone closes), so
+    /// a backlog is worked off at the cost of one triangulation instead of one per position. The result is equivalent to
+    /// position by position within the tolerance of registration order. Off with [`ReconcilePolicy::ReplayWindow`] (a rewind
+    /// needs the state after every position).
+    pub fn batch(mut self, threshold: usize) -> Self {
+        self.plan.live.batch = threshold;
+        self
+    }
+    /// Stable display: a sparse preview of every zone as soon as it closes (see [`SessionConfig::preview`]), before the refined
+    /// zone replaces it. With [`NodeBuilder::display_deltas`] it arrives as a [`crate::live::DeltaKind::Preview`] delta.
+    pub fn preview(mut self, on: bool) -> Self {
+        self.plan.live.preview = on;
         self
     }
     /// Stable display settling: intrinsics change tolerance and the last zone that may still settle
@@ -965,6 +994,8 @@ impl NodeBuilder {
         sc.settle_tol = plan.sparse.settle_tol;
         sc.settle_max_zone = plan.sparse.settle_max_zone;
         sc.intrinsics_prior = prior.map(Arc::new);
+        sc.lookahead = plan.live.lookahead;
+        sc.preview = plan.live.preview;
         if deltas.as_ref().is_some_and(|o| o.stride == 0) {
             return Err(ComposeError::Config(vec!["display_deltas: stride must be at least 1".into()]));
         }
@@ -995,10 +1026,10 @@ impl NodeBuilder {
         for a in attach {
             pl = a(pl);
         }
+        let resolver = Arc::new(Resolver::new(plan.input.cameras.clone(), plan.input.images.clone(), spool));
         let core = Core {
             cameras: plan.input.cameras.clone(),
-            image_root: plan.input.images.clone(),
-            spool,
+            resolver: Arc::clone(&resolver),
             policy,
             source,
             accepted: BTreeMap::new(),
@@ -1009,8 +1040,12 @@ impl NodeBuilder {
             pipeline: Some(pl),
             ended: None,
             origin,
+            batching: false,
+            deferred: Vec::new(),
         };
-        let node = ReconNode { id, backpressure, core: Arc::new(Mutex::new(core)) };
+        let ahead = core.pipeline.as_ref().expect("open pipeline").reducer().lookahead();
+        let batch = if matches!(policy, ReconcilePolicy::ReplayWindow { .. }) { 0 } else { plan.live.batch };
+        let node = ReconNode { id, backpressure, core: Arc::new(Mutex::new(core)), batch, ahead, resolver };
         host.register(&node)?;
         Ok(node)
     }
@@ -1027,6 +1062,11 @@ pub struct ReconNode {
     id: String,
     backpressure: Backpressure,
     core: Arc<Mutex<Core>>,
+    /// Backlog batching threshold (0 = off, see [`NodeBuilder::batch`]).
+    batch: usize,
+    /// Feature lookahead handle of the node's session (see [`NodeBuilder::lookahead`]).
+    ahead: Lookahead,
+    resolver: Arc<Resolver>,
 }
 
 impl fmt::Debug for ReconNode {
@@ -1043,8 +1083,7 @@ struct Accepted {
 
 struct Core {
     cameras: Vec<String>,
-    image_root: PathBuf,
-    spool: PathBuf,
+    resolver: Arc<Resolver>,
     policy: ReconcilePolicy,
     source: Option<String>,
     /// sequence -> accepted revision and position.
@@ -1061,6 +1100,9 @@ struct Core {
     ended: Option<Closed>,
     /// First GPS fix declared `[lat, lon, alt]` (ENU origin reported by display deltas).
     origin: Arc<Mutex<Option<[f64; 3]>>>,
+    /// Inside [`ReconNode::compose_batch`]: appended sets are collected in `deferred` and pushed to the session as one batch.
+    batching: bool,
+    deferred: Vec<FrameSet>,
 }
 
 impl ReconNode {
@@ -1077,6 +1119,15 @@ impl ReconNode {
     /// Declares several states in order, stopping at the first error.
     pub fn compose_all(&self, states: impl IntoIterator<Item = FrameState>) -> Result<Vec<Outcome>, ComposeError> {
         states.into_iter().map(|s| self.compose(s)).collect()
+    }
+
+    /// Declares several states in order, like [`ReconNode::compose_all`], but appended sets are handed to the session together as
+    /// one backlog batch: their features are extracted in one go, all their pairs are matched in one call, and the batch is
+    /// registered and triangulated once (see [`crate::session::Input::Batch`]). The batch is split where the session closes a zone.
+    /// Late arrivals, corrections and `End` inside the list flush the batch first. Returns one result per state (a session
+    /// failure shows up on the last appended state of the batch); unlike `compose_all` it does not stop at the first error.
+    pub fn compose_batch(&self, states: impl IntoIterator<Item = FrameState>) -> Vec<Result<Outcome, ComposeError>> {
+        lock(&self.core).compose_batch(states.into_iter().collect())
     }
 
     /// Collects finished background (refinement) events without new input.
@@ -1139,12 +1190,22 @@ impl ReconNode {
             .spawn(move || {
                 let mut outcomes = Vec::new();
                 loop {
+                    // The next state; with a backlog (at least `batch` states waiting), every queued state up to `BATCH_MAX`.
                     let next = {
                         let mut st = lock(&q.st);
                         loop {
                             if let Some(s) = st.items.pop_front() {
+                                let mut taken = vec![s];
+                                if node.batch >= 2 && matches!(taken[0], FrameState::Ready(_)) && st.items.len() + 1 >= node.batch {
+                                    while taken.len() < BATCH_MAX && !matches!(taken.last(), Some(FrameState::End)) {
+                                        match st.items.pop_front() {
+                                            Some(more) => taken.push(more),
+                                            None => break,
+                                        }
+                                    }
+                                }
                                 q.cv.notify_all();
-                                break Some(s);
+                                break Some(taken);
                             }
                             if st.closed {
                                 break None;
@@ -1152,12 +1213,13 @@ impl ReconNode {
                             st = q.cv.wait(st).unwrap_or_else(|p| p.into_inner());
                         }
                     };
-                    let Some(state) = next else { break };
-                    let end = matches!(state, FrameState::End);
-                    let r = node.compose(state);
-                    lock(&q.st).processed += 1;
-                    let fatal = matches!(r, Err(ComposeError::Session(_)));
-                    outcomes.push(r);
+                    let Some(taken) = next else { break };
+                    let end = taken.iter().any(|s| matches!(s, FrameState::End));
+                    let n = taken.len() as u64;
+                    let rs: Vec<_> = if n == 1 { taken.into_iter().map(|s| node.compose(s)).collect() } else { node.compose_batch(taken) };
+                    lock(&q.st).processed += n;
+                    let fatal = rs.iter().any(|r| matches!(r, Err(ComposeError::Session(_))));
+                    outcomes.extend(rs);
                     if end || fatal {
                         break;
                     }
@@ -1280,7 +1342,7 @@ impl Core {
                 if skipped > 0 && self.policy == ReconcilePolicy::Strict {
                     return Err(ComposeError::Rejected(format!("{key}: {skipped} sequence(s) missing before it")));
                 }
-                let fs = self.resolve(&set, None)?;
+                let fs = self.resolver.resolve_cached(&set)?;
                 self.waiting.remove(&key.sequence);
                 let position = self.order.len();
                 self.push(fs)?;
@@ -1298,6 +1360,7 @@ impl Core {
 
     /// Late arrival of an unseen older sequence.
     fn late(&mut self, set: LiveFrameSet) -> Result<Outcome, ComposeError> {
+        self.flush_deferred()?;
         let key = set.key.clone();
         let ReconcilePolicy::ReplayWindow { positions: w } = self.policy else {
             return self.ignore(&key, IgnoreReason::Late);
@@ -1320,6 +1383,7 @@ impl Core {
 
     /// Higher revision of an accepted sequence.
     fn correct(&mut self, set: LiveFrameSet, acc: Accepted) -> Result<Outcome, ComposeError> {
+        self.flush_deferred()?;
         let key = set.key.clone();
         let p = acc.position;
         match self.policy {
@@ -1403,8 +1467,47 @@ impl Core {
         if let Some(g) = fs.gps.first() {
             lock(&self.origin).get_or_insert([g.lat, g.lon, g.alt]);
         }
+        if self.batching {
+            self.deferred.push(fs);
+            return Ok(());
+        }
         self.pl().push(Input::Frames(fs));
         self.fail_check()
+    }
+
+    /// Pushes the sets collected by [`ReconNode::compose_batch`] to the session as one batch.
+    fn flush_deferred(&mut self) -> Result<(), ComposeError> {
+        if self.deferred.is_empty() {
+            return Ok(());
+        }
+        let mut sets = std::mem::take(&mut self.deferred);
+        let input = if sets.len() == 1 { Input::Frames(sets.remove(0)) } else { Input::Batch(sets) };
+        self.pl().push(input);
+        self.fail_check()
+    }
+
+    fn compose_batch(&mut self, states: Vec<FrameState>) -> Vec<Result<Outcome, ComposeError>> {
+        let mut outs: Vec<Result<Outcome, ComposeError>> = Vec::with_capacity(states.len());
+        self.batching = true;
+        let mut last_deferred = None;
+        for st in states {
+            let before = self.deferred.len();
+            let r = self.compose(st);
+            if self.deferred.len() > before {
+                last_deferred = Some(outs.len());
+            } else if self.deferred.is_empty() {
+                last_deferred = None;
+            }
+            outs.push(r);
+        }
+        self.batching = false;
+        if let Err(e) = self.flush_deferred() {
+            match last_deferred {
+                Some(i) => outs[i] = Err(e),
+                None => outs.push(Err(e)),
+            }
+        }
+        outs
     }
 
     fn fail_check(&mut self) -> Result<(), ComposeError> {
@@ -1412,6 +1515,61 @@ impl Core {
             Some(e) => Err(ComposeError::Session(e.to_string())),
             None => Ok(()),
         }
+    }
+
+    fn resolve(&self, set: &LiveFrameSet, names: Option<&[String]>) -> Result<FrameSet, ComposeError> {
+        self.resolver.resolve(set, names)
+    }
+
+    fn finish(&mut self) -> Option<Closed> {
+        let _ = self.flush_deferred();
+        let pl = self.pipeline.take()?;
+        let (session, summary) = pl.finish();
+        Some(Closed { session, summary, stats: self.stats.clone() })
+    }
+}
+
+/// Materializes the payloads of live frame sets (spooling in-memory ones into the image folder). Shared by the node core and
+/// the producer side of a spawned node, which resolves queued sets ahead of time for the feature lookahead.
+struct Resolver {
+    cameras: Vec<String>,
+    image_root: PathBuf,
+    spool: PathBuf,
+    /// Sets resolved ahead of the worker: (sequence, revision) -> frame set. Taken by the worker when it composes the set.
+    ahead: Mutex<HashMap<(u64, u32), FrameSet>>,
+}
+
+impl Resolver {
+    fn new(cameras: Vec<String>, image_root: PathBuf, spool: PathBuf) -> Self {
+        Self { cameras, image_root, spool, ahead: Mutex::new(HashMap::new()) }
+    }
+
+    /// The frame set resolved ahead of time if there is one, else resolved now.
+    fn resolve_cached(&self, set: &LiveFrameSet) -> Result<FrameSet, ComposeError> {
+        let hit = lock(&self.ahead).remove(&(set.key.sequence, set.key.revision));
+        match hit {
+            Some(fs) => Ok(fs),
+            None => self.resolve(set, None),
+        }
+    }
+
+    /// For the feature lookahead: resolves a complete set of files / encoded images now (cheap: no re-encoding) and remembers it
+    /// for the worker. None for incomplete sets, raw RGB payloads (their PNG encoding would stall the producer) and errors (the
+    /// worker reports those when it composes the set).
+    fn resolve_ahead(&self, set: &LiveFrameSet) -> Option<FrameSet> {
+        if set.images.len() != self.cameras.len()
+            || !self.cameras.iter().all(|c| set.images.iter().filter(|i| &i.camera == c).count() == 1)
+            || set.images.iter().any(|i| matches!(i.payload, FramePayload::Rgb8 { .. }))
+        {
+            return None;
+        }
+        let fs = self.resolve(set, None).ok()?;
+        let mut m = lock(&self.ahead);
+        if m.len() >= 256 {
+            m.clear();
+        }
+        m.insert((set.key.sequence, set.key.revision), fs.clone());
+        Some(fs)
     }
 
     /// Materializes payloads (spooling in-memory ones) and builds the session's frame set in camera order.
@@ -1497,12 +1655,6 @@ impl Core {
         let tmp = dir.join(format!(".{file}.partial.{ext}"));
         write(&tmp).map_err(|e| ComposeError::Io(format!("{}: {e}", tmp.display())))?;
         std::fs::rename(&tmp, &dst).map_err(|e| ComposeError::Io(format!("{}: {e}", dst.display())))
-    }
-
-    fn finish(&mut self) -> Option<Closed> {
-        let pl = self.pipeline.take()?;
-        let (session, summary) = pl.finish();
-        Some(Closed { session, summary, stats: self.stats.clone() })
     }
 }
 
@@ -1604,6 +1756,12 @@ impl ComposeHandle {
     }
 
     fn enqueue(&self, state: FrameState, wait: bool) -> Result<(), SendError> {
+        // Feature lookahead: resolve the set and let the session extract its features while earlier states are composed.
+        if let (FrameState::Ready(set), true) = (&state, self.node.ahead.limit() > 0) {
+            if let Some(fs) = self.node.resolver.resolve_ahead(set) {
+                self.node.ahead.hint(&fs);
+            }
+        }
         let q = &self.queue;
         let mut st = lock(&q.st);
         if st.closed {
@@ -1681,8 +1839,7 @@ mod tests {
     fn spool_names_are_sanitized_and_stable() {
         let c = Core {
             cameras: vec!["camF".into()],
-            image_root: PathBuf::from("/tmp/x"),
-            spool: PathBuf::from(".live"),
+            resolver: Arc::new(Resolver::new(vec!["camF".into()], PathBuf::from("/tmp/x"), PathBuf::from(".live"))),
             policy: ReconcilePolicy::AppendOnly,
             source: None,
             accepted: BTreeMap::new(),
@@ -1693,9 +1850,11 @@ mod tests {
             pipeline: None,
             ended: None,
             origin: Arc::new(Mutex::new(None)),
+            batching: false,
+            deferred: Vec::new(),
         };
         let k = FrameKey::new("rtsp://drone 1", 42, 3);
-        assert_eq!(c.spool_name(&k, "camF", "png"), ".live/camF/rtsp___drone_1_0000000042.png");
+        assert_eq!(c.resolver.spool_name(&k, "camF", "png"), ".live/camF/rtsp___drone_1_0000000042.png");
     }
 
     #[test]

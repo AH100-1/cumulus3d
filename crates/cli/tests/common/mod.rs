@@ -182,13 +182,18 @@ const STEP: f64 = 1.5;
 
 /// images/camF|camR|camL/camX_NNNN.jpg (frame number = position x 3, same layout as real captured data) + gps_ref.txt.
 pub fn make_dataset(root: &Path) {
+    make_dataset_n(root, NPOS);
+}
+
+/// [`make_dataset`] with `npos` positions.
+pub fn make_dataset_n(root: &Path, npos: usize) {
     let bx = boxes();
     let enu = EnuFrame::new(36.0, 127.0, 30.0);
     let mut gps = String::new();
     for cam in ["camF", "camR", "camL"] {
         std::fs::create_dir_all(root.join("images").join(cam)).unwrap();
     }
-    for p in 0..NPOS {
+    for p in 0..npos {
         let x = p as f64 * STEP;
         let specs = [
             ("camF", [x, 0.0, 15.0], [x + 4.0, 0.0, 0.0]),

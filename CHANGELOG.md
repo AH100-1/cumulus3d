@@ -8,6 +8,10 @@ This project follows [Semantic Versioning](https://semver.org/). During 0.x, min
 The date of each version is the actual work/commit date.
 
 ## Unreleased
+### Fixed
+- Backlog batching is now off by default on nodes (`ReconNode::declare()` starts with `batch` 1; opt in with `NodeBuilder::batch(n)` / `[live] batch`). On a GPU-device flight with batch 3 the stable display came out about 30x too small while batch 1 was metric; the sparse session (synthetic and real imagery, batch 1/3/mixed, lookahead 0/4, preview on/off, slow bundle adjustment, intrinsics prior) reproduces no such error on CPU, so the cause lies in a device-only path of the batch; until it is found batching stays opt-in. Lookahead is unchanged.
+### Added
+- Test `crates/cli/tests/display_scale.rs`: the span of the shown camera centres matches the GPS span within 5 % and every zone yields exactly one `Refined` delta, for batch 1/3/mixed, lookahead 0/4 and preview on/off.
 
 ## [0.11.0] — 2026-10-17
 ### Added

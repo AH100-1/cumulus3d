@@ -305,16 +305,16 @@ pub struct Live {
     pub lookahead: usize,
     /// Nodes: when this many states are waiting (the one being taken plus the queued ones), they are processed as one
     /// backlog batch ([`crate::session::Input::Batch`]); 0 = off. Applies to spawned nodes (`ReconNode::spawn`); not used with
-    /// `ReconcilePolicy::ReplayWindow`, which needs a rewind point at every position. Default 0; `ReconNode::declare()` starts with 3.
+    /// `ReconcilePolicy::ReplayWindow`, which needs a rewind point at every position. Default 0; `ReconNode::declare()` starts with 1 (off).
     pub batch: usize,
     /// Stable display: a sparse preview of every zone as soon as it closes (see [`SessionConfig::preview`]).
     pub preview: bool,
 }
 
 impl Live {
-    /// The defaults of a live node ([`crate::compose::ReconNode::declare`]): lookahead 4, batching from 3 waiting states.
+    /// The defaults of a live node ([`crate::compose::ReconNode::declare`]): lookahead 4, backlog batching off (opt in with `batch(n)`).
     pub fn live_node() -> Self {
-        Self { lookahead: 4, batch: 3, preview: false }
+        Self { lookahead: 4, batch: 1, preview: false }
     }
 }
 

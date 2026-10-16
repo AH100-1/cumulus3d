@@ -434,7 +434,7 @@ fn compose_batch_appends_every_set_and_matches_the_sequential_node() {
     for s in 0..NPOS as u64 {
         assert!(matches!(seq.compose(FrameState::ready(live_set(s))).unwrap(), Outcome::Appended { .. }));
     }
-    let bat = builder("bat").build(&host).unwrap();
+    let bat = builder("bat").batch(3).build(&host).unwrap();
     let rx = bat.subscribe().unwrap();
     let outs = bat.compose_batch((0..NPOS as u64).map(|s| FrameState::ready(live_set(s))));
     assert_eq!(outs.len(), NPOS);
@@ -464,7 +464,7 @@ fn compose_batch_appends_every_set_and_matches_the_sequential_node() {
 #[test]
 fn spawned_node_works_off_a_backlog_in_batches() {
     let host = CompositionHost::new();
-    let n = builder("spawn").backpressure(Backpressure::Unbounded).build(&host).unwrap();
+    let n = builder("spawn").batch(3).backpressure(Backpressure::Unbounded).build(&host).unwrap();
     let rx = n.subscribe().unwrap();
     let h = n.spawn();
     for s in 0..NPOS as u64 {

@@ -703,7 +703,7 @@ impl NodeBuilder {
         self.plan.live.lookahead = positions;
         self
     }
-    /// Backlog batching (default 3; 0 or 1 = off): when a spawned node finds at least `threshold` states waiting (the one it
+    /// Backlog batching (default 1 = off; 0 or 1 = off): when a spawned node finds at least `threshold` states waiting (the one it
     /// takes plus the queued ones), it processes up to 32 of them as one batch ([`ReconNode::compose_batch`]): features,
     /// matching of all pending pairs in one call, registration and triangulation once per batch (split where a zone closes), so
     /// a backlog is worked off at the cost of one triangulation instead of one per position. The result is equivalent to

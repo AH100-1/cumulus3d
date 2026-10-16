@@ -178,7 +178,7 @@ delta). 색이 바뀌거나 위치가 `POSITION_EPS` 넘게 바뀌면 이동, �
 | 옵션 | 기본값 | 하는 일 |
 |---|---|---|
 | `.lookahead(n)` | 노드 4, `Recon::run`·`cumulus3d stream` 0 (`--lookahead n`) | 큐에 있는 최대 `n` 개 위치의 특징 추출을 작업 스레드가 (한 위치의 영상은 병렬로) 앞서 해 두는 동안 앞 위치를 매칭·등록·삼각측량한다. 영상은 상태를 큐에 넣을 때(`send`) 읽으므로 파일·인코딩 페이로드가 대상이고, 원시 RGB 페이로드는 앞서 읽지 않는다(작업 스레드가 저장). 결과는 바뀌지 않는다: 영상 id, 카메라, 이벤트가 직렬 실행과 같다. |
-| `.batch(n)` | 노드 3 (0 또는 1 = 끔) | 작업 스레드가 기다리는 상태를 `n` 개 이상(가져오는 것 + 큐) 보면 최대 32 개를 밀린 일 묶음(`Input::Batch`, 또는 `node.compose_batch(states)` 직접 호출)으로 가져간다: 특징 전부, 대기 중 짝 전부를 매칭 한 번, 묶음당 등록 한 번과 삼각측량 한 번. 묶음은 구역이 닫히거나 첫 모델이 만들어지는 곳에서 나뉘어 구역이 위치 하나씩 처리할 때와 같은 체인 상태를 본다. 위치별 처리와 등록 순서 오차 범위에서 같다. `ReconcilePolicy::ReplayWindow` 에서는 꺼진다(되감기가 위치마다 상태를 요구). |
+| `.batch(n)` | 노드 1 (꺼짐; 0 또는 1 = 끔) | 작업 스레드가 기다리는 상태를 `n` 개 이상(가져오는 것 + 큐) 보면 최대 32 개를 밀린 일 묶음(`Input::Batch`, 또는 `node.compose_batch(states)` 직접 호출)으로 가져간다: 특징 전부, 대기 중 짝 전부를 매칭 한 번, 묶음당 등록 한 번과 삼각측량 한 번. 묶음은 구역이 닫히거나 첫 모델이 만들어지는 곳에서 나뉘어 구역이 위치 하나씩 처리할 때와 같은 체인 상태를 본다. 위치별 처리와 등록 순서 오차 범위에서 같다. `ReconcilePolicy::ReplayWindow` 에서는 꺼진다(되감기가 위치마다 상태를 요구). |
 | `.preview(true)` | 끔 (`--preview`) | 안정 표시 전용. 구역이 닫히는 즉시(번들 조정 전) 그 구역 고유의 등록 3D 점을 표시 좌표계에 놓아 `Event::ZonePreview { dense: false, frame: "display" }` 로 내보낸다. `.display_deltas(..)` 와 함께면 `DeltaKind::Preview` delta 로 나온다. 정제된 구역이 나중에 이를 대체한다. |
 
 계획 키: `[live] lookahead`, `batch`, `preview` (`Plan::live`, `declare::Live`). `Session` 수준: `SessionConfig::lookahead`,

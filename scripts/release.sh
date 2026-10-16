@@ -48,6 +48,8 @@ done
 
 # --- checks
 cargo fmt --all --check
+missing=$(find crates \( -name '*.rs' -o -name '*.cu' \) -not -path '*/target/*' -print0 | xargs -0 grep -L 'SPDX-License-Identifier: Apache-2.0' || true)
+if [ -n "$missing" ]; then echo "error: missing license header (CI checks this):" >&2; echo "$missing" >&2; exit 1; fi
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --release --workspace --locked
 

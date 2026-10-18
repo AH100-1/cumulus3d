@@ -38,7 +38,7 @@ Recon::declare()                    빈 계획으로 빌더 생성
 | `features` | `backend`(`cpu`/`cuda`), `max_num_features`, `max_image_size` | `cpu`, 8192, 3200 |
 | `matching` | `backend` | `cpu` |
 | `sparse` | `incremental_triangulation`, `backend`(`cpu`/`cuda`: 두 뷰 검증·정합·삼각측량), `ba_backend`(`cpu`/`cuda`: 번들 조정) | false, `cpu`, `cpu` |
-| `live` | `lookahead`(특징을 앞서 추출할 위치 수), `batch`(노드: 밀린 일 묶음 문턱), `preview`(안정 표시: 구역 희소 초벌) | 0, 0, false (`ReconNode::declare()` 는 4, 3, false 로 시작) |
+| `live` | `lookahead`(특징을 앞서 추출할 위치 수), `batch`(노드: 밀린 일 묶음 문턱), `preview`(안정 표시: 구역 희소 초벌) | 0, 0, false (`ReconNode::declare()` 는 4, 1, false 로 시작) |
 | `dense` | `enabled`, `backend`, `profile`(`fast`/`quality`), `max_image_size`, `views`, `serialize`, `depth_cache` | true, `cuda`, `fast`, 960, 10, false, false |
 | `dense.fusion` | `mode`, `min_views`, `depth_error`, `normal_error`, `reproj_error`, `residual` | 프로필 기본값 |
 | `dense.filter` | `min_views`, `geom_error`, `min_ncc`, `median` | 프로필 기본값 |

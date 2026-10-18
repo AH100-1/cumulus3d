@@ -695,7 +695,7 @@ impl NodeBuilder {
         self.plan.sparse.incremental_triangulation = on;
         self
     }
-    /// Feature lookahead (see [`SessionConfig::lookahead`], default 2; 0 = off): on a spawned node ([`ReconNode::spawn`]) the
+    /// Feature lookahead (see [`SessionConfig::lookahead`], default 4 on nodes; 0 = off): on a spawned node ([`ReconNode::spawn`]) the
     /// features of up to this many queued positions are extracted by a worker thread while earlier positions are matched,
     /// registered and triangulated, so the throughput approaches the slowest stage instead of the sum of the stages. Nothing
     /// is read ahead for sets whose payload is raw RGB pixels (their spooling stays on the worker). Results do not change.
